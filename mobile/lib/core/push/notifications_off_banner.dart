@@ -187,16 +187,16 @@ class _Strip extends StatelessWidget {
                     Text(
                       l10n.notifOffTitle,
                       style: const TextStyle(
-                        fontSize: 15,
+                        fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: AppColors.warningInk,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
                       l10n.notifOffBody,
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 14,
                         height: 1.35,
                         color: AppColors.warningInk,
                       ),
@@ -209,7 +209,7 @@ class _Strip extends StatelessWidget {
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.warning,
                   textStyle: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.w800,
                   ),
                 ),

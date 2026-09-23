@@ -501,11 +501,11 @@ class ChatMessageBubble extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: InkWell(
                   onTap: onResend,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 4,
-                      vertical: 6,
+                      vertical: 4,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -519,7 +519,7 @@ class ChatMessageBubble extends StatelessWidget {
                         Text(
                           l10n.chatNotSent,
                           style: const TextStyle(
-                            fontSize: 13,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: AppColors.danger,
                           ),
