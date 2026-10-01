@@ -599,6 +599,15 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 subtitle: 'Readings and symptoms that need a look',
                 onTap: () => context.push('/clinician/alerts'),
               ),
+              // The rebuilt Home, while it is being written. The panel around
+              // this row is unchanged; this is the only way in, deliberately,
+              // so nobody meets a half-finished screen by accident.
+              ProfileRow(
+                icon: Icons.auto_awesome_motion_outlined,
+                title: 'New Home (preview)',
+                subtitle: 'The rebuilt doctor screen, with today’s real numbers',
+                onTap: () => context.push('/clinician/home-preview'),
+              ),
               ProfileRow(
                 // Was Clinic care's fork-and-spoon, which survived the rename
                 // and put the Nutrition tab's glyph on a list of colleagues.

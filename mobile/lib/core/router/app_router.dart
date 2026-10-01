@@ -19,6 +19,7 @@ import '../../features/foodlog/presentation/food_log_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/labtests/presentation/lab_tests_screen.dart';
 import '../../features/clinician/presentation/alerts_screen.dart';
+import '../../features/doctor_home/presentation/doctor_home_screen.dart';
 import '../../features/clinician/presentation/appointments_admin_screen.dart';
 import '../../features/clinician/presentation/clinic_edit_screen.dart';
 import '../../features/clinician/presentation/clinics_screen.dart';
@@ -217,6 +218,12 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/clinician/alerts',
         builder: (context, state) => const AlertsScreen(),
+      ),
+      // The rebuilt doctor Home, on its own while it is written. It replaces
+      // nothing: the panel the clinic uses is the shell below, untouched.
+      GoRoute(
+        path: '/clinician/home-preview',
+        builder: (context, state) => const DoctorHomeScreen(),
       ),
       GoRoute(
         path: '/clinician/appointments',

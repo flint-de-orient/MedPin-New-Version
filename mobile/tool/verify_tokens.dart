@@ -27,6 +27,11 @@ const _exempt = <String>[
   'lib/core/theme/app_theme.dart',
   'lib/core/theme/app_spacing.dart',
   'lib/core/theme/app_depth.dart',
+  // The new doctor design's scale, `D`. A second definition file rather than
+  // more of `T`, because the screens drawn from `T` must keep looking exactly
+  // as they do; see the note at the top of it. Exempt for the same reason
+  // every other file here is: it is where the values are declared.
+  'lib/core/theme/doctor_tokens.dart',
   // The hero band. It holds the one figure in the app deliberately off the
   // type scale — a screen's subject that is merely one step larger than a
   // heading does not read as a subject. Exempt by name so the exception is a
