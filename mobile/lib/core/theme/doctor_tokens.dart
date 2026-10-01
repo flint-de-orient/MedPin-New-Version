@@ -167,5 +167,5 @@ class D {
   static const double tap = 48;
 
   /// The disc behind a quick action's icon.
-  static const double disc = 44;
+  static const double disc = 40;
 }

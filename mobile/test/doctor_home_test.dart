@@ -255,6 +255,17 @@ void main() {
       matching: find.byType(SizedBox),
     ).first).width;
     expect(tileWidth, greaterThan(100), reason: 'three cards across 360dp, gaps included');
+
+    // What reaches the first screen. The phone gives 720dp to the app and the
+    // bar takes about 76 of it, so 644 is what a doctor sees without
+    // scrolling. Measured under flutter_test's square stand-in font, which
+    // runs taller than Inter — so what clears the fold here clears it on the
+    // phone as well.
+    expect(
+      tester.getRect(find.text('Follow-ups')).bottom,
+      lessThan(644),
+      reason: 'both rows of quick actions should be on the first screen',
+    );
   });
 
   testWidgets('a tile with no screen behind it says so instead of opening something else', (tester) async {

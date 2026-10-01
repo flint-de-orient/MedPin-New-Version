@@ -54,19 +54,19 @@ class DoctorHomeScreen extends ConsumerWidget {
             ref.invalidate(clinicianNotificationsProvider);
           },
           child: ListView(
-            padding: EdgeInsets.fromLTRB(D.s4, D.s3, D.s4, D.s6),
+            padding: EdgeInsets.fromLTRB(D.s4, D.s2, D.s4, D.s4),
             children: [
               _Header(unread: notifications?.unread ?? 0),
-              SizedBox(height: D.s5),
+              SizedBox(height: D.s4),
               const _Greeting(),
-              SizedBox(height: D.s5),
+              SizedBox(height: D.s4),
               const _TodayStats(),
               const _EmergencyCard(),
-              SizedBox(height: D.s6),
+              SizedBox(height: D.s4),
               Text('Quick actions', style: D.section.copyWith(color: D.ink)),
-              SizedBox(height: D.s3),
+              SizedBox(height: D.s2),
               const _QuickActions(),
-              SizedBox(height: D.s6),
+              SizedBox(height: D.s4),
               const _AssistantCard(),
             ],
           ),
@@ -160,8 +160,8 @@ class _Greeting extends ConsumerWidget {
           maxLines: 2,
         ),
         SizedBox(height: D.s1),
-        Text('Good to see you again', style: D.body.copyWith(color: D.inkMuted)),
-        SizedBox(height: D.s2),
+        Text('Good to see you again', style: D.small.copyWith(color: D.inkMuted)),
+        SizedBox(height: D.s1),
         Row(
           children: [
             const Icon(Icons.calendar_today_rounded, size: D.s4, color: D.brand),
@@ -171,7 +171,7 @@ class _Greeting extends ConsumerWidget {
             Expanded(
               child: Text(
                 practice == null ? today : '$today · $practice',
-                style: D.bodyStrong.copyWith(color: D.brand),
+                style: D.small.copyWith(color: D.brand, fontWeight: FontWeight.w700),
                 maxLines: 2,
               ),
             ),
@@ -285,7 +285,7 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.s4),
+      padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.s3),
       decoration: BoxDecoration(
         color: D.card,
         borderRadius: BorderRadius.circular(D.rCard),
@@ -300,7 +300,7 @@ class _StatCard extends StatelessWidget {
             style: D.metric.copyWith(color: tone),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: D.s2),
+          SizedBox(height: D.s1),
           Text(
             label,
             style: D.caption.copyWith(color: D.inkMuted),
@@ -377,7 +377,7 @@ class _EmergencyCard extends ConsumerWidget {
     final heading = alert.severity == 'emergency' ? 'Emergency' : 'Urgent';
 
     return Padding(
-      padding: EdgeInsets.only(top: D.s4),
+      padding: EdgeInsets.only(top: D.s3),
       child: Material(
         color: D.dangerGround,
         borderRadius: BorderRadius.circular(D.rCard),
@@ -389,7 +389,7 @@ class _EmergencyCard extends ConsumerWidget {
                 : '/clinician/patients/${alert.patientId}/thread',
           ),
           child: Container(
-            padding: EdgeInsets.all(D.s4),
+            padding: EdgeInsets.all(D.s3),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(D.rCard),
               border: Border.all(color: D.dangerLine),
@@ -419,7 +419,7 @@ class _EmergencyCard extends ConsumerWidget {
                       Text(
                         alert.detail?.trim().isNotEmpty == true ? alert.detail!.trim() : alert.title,
                         style: D.small.copyWith(color: D.danger),
-                        maxLines: 3,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       SizedBox(height: D.s2),
@@ -534,7 +534,7 @@ class _ActionTile extends StatelessWidget {
           );
         },
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: D.s1, vertical: D.s4),
+          padding: EdgeInsets.symmetric(horizontal: D.s1, vertical: D.s3),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(D.rCard),
             border: Border.all(color: D.line),
@@ -551,7 +551,7 @@ class _ActionTile extends StatelessWidget {
                 ),
                 child: Icon(action.icon, color: D.brand),
               ),
-              SizedBox(height: D.s3),
+              SizedBox(height: D.s2),
               Text(
                 action.label,
                 style: D.tile.copyWith(color: D.ink),
@@ -582,7 +582,7 @@ class _AssistantCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(D.rCard),
         onTap: () => context.push('/clinician/chat-review'),
         child: Padding(
-          padding: EdgeInsets.all(D.s5),
+          padding: EdgeInsets.all(D.s4),
           child: Row(
             children: [
               Container(
@@ -621,8 +621,8 @@ class _AssistantCard extends StatelessWidget {
                     ),
                     SizedBox(height: D.s1),
                     Text(
-                      'Read what the assistant told your patients, and answer it yourself.',
-                      style: D.small.copyWith(color: D.onBrand),
+                      'Read what it told your patients, and answer it yourself.',
+                      style: D.caption.copyWith(color: D.onBrand),
                     ),
                   ],
                 ),
