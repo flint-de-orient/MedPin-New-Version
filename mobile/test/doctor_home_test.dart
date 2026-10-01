@@ -211,6 +211,52 @@ void main() {
     expect(find.text('0'), findsNWidgets(3), reason: 'an empty diary is three honest zeroes');
   });
 
+  testWidgets('on the clinic’s own phone, no label breaks inside a word', (tester) async {
+    // 720x1600 at 2x — the Infinix the clinic uses, 360dp wide. The mock-up is
+    // 390dp, and at the sizes it implies "Prescriptions" and "appointments"
+    // split down the middle of the word.
+    tester.view.physicalSize = const Size(720, 1600);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          secureStoreProvider.overrideWithValue(_NoSession()),
+          apiClientProvider.overrideWithValue(_NoUploads()),
+          imageAuthHeaderProvider.overrideWith((ref) async => {}),
+          clinicianRepositoryProvider.overrideWithValue(_Clinic(appointments: [_appointment('confirmed')])),
+          careContactProvider.overrideWith((ref) async => const CareContact(practiceName: "Dr. Dey's Diabetes Obesity & Metabolic Clinic", phone: null)),
+        ],
+        child: MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const DoctorHomeScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    // Nothing overflows its card, and nothing is laid out off the screen.
+    expect(tester.takeException(), isNull);
+    for (final label in ['Prescriptions', 'Start consultation', 'Total\nappointments']) {
+      final box = tester.getRect(find.text(label));
+      expect(box.left, greaterThanOrEqualTo(0));
+      expect(box.right, lessThanOrEqualTo(360));
+    }
+
+    // Each quick action keeps a third of the row, less the gaps. How many
+    // lines the label then takes is the font's business, and the test font
+    // here is not the font on the phone — that part is read on the device.
+    final tileWidth = tester.getSize(find.ancestor(
+      of: find.text('Prescriptions'),
+      matching: find.byType(SizedBox),
+    ).first).width;
+    expect(tileWidth, greaterThan(100), reason: 'three cards across 360dp, gaps included');
+  });
+
   testWidgets('a tile with no screen behind it says so instead of opening something else', (tester) async {
     await _pump(tester, _Clinic());
 

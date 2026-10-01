@@ -54,7 +54,7 @@ class DoctorHomeScreen extends ConsumerWidget {
             ref.invalidate(clinicianNotificationsProvider);
           },
           child: ListView(
-            padding: EdgeInsets.fromLTRB(D.s5, D.s3, D.s5, D.s6),
+            padding: EdgeInsets.fromLTRB(D.s4, D.s3, D.s4, D.s6),
             children: [
               _Header(unread: notifications?.unread ?? 0),
               SizedBox(height: D.s5),
@@ -90,7 +90,7 @@ class _Header extends ConsumerWidget {
 
     return Row(
       children: [
-        const AppLogo(size: D.s8),
+        const AppWordmark(height: D.s8),
         const Spacer(),
         Semantics(
           button: true,
@@ -285,7 +285,7 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: D.s3, vertical: D.s4),
+      padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.s4),
       decoration: BoxDecoration(
         color: D.card,
         borderRadius: BorderRadius.circular(D.rCard),
@@ -303,7 +303,7 @@ class _StatCard extends StatelessWidget {
           SizedBox(height: D.s2),
           Text(
             label,
-            style: D.small.copyWith(color: D.inkMuted),
+            style: D.caption.copyWith(color: D.inkMuted),
             textAlign: TextAlign.center,
           ),
         ],
@@ -481,9 +481,9 @@ class _QuickActions extends StatelessWidget {
       builder: (context, constraints) {
         // Three across on a phone, two when the text is scaled far up and
         // three would clip the longest label ("Start consultation").
-        final scale = MediaQuery.textScalerOf(context).scale(D.small.fontSize!) / D.small.fontSize!;
+        final scale = MediaQuery.textScalerOf(context).scale(D.tile.fontSize!) / D.tile.fontSize!;
         final columns = scale > 1.3 ? 2 : 3;
-        final gap = D.s3;
+        final gap = D.s2;
         final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
 
         return Wrap(
@@ -534,7 +534,7 @@ class _ActionTile extends StatelessWidget {
           );
         },
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.s4),
+          padding: EdgeInsets.symmetric(horizontal: D.s1, vertical: D.s4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(D.rCard),
             border: Border.all(color: D.line),
@@ -554,7 +554,7 @@ class _ActionTile extends StatelessWidget {
               SizedBox(height: D.s3),
               Text(
                 action.label,
-                style: D.bodyStrong.copyWith(color: D.ink),
+                style: D.tile.copyWith(color: D.ink),
                 textAlign: TextAlign.center,
               ),
             ],

@@ -37,17 +37,21 @@ class D {
   // Six sizes. 16 is the floor for anything a patient-facing clinician reads
   // at arm's length between consultations; 12 is for captions only.
 
-  /// 32/1.1 heavy — "Hi, Dr. Sen". One per screen.
+  /// 28/1.1 heavy — "Hi, Dr. Sen". One per screen.
+  ///
+  /// 32 on the mock-up, which is 390dp wide. The clinic's phones are 360dp,
+  /// where 32 pushed a real name ("Dr. Amit Kumar Dey") onto three lines and
+  /// left the screen looking zoomed in.
   static const TextStyle greeting = TextStyle(
-    fontSize: 32,
+    fontSize: 28,
     height: 1.1,
     fontWeight: FontWeight.w800,
     letterSpacing: -0.5,
   );
 
-  /// 28/1.0 heavy — a stat card's number, the biggest thing in it.
+  /// 24/1.0 heavy — a stat card's number, the biggest thing in it.
   static const TextStyle metric = TextStyle(
-    fontSize: 28,
+    fontSize: 24,
     height: 1,
     fontWeight: FontWeight.w800,
     letterSpacing: -0.5,
@@ -71,8 +75,25 @@ class D {
     fontWeight: FontWeight.w700,
   );
 
-  /// 14/1.35 — secondary prose, a stat card's label.
+  /// 14/1.35 — secondary prose, and a quick action's label.
   static const TextStyle small = TextStyle(fontSize: 14, height: 1.35);
+
+  /// 13/1.3 bold — a quick action's label, two short lines at most.
+  ///
+  /// The one size off the scale, and measured rather than chosen. Three cards
+  /// across a 360dp phone leave 96dp inside a card, and "Prescriptions" needs
+  /// 100 at 14 and 93 at 13. At 16 — the mock-up's size, drawn for a 390dp
+  /// screen — it broke in the middle of the word, which is how the clinic
+  /// first saw it: "Prescriptio / ns".
+  static const TextStyle tile = TextStyle(
+    fontSize: 13,
+    height: 1.3,
+    fontWeight: FontWeight.w700,
+  );
+
+  /// 12/1.3 — a stat card's label under its number. Same reason as [tile]:
+  /// "appointments" does not fit a third of the screen at 14.
+  static const TextStyle caption = TextStyle(fontSize: 12, height: 1.3);
 
   /// 12/1.2 semibold — the bar's labels, a chip, a count.
   static const TextStyle label = TextStyle(
