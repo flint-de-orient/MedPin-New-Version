@@ -2,27 +2,36 @@ import 'package:flutter/material.dart';
 
 /// The new doctor design's scale: `D`.
 ///
+/// ---- Taken from the artboards, not guessed ---------------------------------
+///
+/// Every value here is read off the design canvas ("Medpin App",
+/// Doctor-Dashboard and its siblings): the artboards are 390 x 980, set in
+/// Figtree, on the colours this app already uses — #003399 and the same inks,
+/// lines and clinical reds and greens. So the design is not a repaint; it is
+/// the same palette in a lighter, rounder frame.
+///
 /// ---- Why a second token file and not more of `T` ---------------------------
 ///
-/// The app you have today is drawn from `T` (core/theme/tokens.dart) and must
-/// keep looking exactly as it does. The new doctor screens are a different
-/// design — lighter ground, larger cards, a floating bar — and folding their
-/// values into `T` would change screens nobody asked to change.
+/// The patient, dietician and desk screens are drawn from `T`
+/// (core/theme/tokens.dart) and must keep looking exactly as they do. Folding
+/// these values into `T` would change screens nobody asked to change. One file,
+/// named for what it is, listed in tool/verify_tokens.dart's exemptions beside
+/// `T`'s own — a raw value in a widget still fails the build.
 ///
-/// So: one file, named for what it is, listed in tool/verify_tokens.dart's
-/// exemptions beside `T`'s own. Everything the new screens draw comes from
-/// here; a raw value in a widget still fails the build, which is the whole
-/// point of the ratchet.
+/// ---- 390 drawn, 360 held ---------------------------------------------------
 ///
-/// When the new design replaces the old one, this file becomes the scale and
-/// `T` goes — not the other way round.
+/// The artboards are 390dp wide; the clinic's phones are 360. Sizes here are
+/// the artboard's. Where 30dp of missing width would split a word, the screen
+/// takes it out of padding, never out of the type.
 class D {
   const D._();
 
+  /// Figtree, as the design is set. Bundled, not fetched: a clinic's phone is
+  /// often on a weak connection and a font that arrives late is a screen that
+  /// reflows under the doctor's thumb.
+  static const String family = 'Figtree';
+
   // ============================================================== spacing
-  //
-  // The same 4px grid the rest of the app is on. A gap that "needs" 13 needs
-  // 12 or 16.
 
   static const double s1 = 4;
   static const double s2 = 8;
@@ -32,140 +41,148 @@ class D {
   static const double s6 = 24;
   static const double s8 = 32;
 
+  /// The artboard's own in-between steps: a card's inside, the gap under an
+  /// icon, the space between a mark and what it marks.
+  static const double gapTight = 6;
+  static const double gapIcon = 10;
+  static const double cardPad = 14;
+  static const double cardPadLg = 18;
+
   // ================================================================= type
-  //
-  // Six sizes. 16 is the floor for anything a patient-facing clinician reads
-  // at arm's length between consultations; 12 is for captions only.
 
-  /// 28/1.1 heavy — "Hi, Dr. Sen". One per screen.
-  ///
-  /// 32 on the mock-up, which is 390dp wide. The clinic's phones are 360dp,
-  /// where 32 pushed a real name ("Dr. Amit Kumar Dey") onto three lines and
-  /// left the screen looking zoomed in.
-  static const TextStyle greeting = TextStyle(
-    fontSize: 28,
-    height: 1.1,
-    fontWeight: FontWeight.w800,
-    letterSpacing: -0.5,
+  static TextStyle _f(double size, double h, int weight, {double spacing = 0}) => TextStyle(
+    fontFamily: family,
+    fontSize: size,
+    height: h,
+    fontWeight: FontWeight.values[(weight ~/ 100) - 1],
+    fontVariations: [FontVariation('wght', weight.toDouble())],
+    letterSpacing: spacing,
   );
 
-  /// 24/1.0 heavy — a stat card's number, the biggest thing in it.
-  static const TextStyle metric = TextStyle(
-    fontSize: 24,
-    height: 1,
-    fontWeight: FontWeight.w800,
-    letterSpacing: -0.5,
+  /// 28/1.15 heavy — "Hi, Dr. Sen". One per screen.
+  static final TextStyle greeting = _f(28, 1.15, 800, spacing: -0.56);
+
+  /// 15/1.3 — the line under it.
+  static final TextStyle subtitle = _f(15, 1.3, 400);
+
+  /// 14/1.3 semibold — the date and clinic, in brand blue.
+  static final TextStyle dateLine = _f(14, 1.3, 600);
+
+  /// 30/1 heavy — a stat card's number, tabular so three cards line up.
+  static final TextStyle metric = _f(30, 1, 800, spacing: -0.6).copyWith(
+    fontFeatures: const [FontFeature.tabularFigures()],
   );
 
-  /// 20/1.25 heavy — a section heading ("Quick actions").
-  static const TextStyle section = TextStyle(
-    fontSize: 20,
-    height: 1.25,
-    fontWeight: FontWeight.w800,
-    letterSpacing: -0.2,
-  );
+  /// 13/1.3 — a stat card's label under its number.
+  static final TextStyle statLabel = _f(13, 1.3, 400);
 
-  /// 16/1.4 — body, and a tile's label.
-  static const TextStyle body = TextStyle(fontSize: 16, height: 1.4);
+  /// 18/1.25 bold — a section heading ("Quick actions").
+  static final TextStyle section = _f(18, 1.25, 700);
 
-  /// 16/1.3 semibold — a card's own title.
-  static const TextStyle bodyStrong = TextStyle(
-    fontSize: 16,
-    height: 1.3,
-    fontWeight: FontWeight.w700,
-  );
+  /// 17/1.3 bold — a card's own title ("Emergency · Priya Sharma").
+  static final TextStyle cardTitle = _f(17, 1.3, 700);
 
-  /// 14/1.35 — secondary prose, and a quick action's label.
-  static const TextStyle small = TextStyle(fontSize: 14, height: 1.35);
+  /// 14/1.5 — a card's prose.
+  static final TextStyle body = _f(14, 1.5, 400);
 
-  /// 13/1.3 bold — a quick action's label, two short lines at most.
-  ///
-  /// The one size off the scale, and measured rather than chosen. Three cards
-  /// across a 360dp phone leave 96dp inside a card, and "Prescriptions" needs
-  /// 100 at 14 and 93 at 13. At 16 — the mock-up's size, drawn for a 390dp
-  /// screen — it broke in the middle of the word, which is how the clinic
-  /// first saw it: "Prescriptio / ns".
-  static const TextStyle tile = TextStyle(
-    fontSize: 13,
-    height: 1.3,
-    fontWeight: FontWeight.w700,
-  );
+  /// 14/1.5 semibold — the red line under an emergency, a card's own action.
+  static final TextStyle bodyStrong = _f(14, 1.5, 600);
 
-  /// 12/1.3 — a stat card's label under its number. Same reason as [tile]:
-  /// "appointments" does not fit a third of the screen at 14.
-  static const TextStyle caption = TextStyle(fontSize: 12, height: 1.3);
+  /// 14/1.25 semibold — a quick action's label, two short lines at most.
+  static final TextStyle tile = _f(14, 1.25, 600);
 
-  /// 12/1.2 semibold — the bar's labels, a chip, a count.
-  static const TextStyle label = TextStyle(
-    fontSize: 12,
-    height: 1.2,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0.2,
-  );
+  /// 12/1.3 — small print.
+  static final TextStyle caption = _f(12, 1.3, 400);
+
+  /// 11/1.2 — the bar's labels, and a chip.
+  static final TextStyle navLabel = _f(11, 1.2, 600);
+  static final TextStyle navLabelOn = _f(11, 1.2, 700);
+  static final TextStyle chip = _f(11, 1.2, 800, spacing: 0.66);
+
+  /// 11/1.2 bold — a count nobody has read.
+  static final TextStyle badgeText = _f(11, 1.2, 700);
 
   // =============================================================== colour
-  //
-  // One brand blue, one tint of it, three inks, and the clinical semantics.
-  // Nothing decorative: a colour on this screen always means something.
 
-  /// The brand, as the rest of the app already has it.
   static const Color brand = Color(0xFF003399);
+  static const Color brandTint = Color(0xFFEBF1FB);
 
-  /// The disc behind a quick action's icon, and the bar's active pill.
-  static const Color brandTint = Color(0xFFE8F0FD);
-
-  /// The page itself — a very light blue-grey the white cards sit on.
-  static const Color ground = Color(0xFFF3F6FB);
+  static const Color ground = Color(0xFFF7F9FC);
   static const Color card = Color(0xFFFFFFFF);
-  static const Color line = Color(0xFFE6ECF5);
+  static const Color line = Color(0xFFE5E9F0);
 
-  static const Color ink = Color(0xFF0A1B33);
-  static const Color inkMuted = Color(0xFF5A6B84);
-  static const Color inkFaint = Color(0xFF8795AB);
+  static const Color ink = Color(0xFF111827);
+  static const Color inkMuted = Color(0xFF545E72);
+  static const Color inkFaint = Color(0xFF69738A);
 
-  /// Waiting, and done. Both carry a word as well as a colour — red-green
-  /// deficiency is common among these patients' doctors too.
+  /// Waiting, and done. Each carries a word as well as a colour.
   static const Color pending = Color(0xFFB45309);
   static const Color done = Color(0xFF076B3C);
 
-  /// An emergency: its card, its edge, the disc its mark sits on, its words.
+  /// An emergency: its card, its edge, the disc its mark sits on, its words,
+  /// and the faint separator between the time and "Review now".
   static const Color dangerGround = Color(0xFFFDECEC);
-  static const Color dangerLine = Color(0xFFF3C9C9);
-  static const Color dangerMark = Color(0xFFC21C1C);
-  static const Color danger = Color(0xFFB4211F);
+  static const Color dangerLine = Color(0xFFF3C4C4);
+  static const Color dangerMark = Color(0xFFB91C1C);
+  static const Color danger = Color(0xFFB91C1C);
+  static const Color dangerFaint = Color(0xFFD5A0A0);
 
-  /// A count nobody has read yet.
-  static const Color badge = Color(0xFFD92D20);
   static const Color onBrand = Color(0xFFFFFFFF);
+
+  /// On the brand card: the assistant's tile, its edge, its prose.
+  static const Color onBrandTile = Color(0x1FFFFFFF);
+  static const Color onBrandTileLine = Color(0x38FFFFFF);
+  static const Color onBrandChip = Color(0x29FFFFFF);
+  static const Color onBrandChipLine = Color(0x47FFFFFF);
+  static const Color onBrandProse = Color(0xD1FFFFFF);
 
   // ================================================================ shape
 
-  /// A card: the stat cards, the emergency card, a quick action.
-  static const double rCard = 20;
-
-  /// Inside a card: the icon disc, a chip.
-  static const double rInner = 16;
-
-  /// The floating bar at the foot of the screen.
+  /// A card: stats, quick actions. 20 for the two wide ones, 28 for the bar.
+  static const double rCard = 16;
+  static const double rCardLg = 20;
+  static const double rMark = 14;
+  static const double rMarkLg = 16;
   static const double rBar = 28;
-
-  /// A count, a "NEW" chip.
+  static const double rBarItem = 22;
+  static const double rChip = 6;
   static const BorderRadius rPill = BorderRadius.all(Radius.circular(999));
 
-  /// One soft shadow, one light source, used only where a card lifts off the
-  /// ground. The bar gets a slightly deeper one because it floats over content.
+  /// One light source. The cards barely lift; the brand card and the bar carry
+  /// the design's deeper blue shadow.
   static const List<BoxShadow> lift = [
-    BoxShadow(color: Color(0x0D0A1B33), blurRadius: 16, offset: Offset(0, 6)),
+    BoxShadow(color: Color(0x0D003399), blurRadius: 2, offset: Offset(0, 1)),
+    BoxShadow(color: Color(0x0A003399), blurRadius: 3, offset: Offset(0, 1)),
+  ];
+  static const List<BoxShadow> liftBrand = [
+    BoxShadow(color: Color(0x38003399), blurRadius: 24, offset: Offset(0, 8)),
   ];
   static const List<BoxShadow> liftBar = [
-    BoxShadow(color: Color(0x140A1B33), blurRadius: 24, offset: Offset(0, 8)),
+    BoxShadow(color: Color(0x1A003399), blurRadius: 24, offset: Offset(0, 8)),
   ];
 
   // ================================================================= size
 
   /// Nothing tappable is smaller than this.
-  static const double tap = 48;
+  static const double tap = 44;
 
-  /// The disc behind a quick action's icon.
-  static const double disc = 40;
+  /// The logo's height, and the discs: the header's buttons, a quick action's
+  /// icon, the emergency's mark, the assistant's tile.
+  static const double logo = 36;
+  static const double disc = 48;
+  static const double discLg = 52;
+
+  /// A quick action is at least this tall, and the bar is exactly this.
+  static const double tileMin = 112;
+  static const double bar = 64;
+
+  /// A count: never narrower than this, however few digits.
+  static const double badgeMin = 18;
+
+  static const double iconSm = 14;
+  static const double icon = 16;
+  static const double iconMd = 18;
+  static const double iconLg = 20;
+  static const double iconDisc = 22;
+  static const double iconMark = 24;
 }

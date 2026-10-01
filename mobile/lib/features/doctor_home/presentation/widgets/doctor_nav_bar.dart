@@ -18,21 +18,20 @@ class DoctorNavItem {
   final String label;
 
   /// A number worth acting on — unread patient messages. Drawn when above zero
-  /// and never as a bare dot, because "how many" is the thing a doctor decides
-  /// on between consultations.
+  /// and never as a bare dot: "how many" is what a doctor decides on between
+  /// consultations.
   final int badge;
 
-  /// Something is there, and the count would be meaningless — an update
-  /// waiting to be installed.
+  /// Something is there and a count would mean nothing — an update waiting.
   final bool showDot;
 }
 
-/// The doctor's bar in the new design: a white bar that floats over the page,
-/// the place you are in lit behind its icon.
+/// The doctor's bar, as the design canvas draws it: white, floating over the
+/// page, 64 tall with 28 corners, the place you are in lit behind its icon.
 ///
-/// Only the doctor's shell uses it. The patient app keeps the glass bar it has
-/// always had — this is the doctor panel's rebuild, and nobody asked for their
-/// screens to move under them.
+/// Only the doctor's shell uses it. The patient and dietician apps keep the
+/// glass bar they have always had — this is the doctor panel's rebuild, and
+/// nobody asked for their screens to move under them.
 class DoctorNavBar extends StatelessWidget {
   const DoctorNavBar({
     super.key,
@@ -50,9 +49,10 @@ class DoctorNavBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(D.s4, 0, D.s4, D.s3),
+        padding: EdgeInsets.fromLTRB(D.s4, 0, D.s4, D.s6),
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.s2),
+          height: D.bar,
+          padding: EdgeInsets.all(D.gapTight),
           decoration: BoxDecoration(
             color: D.card,
             borderRadius: BorderRadius.circular(D.rBar),
@@ -61,7 +61,8 @@ class DoctorNavBar extends StatelessWidget {
           ),
           child: Row(
             children: [
-              for (var i = 0; i < items.length; i++)
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) SizedBox(width: D.s1 / 2),
                 Expanded(
                   child: _BarItem(
                     item: items[i],
@@ -69,6 +70,7 @@ class DoctorNavBar extends StatelessWidget {
                     onTap: () => onSelected(i),
                   ),
                 ),
+              ],
             ],
           ),
         ),
@@ -92,56 +94,64 @@ class _BarItem extends StatelessWidget {
       button: true,
       selected: active,
       label: item.badge > 0 ? '${item.label}, ${item.badge} unread' : item.label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(D.rInner),
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: D.s2),
+      child: Material(
+        color: active ? D.brandTint : Colors.transparent,
+        borderRadius: BorderRadius.circular(D.rBarItem),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(D.rBarItem),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: D.s4, vertical: D.s1),
-                decoration: BoxDecoration(
-                  color: active ? D.brandTint : null,
-                  borderRadius: D.rPill,
-                ),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Icon(active ? item.selectedIcon : item.icon, color: colour),
-                    if (item.badge > 0)
-                      Positioned(
-                        top: -D.s2,
-                        right: -D.s3,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: D.s1),
-                          constraints: const BoxConstraints(minWidth: D.s4),
-                          decoration: const BoxDecoration(color: D.badge, borderRadius: D.rPill),
-                          child: Text(
-                            item.badge > 99 ? '99+' : '${item.badge}',
-                            textAlign: TextAlign.center,
-                            style: D.label.copyWith(color: D.onBrand),
-                          ),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    active ? item.selectedIcon : item.icon,
+                    size: D.iconDisc,
+                    color: colour,
+                  ),
+                  if (item.badge > 0)
+                    Positioned(
+                      top: -D.gapTight,
+                      left: D.s3,
+                      child: Container(
+                        height: D.badgeMin,
+                        constraints: const BoxConstraints(minWidth: D.badgeMin),
+                        padding: EdgeInsets.symmetric(horizontal: D.s1),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: D.brand,
+                          borderRadius: D.rPill,
+                          border: Border.all(color: D.card, width: 2),
                         ),
-                      )
-                    else if (item.showDot)
-                      Positioned(
-                        top: -D.s1,
-                        right: -D.s1,
-                        child: Container(
-                          width: D.s2,
-                          height: D.s2,
-                          decoration: const BoxDecoration(color: D.badge, shape: BoxShape.circle),
+                        child: Text(
+                          item.badge > 99 ? '99+' : '${item.badge}',
+                          textAlign: TextAlign.center,
+                          style: D.badgeText.copyWith(color: D.onBrand),
                         ),
                       ),
-                  ],
-                ),
+                    )
+                  else if (item.showDot)
+                    Positioned(
+                      top: -D.s1 / 2,
+                      right: -D.s1 / 2,
+                      child: Container(
+                        width: D.s2,
+                        height: D.s2,
+                        decoration: BoxDecoration(
+                          color: D.danger,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: D.card, width: 2),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              SizedBox(height: D.s1),
+              SizedBox(height: D.s1 / 2),
               Text(
                 item.label,
-                style: D.label.copyWith(color: colour),
+                style: (active ? D.navLabelOn : D.navLabel).copyWith(color: colour),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),

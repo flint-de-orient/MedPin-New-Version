@@ -12,30 +12,27 @@ import '../../clinician/domain/appointment.dart';
 import '../../clinician/domain/clinician_models.dart';
 import '../../clinician/presentation/clinician_providers.dart';
 
-/// The doctor's day, in the new design.
+/// The doctor's day, drawn from the design canvas's Doctor-Dashboard artboard.
 ///
-/// ---- What this is ----------------------------------------------------------
+/// ---- Measured from the artboard ---------------------------------------------
 ///
-/// The doctor panel's Home, drawn from `D` (core/theme/doctor_tokens.dart) and
-/// reading today's server, so what it shows is this clinic's real day rather
-/// than a mock-up's numbers. It sits in the doctor's shell, which draws the bar
-/// beneath it (widgets/doctor_nav_bar.dart).
+/// Every size, colour and radius here is the artboard's: 28 for the greeting,
+/// 30 for a number, 13 for its label, cards at 16 and the two wide ones at 20,
+/// discs at 48, the bar 64 tall at 28. The artboard is 390dp wide and the
+/// clinic's phones are 360, so where those 30dp would split a word the screen
+/// takes it out of padding rather than out of the type.
+///
+/// ---- Everything on it is this clinic's own day ------------------------------
+///
+/// The three numbers are today's diary counted three ways, the red card is the
+/// open emergency, the bell's dot and the bar's count are what is waiting. No
+/// number here is decoration: if the server has not answered yet the cards hold
+/// their shape and show "—", because a zero that means "not known" reads as an
+/// empty clinic.
 ///
 /// Home shows this and nothing else, as asked. The clinical cards that used to
-/// be here — blood-pressure control, follow-ups, recent labs, chat summaries —
-/// are not lost: they are the old Home, kept at `/clinician/clinical-cards` and
-/// reached from More, until the new design has screens of its own for them.
-///
-/// ---- Every number here is one the server actually answers ------------------
-///
-/// The three counts are today's diary, counted three ways, so they add up on
-/// screen: everything booked today, the ones still to be seen, the ones seen.
-/// A cancellation and a no-show are in none of them — a clinic's "12 today" is
-/// twelve people expected, not twelve rows.
-///
-/// Two of the six quick actions have no screen in this build yet. They say so
-/// when tapped rather than opening the nearest thing and leaving the doctor to
-/// work out why it is not what the tile said.
+/// be here are the old Home, kept at `/clinician/clinical-cards` and reached
+/// from More, until the new design has screens of its own for them.
 class DoctorHomeScreen extends ConsumerWidget {
   const DoctorHomeScreen({super.key});
 
@@ -54,19 +51,19 @@ class DoctorHomeScreen extends ConsumerWidget {
             ref.invalidate(clinicianNotificationsProvider);
           },
           child: ListView(
-            padding: EdgeInsets.fromLTRB(D.s4, D.s2, D.s4, D.s4),
+            padding: EdgeInsets.fromLTRB(D.s5, D.s4, D.s5, D.s5),
             children: [
               _Header(unread: notifications?.unread ?? 0),
-              SizedBox(height: D.s4),
+              SizedBox(height: D.s5),
               const _Greeting(),
-              SizedBox(height: D.s4),
+              SizedBox(height: D.s5),
               const _TodayStats(),
               const _EmergencyCard(),
-              SizedBox(height: D.s4),
+              SizedBox(height: D.s5),
               Text('Quick actions', style: D.section.copyWith(color: D.ink)),
-              SizedBox(height: D.s2),
+              SizedBox(height: D.s3),
               const _QuickActions(),
-              SizedBox(height: D.s4),
+              SizedBox(height: D.s5),
               const _AssistantCard(),
             ],
           ),
@@ -76,7 +73,7 @@ class DoctorHomeScreen extends ConsumerWidget {
   }
 }
 
-/// The logo, the bell and the doctor's own photo.
+/// The wordmark, the bell and the doctor's own photo.
 class _Header extends ConsumerWidget {
   const _Header({required this.unread});
 
@@ -90,34 +87,38 @@ class _Header extends ConsumerWidget {
 
     return Row(
       children: [
-        const AppWordmark(height: D.s8),
+        const AppWordmark(height: D.logo),
         const Spacer(),
         Semantics(
           button: true,
-          label: unread > 0 ? '$unread waiting' : 'Nothing waiting',
+          label: unread > 0 ? 'Notifications, $unread waiting' : 'Notifications',
           child: InkWell(
             onTap: () => context.push('/clinician/alerts'),
             customBorder: const CircleBorder(),
             child: Container(
               width: D.tap,
               height: D.tap,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: D.card,
                 shape: BoxShape.circle,
-                boxShadow: D.lift,
+                border: Border.all(color: D.line),
               ),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  const Icon(Icons.notifications_none_rounded, color: D.ink),
+                  const Icon(Icons.notifications_none_rounded, size: D.iconLg, color: D.ink),
                   if (unread > 0)
                     Positioned(
-                      top: D.s3,
-                      right: D.s3,
+                      top: D.gapTight,
+                      right: D.gapIcon,
                       child: Container(
                         width: D.s2,
                         height: D.s2,
-                        decoration: const BoxDecoration(color: D.badge, shape: BoxShape.circle),
+                        decoration: BoxDecoration(
+                          color: D.danger,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: D.card, width: 2),
+                        ),
                       ),
                     ),
                 ],
@@ -125,15 +126,19 @@ class _Header extends ConsumerWidget {
             ),
           ),
         ),
-        SizedBox(width: D.s3),
-        InkWell(
-          onTap: () => context.push('/clinician/more'),
-          customBorder: const CircleBorder(),
-          child: UserAvatar(
-            name: user?.name ?? '',
-            avatarUrl: user?.avatarUrl,
-            accent: D.brand,
-            size: D.tap,
+        SizedBox(width: D.s2),
+        Semantics(
+          button: true,
+          label: 'Profile',
+          child: InkWell(
+            onTap: () => context.push('/clinician/more'),
+            customBorder: const CircleBorder(),
+            child: UserAvatar(
+              name: user?.name ?? '',
+              avatarUrl: user?.avatarUrl,
+              accent: D.brand,
+              size: D.tap,
+            ),
           ),
         ),
       ],
@@ -160,18 +165,22 @@ class _Greeting extends ConsumerWidget {
           maxLines: 2,
         ),
         SizedBox(height: D.s1),
-        Text('Good to see you again', style: D.small.copyWith(color: D.inkMuted)),
+        Text('Good to see you again', style: D.subtitle.copyWith(color: D.inkMuted)),
         SizedBox(height: D.s1),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.calendar_today_rounded, size: D.s4, color: D.brand),
+            Padding(
+              padding: EdgeInsets.only(top: D.s1 / 2),
+              child: const Icon(Icons.calendar_today_rounded, size: D.icon, color: D.brand),
+            ),
             SizedBox(width: D.s2),
             // The practice is left out until it has loaded, rather than
             // standing in with a placeholder nobody can tell from a name.
             Expanded(
               child: Text(
                 practice == null ? today : '$today · $practice',
-                style: D.small.copyWith(color: D.brand, fontWeight: FontWeight.w700),
+                style: D.dateLine.copyWith(color: D.brand),
                 maxLines: 2,
               ),
             ),
@@ -249,24 +258,27 @@ class _StatsRow extends StatelessWidget {
           Expanded(
             child: _StatCard(
               value: counts?.total,
-              label: 'Total\nappointments',
+              label: 'Total appointments',
               tone: D.ink,
+              route: '/clinician/appointments',
             ),
           ),
-          SizedBox(width: D.s3),
+          SizedBox(width: D.s2),
           Expanded(
             child: _StatCard(
               value: counts?.pending,
-              label: 'Pending\nconsultations',
+              label: 'Pending consultations',
               tone: D.pending,
+              route: '/clinician/appointments',
             ),
           ),
-          SizedBox(width: D.s3),
+          SizedBox(width: D.s2),
           Expanded(
             child: _StatCard(
               value: counts?.completed,
-              label: 'Completed\nconsultations',
+              label: 'Completed consultations',
               tone: D.done,
+              route: '/clinician/appointments',
             ),
           ),
         ],
@@ -276,37 +288,50 @@ class _StatsRow extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.value, required this.label, required this.tone});
+  const _StatCard({
+    required this.value,
+    required this.label,
+    required this.tone,
+    required this.route,
+  });
 
   final int? value;
   final String label;
   final Color tone;
+  final String route;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.s3),
-      decoration: BoxDecoration(
-        color: D.card,
+    return Material(
+      color: D.card,
+      borderRadius: BorderRadius.circular(D.rCard),
+      child: InkWell(
         borderRadius: BorderRadius.circular(D.rCard),
-        border: Border.all(color: D.line),
-        boxShadow: D.lift,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value?.toString() ?? '—',
-            style: D.metric.copyWith(color: tone),
-            textAlign: TextAlign.center,
+        onTap: () => context.push(route),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.cardPad),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(D.rCard),
+            border: Border.all(color: D.line),
+            boxShadow: D.lift,
           ),
-          SizedBox(height: D.s1),
-          Text(
-            label,
-            style: D.caption.copyWith(color: D.inkMuted),
-            textAlign: TextAlign.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value?.toString() ?? '—',
+                style: D.metric.copyWith(color: tone),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: D.gapTight),
+              Text(
+                label,
+                style: D.statLabel.copyWith(color: D.inkMuted),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -320,7 +345,7 @@ class _StatsFailed extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(D.s4),
+      padding: EdgeInsets.all(D.cardPad),
       decoration: BoxDecoration(
         color: D.card,
         borderRadius: BorderRadius.circular(D.rCard),
@@ -334,7 +359,7 @@ class _StatsFailed extends StatelessWidget {
               style: D.body.copyWith(color: D.inkMuted),
             ),
           ),
-          TextButton(onPressed: onRetry, child: const Text('Try again')),
+          TextButton(onPressed: onRetry, child: Text('Try again', style: D.bodyStrong)),
         ],
       ),
     );
@@ -375,23 +400,24 @@ class _EmergencyCard extends ConsumerWidget {
     final alert = urgent.first;
     final patient = alert.patientName;
     final heading = alert.severity == 'emergency' ? 'Emergency' : 'Urgent';
+    final said = alert.detail?.trim();
 
     return Padding(
-      padding: EdgeInsets.only(top: D.s3),
+      padding: EdgeInsets.only(top: D.s5),
       child: Material(
         color: D.dangerGround,
-        borderRadius: BorderRadius.circular(D.rCard),
+        borderRadius: BorderRadius.circular(D.rCardLg),
         child: InkWell(
-          borderRadius: BorderRadius.circular(D.rCard),
+          borderRadius: BorderRadius.circular(D.rCardLg),
           onTap: () => context.push(
             alert.patientId == null
                 ? '/clinician/alerts'
                 : '/clinician/patients/${alert.patientId}/thread',
           ),
           child: Container(
-            padding: EdgeInsets.all(D.s3),
+            padding: EdgeInsets.all(D.cardPadLg),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(D.rCard),
+              borderRadius: BorderRadius.circular(D.rCardLg),
               border: Border.all(color: D.dangerLine),
             ),
             child: Row(
@@ -402,36 +428,65 @@ class _EmergencyCard extends ConsumerWidget {
                   height: D.disc,
                   decoration: BoxDecoration(
                     color: D.dangerMark,
-                    borderRadius: BorderRadius.circular(D.rInner),
+                    borderRadius: BorderRadius.circular(D.rMark),
                   ),
-                  child: const Icon(Icons.priority_high_rounded, color: D.onBrand),
+                  child: const Icon(Icons.priority_high_rounded, size: D.iconMark, color: D.onBrand),
                 ),
-                SizedBox(width: D.s3),
+                SizedBox(width: D.cardPad),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        patient == null ? heading : '$heading · $patient',
-                        style: D.bodyStrong.copyWith(color: D.danger),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              patient == null ? heading : '$heading · $patient',
+                              style: D.cardTitle.copyWith(color: D.ink),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          SizedBox(width: D.s2),
+                          const Icon(Icons.chevron_right_rounded, size: D.iconMd, color: D.danger),
+                        ],
                       ),
-                      SizedBox(height: D.s1),
-                      Text(
-                        alert.detail?.trim().isNotEmpty == true ? alert.detail!.trim() : alert.title,
-                        style: D.small.copyWith(color: D.danger),
+                      SizedBox(height: D.gapTight),
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(text: '$heading message: ', style: D.body.copyWith(color: D.inkMuted)),
+                            TextSpan(
+                              text: said == null || said.isEmpty ? alert.title : '“$said”',
+                              style: D.body.copyWith(color: D.ink),
+                            ),
+                          ],
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      SizedBox(height: D.s2),
+                      SizedBox(height: D.gapTight),
                       Row(
                         children: [
-                          const Icon(Icons.schedule_rounded, size: D.s4, color: D.danger),
+                          const Icon(Icons.schedule_rounded, size: D.iconSm, color: D.danger),
                           SizedBox(width: D.s1),
                           Flexible(
                             child: Text(
-                              '${agoOf(alert.createdAt)} · Review now',
-                              style: D.label.copyWith(color: D.danger),
+                              agoOf(alert.createdAt),
+                              style: D.bodyStrong.copyWith(color: D.danger),
                               overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          SizedBox(width: D.gapIcon),
+                          Text('·', style: D.bodyStrong.copyWith(color: D.dangerFaint)),
+                          SizedBox(width: D.gapIcon),
+                          Text(
+                            'Review now',
+                            style: D.bodyStrong.copyWith(
+                              color: D.danger,
+                              fontWeight: FontWeight.w800,
+                              decoration: TextDecoration.underline,
+                              decorationColor: D.danger,
                             ),
                           ),
                         ],
@@ -439,7 +494,6 @@ class _EmergencyCard extends ConsumerWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: D.danger),
               ],
             ),
           ),
@@ -479,16 +533,15 @@ class _QuickActions extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Three across on a phone, two when the text is scaled far up and
-        // three would clip the longest label ("Start consultation").
+        // Three across, as the artboard draws them — two when the reader has
+        // turned the text size up far enough that three would clip a label.
         final scale = MediaQuery.textScalerOf(context).scale(D.tile.fontSize!) / D.tile.fontSize!;
         final columns = scale > 1.3 ? 2 : 3;
-        final gap = D.s2;
-        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        final width = (constraints.maxWidth - D.s2 * (columns - 1)) / columns;
 
         return Wrap(
-          spacing: gap,
-          runSpacing: gap,
+          spacing: D.s2,
+          runSpacing: D.s2,
           children: [
             for (final action in actions)
               SizedBox(width: width, child: _ActionTile(action: action)),
@@ -534,12 +587,17 @@ class _ActionTile extends StatelessWidget {
           );
         },
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: D.s1, vertical: D.s3),
+          // The artboard fixes the tile at 112; a minimum rather than a height,
+          // so a label that needs a third line is not cut off.
+          constraints: const BoxConstraints(minHeight: D.tileMin),
+          padding: EdgeInsets.symmetric(horizontal: D.s1, vertical: D.cardPad),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(D.rCard),
             border: Border.all(color: D.line),
+            boxShadow: D.lift,
           ),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
@@ -547,11 +605,11 @@ class _ActionTile extends StatelessWidget {
                 height: D.disc,
                 decoration: BoxDecoration(
                   color: D.brandTint,
-                  borderRadius: BorderRadius.circular(D.rInner),
+                  borderRadius: BorderRadius.circular(D.rMark),
                 ),
-                child: Icon(action.icon, color: D.brand),
+                child: Icon(action.icon, size: D.iconDisc, color: D.brand),
               ),
-              SizedBox(height: D.s2),
+              SizedBox(height: D.gapIcon),
               Text(
                 action.label,
                 style: D.tile.copyWith(color: D.ink),
@@ -566,10 +624,6 @@ class _ActionTile extends StatelessWidget {
 }
 
 /// The assistant, as a doorway rather than a claim.
-///
-/// It says what it does and nothing about what it has found: a banner that
-/// promises "insights" above an empty database is a promise the screen cannot
-/// keep.
 class _AssistantCard extends StatelessWidget {
   const _AssistantCard();
 
@@ -577,24 +631,29 @@ class _AssistantCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: D.brand,
-      borderRadius: BorderRadius.circular(D.rCard),
+      borderRadius: BorderRadius.circular(D.rCardLg),
       child: InkWell(
-        borderRadius: BorderRadius.circular(D.rCard),
+        borderRadius: BorderRadius.circular(D.rCardLg),
         onTap: () => context.push('/clinician/chat-review'),
-        child: Padding(
-          padding: EdgeInsets.all(D.s4),
+        child: Container(
+          padding: EdgeInsets.all(D.cardPadLg),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(D.rCardLg),
+            boxShadow: D.liftBrand,
+          ),
           child: Row(
             children: [
               Container(
-                width: D.disc,
-                height: D.disc,
+                width: D.discLg,
+                height: D.discLg,
                 decoration: BoxDecoration(
-                  color: D.onBrand.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(D.rInner),
+                  color: D.onBrandTile,
+                  borderRadius: BorderRadius.circular(D.rMarkLg),
+                  border: Border.all(color: D.onBrandTileLine),
                 ),
-                child: const Icon(Icons.auto_awesome_rounded, color: D.onBrand),
+                child: const Icon(Icons.auto_awesome_rounded, size: D.iconMark, color: D.onBrand),
               ),
-              SizedBox(width: D.s4),
+              SizedBox(width: D.cardPad),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -604,31 +663,32 @@ class _AssistantCard extends StatelessWidget {
                         Flexible(
                           child: Text(
                             'AI Assistant',
-                            style: D.section.copyWith(color: D.onBrand),
+                            style: D.cardTitle.copyWith(color: D.onBrand),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         SizedBox(width: D.s2),
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.s1),
+                          padding: EdgeInsets.symmetric(horizontal: D.s1 + 3, vertical: D.s1 / 2),
                           decoration: BoxDecoration(
-                            color: D.onBrand.withValues(alpha: 0.2),
-                            borderRadius: D.rPill,
+                            color: D.onBrandChip,
+                            borderRadius: BorderRadius.circular(D.rChip),
+                            border: Border.all(color: D.onBrandChipLine),
                           ),
-                          child: Text('NEW', style: D.label.copyWith(color: D.onBrand)),
+                          child: Text('NEW', style: D.chip.copyWith(color: D.onBrand)),
                         ),
                       ],
                     ),
                     SizedBox(height: D.s1),
                     Text(
                       'Read what it told your patients, and answer it yourself.',
-                      style: D.caption.copyWith(color: D.onBrand),
+                      style: D.body.copyWith(color: D.onBrandProse),
                     ),
                   ],
                 ),
               ),
               SizedBox(width: D.s2),
-              const Icon(Icons.chevron_right_rounded, color: D.onBrand),
+              const Icon(Icons.chevron_right_rounded, size: D.iconLg, color: D.onBrandProse),
             ],
           ),
         ),
@@ -636,4 +696,3 @@ class _AssistantCard extends StatelessWidget {
     );
   }
 }
-

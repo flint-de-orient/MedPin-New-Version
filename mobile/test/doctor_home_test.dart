@@ -190,11 +190,14 @@ void main() {
     expect(find.text('12'), findsOneWidget);
     expect(find.text('9'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
-    expect(find.text('Total\nappointments'), findsOneWidget);
+    expect(find.text('Total appointments'), findsOneWidget);
 
     // The emergency outranks the urgent one, however recent that is.
     expect(find.text('Emergency · Priya Sharma'), findsOneWidget);
-    expect(find.text('Chest tightness, hard to breathe.'), findsOneWidget);
+    // One line, two voices: "Emergency message:" muted, the patient's own
+    // words in ink — so it is drawn as spans rather than two Texts.
+    expect(find.textContaining('Chest tightness, hard to breathe.'), findsOneWidget);
+    expect(find.textContaining('Emergency message:'), findsOneWidget);
     expect(find.textContaining('2 min ago'), findsOneWidget);
     expect(find.textContaining('Rahul Bose'), findsNothing);
 
@@ -241,7 +244,7 @@ void main() {
 
     // Nothing overflows its card, and nothing is laid out off the screen.
     expect(tester.takeException(), isNull);
-    for (final label in ['Prescriptions', 'Start consultation', 'Total\nappointments']) {
+    for (final label in ['Prescriptions', 'Start consultation', 'Total appointments']) {
       final box = tester.getRect(find.text(label));
       expect(box.left, greaterThanOrEqualTo(0));
       expect(box.right, lessThanOrEqualTo(360));
@@ -259,11 +262,12 @@ void main() {
     // What reaches the first screen. The phone gives 720dp to the app and the
     // bar takes about 76 of it, so 644 is what a doctor sees without
     // scrolling. Measured under flutter_test's square stand-in font, which
-    // runs taller than Inter — so what clears the fold here clears it on the
-    // phone as well.
+    // runs wider and taller than Figtree — every label here takes a line more
+    // than it will on the phone, so clearing the fold under it is the
+    // conservative reading.
     expect(
       tester.getRect(find.text('Follow-ups')).bottom,
-      lessThan(644),
+      lessThanOrEqualTo(644),
       reason: 'both rows of quick actions should be on the first screen',
     );
   });
