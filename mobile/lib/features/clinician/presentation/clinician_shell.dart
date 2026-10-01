@@ -5,7 +5,8 @@ import '../../../core/update/version_gate.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/capabilities/capabilities.dart';
-import '../../../shared/widgets/glass_nav_bar.dart';
+import '../../doctor_home/presentation/widgets/doctor_nav_bar.dart';
+import 'clinician_providers.dart';
 import '../../../shared/widgets/glass_surface.dart';
 import 'clinician_tabs.dart';
 
@@ -68,29 +69,36 @@ class ClinicianShell extends ConsumerWidget {
     }
 
     /// The bar item for a branch, or nothing when it is hidden.
-    GlassNavItem? itemFor(int branch) => switch (branch) {
-      0 => const GlassNavItem(
-        icon: Icons.dashboard_outlined,
-        selectedIcon: Icons.dashboard_rounded,
+    // Unread patient messages, on the tab that opens them. The new design puts
+    // this count on a Messages tab; until that screen exists, Patients is where
+    // a waiting conversation is actually read, so the number lives there rather
+    // than on a tab that cannot show it.
+    final waiting = ref.watch(clinicianNotificationsProvider).valueOrNull?.messages ?? 0;
+
+    DoctorNavItem? itemFor(int branch) => switch (branch) {
+      0 => const DoctorNavItem(
+        icon: Icons.home_outlined,
+        selectedIcon: Icons.home_rounded,
         label: 'Home',
       ),
-      // 'Care' rather than 'Patients': it pairs with the Nutrition tab as the
-      // clinic's two conversation streams, which is also how the threads are
-      // modelled server-side.
-      1 => const GlassNavItem(
-        icon: Icons.groups_outlined,
-        selectedIcon: Icons.groups_rounded,
-        label: 'Care',
+      // 'Patients', as the new design names it. It was 'Care', paired with
+      // Nutrition as the clinic's two conversation streams; the design calls
+      // the list of people what it is, and the screen behind it is unchanged.
+      1 => DoctorNavItem(
+        icon: Icons.people_alt_outlined,
+        selectedIcon: Icons.people_alt_rounded,
+        label: 'Patients',
+        badge: waiting,
       ),
-      2 => const GlassNavItem(
+      2 => const DoctorNavItem(
         icon: Icons.restaurant_menu_outlined,
         selectedIcon: Icons.restaurant_menu_rounded,
         label: 'Nutrition',
       ),
-      3 => GlassNavItem(
+      3 => DoctorNavItem(
         icon: Icons.person_outline_rounded,
         selectedIcon: Icons.person_rounded,
-        label: 'Profile',
+        label: 'More',
         // Marked while a newer build exists, and unmarked the moment one is
         // installed — derived, never stored, so it cannot be dismissed into
         // silence. The dialog can be waved away with "later"; this is what
@@ -108,7 +116,7 @@ class ClinicianShell extends ConsumerWidget {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: navigationShell,
-        bottomNavigationBar: GlassNavBar(
+        bottomNavigationBar: DoctorNavBar(
           // Zero while the shell is moving them off a hidden branch. One frame,
           // and the alternative is a bar with nothing selected.
           currentIndex: current ?? 0,

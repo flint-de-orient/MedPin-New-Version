@@ -198,11 +198,6 @@ void main() {
     expect(find.textContaining('2 min ago'), findsOneWidget);
     expect(find.textContaining('Rahul Bose'), findsNothing);
 
-    // The bar: Home is where we are, and the unread count is on Messages.
-    expect(
-      find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'Messages, 4 unread'),
-      findsOneWidget,
-    );
     expect(find.text('Quick actions'), findsOneWidget);
     expect(find.text('City Care, Salt Lake'), findsNothing, reason: 'the practice sits in the date line');
     expect(find.textContaining('City Care, Salt Lake'), findsOneWidget);

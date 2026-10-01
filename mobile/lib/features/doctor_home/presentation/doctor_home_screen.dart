@@ -14,13 +14,17 @@ import '../../clinician/presentation/clinician_providers.dart';
 
 /// The doctor's day, in the new design.
 ///
-/// ---- What this is, and what it is not --------------------------------------
+/// ---- What this is ----------------------------------------------------------
 ///
-/// The first screen of the rebuilt doctor app, drawn from `D`
-/// (core/theme/doctor_tokens.dart) and reading today's server, so what it shows
-/// is this clinic's real day rather than a mock-up's numbers. The panel the
-/// clinic uses now is untouched; this screen is reached on its own and replaces
-/// nothing until it is finished and chosen.
+/// The doctor panel's Home, drawn from `D` (core/theme/doctor_tokens.dart) and
+/// reading today's server, so what it shows is this clinic's real day rather
+/// than a mock-up's numbers. It sits in the doctor's shell, which draws the bar
+/// beneath it (widgets/doctor_nav_bar.dart).
+///
+/// Home shows this and nothing else, as asked. The clinical cards that used to
+/// be here — blood-pressure control, follow-ups, recent labs, chat summaries —
+/// are not lost: they are the old Home, kept at `/clinician/clinical-cards` and
+/// reached from More, until the new design has screens of its own for them.
 ///
 /// ---- Every number here is one the server actually answers ------------------
 ///
@@ -50,7 +54,7 @@ class DoctorHomeScreen extends ConsumerWidget {
             ref.invalidate(clinicianNotificationsProvider);
           },
           child: ListView(
-            padding: EdgeInsets.fromLTRB(D.s5, D.s3, D.s5, D.s8 + D.s8),
+            padding: EdgeInsets.fromLTRB(D.s5, D.s3, D.s5, D.s6),
             children: [
               _Header(unread: notifications?.unread ?? 0),
               SizedBox(height: D.s5),
@@ -68,7 +72,6 @@ class DoctorHomeScreen extends ConsumerWidget {
           ),
         ),
       ),
-      bottomNavigationBar: _DoctorBar(messages: notifications?.messages ?? 0),
     );
   }
 }
@@ -634,130 +637,3 @@ class _AssistantCard extends StatelessWidget {
   }
 }
 
-/// The bar: five places, the one you are in lit.
-///
-/// It floats over the page, so the list above pads for it. Only Home is this
-/// build's own screen; the rest open the panel the clinic uses today, so
-/// nothing here is a dead end while the new screens are written.
-class _DoctorBar extends StatelessWidget {
-  const _DoctorBar({required this.messages});
-
-  /// Patient messages nobody has read. The count the doctor acts on.
-  final int messages;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = <({String label, IconData icon, String? route, int badge})>[
-      (label: 'Home', icon: Icons.home_outlined, route: null, badge: 0),
-      (label: 'Patients', icon: Icons.people_alt_outlined, route: '/clinician/patients', badge: 0),
-      (label: 'Messages', icon: Icons.forum_outlined, route: '/clinician/chat-review', badge: messages),
-      (label: 'Reports', icon: Icons.insert_chart_outlined, route: '/clinician/daily-report', badge: 0),
-      (label: 'History', icon: Icons.history_rounded, route: '/clinician/chat-summaries', badge: 0),
-    ];
-
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(D.s4, 0, D.s4, D.s3),
-        child: Container(
-          padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.s2),
-          decoration: BoxDecoration(
-            color: D.card,
-            borderRadius: BorderRadius.circular(D.rBar),
-            border: Border.all(color: D.line),
-            boxShadow: D.liftBar,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              for (final item in items)
-                Expanded(
-                  child: _BarItem(
-                    label: item.label,
-                    icon: item.icon,
-                    badge: item.badge,
-                    active: item.route == null,
-                    onTap: item.route == null ? null : () => context.push(item.route!),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BarItem extends StatelessWidget {
-  const _BarItem({
-    required this.label,
-    required this.icon,
-    required this.badge,
-    required this.active,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final int badge;
-  final bool active;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colour = active ? D.brand : D.inkMuted;
-
-    return Semantics(
-      button: true,
-      selected: active,
-      label: badge > 0 ? '$label, $badge unread' : label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(D.rInner),
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: D.s2),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: D.s4, vertical: D.s1),
-                decoration: BoxDecoration(
-                  color: active ? D.brandTint : null,
-                  borderRadius: D.rPill,
-                ),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Icon(icon, color: colour),
-                    if (badge > 0)
-                      Positioned(
-                        top: -D.s2,
-                        right: -D.s3,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: D.s1),
-                          constraints: const BoxConstraints(minWidth: D.s4),
-                          decoration: const BoxDecoration(color: D.badge, borderRadius: D.rPill),
-                          child: Text(
-                            badge > 99 ? '99+' : '$badge',
-                            textAlign: TextAlign.center,
-                            style: D.label.copyWith(color: D.onBrand),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              SizedBox(height: D.s1),
-              Text(
-                label,
-                style: D.label.copyWith(color: colour),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

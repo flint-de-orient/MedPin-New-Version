@@ -599,14 +599,14 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 subtitle: 'Readings and symptoms that need a look',
                 onTap: () => context.push('/clinician/alerts'),
               ),
-              // The rebuilt Home, while it is being written. The panel around
-              // this row is unchanged; this is the only way in, deliberately,
-              // so nobody meets a half-finished screen by accident.
+              // Home now shows the day and nothing else. These are the cards
+              // that used to sit under it — kept here, whole, until the new
+              // design has screens of its own for them.
               ProfileRow(
-                icon: Icons.auto_awesome_motion_outlined,
-                title: 'New Home (preview)',
-                subtitle: 'The rebuilt doctor screen, with today’s real numbers',
-                onTap: () => context.push('/clinician/home-preview'),
+                icon: Icons.insights_outlined,
+                title: 'Clinical cards',
+                subtitle: 'Blood pressure, follow-ups, recent labs, chat summaries',
+                onTap: () => context.push('/clinician/clinical-cards'),
               ),
               ProfileRow(
                 // Was Clinic care's fork-and-spoon, which survived the rename

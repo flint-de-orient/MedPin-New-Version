@@ -219,11 +219,13 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         path: '/clinician/alerts',
         builder: (context, state) => const AlertsScreen(),
       ),
-      // The rebuilt doctor Home, on its own while it is written. It replaces
-      // nothing: the panel the clinic uses is the shell below, untouched.
+      // The Home that was: blood-pressure control, follow-ups, recent labs,
+      // chat summaries. The new Home shows the day and nothing else, as asked,
+      // and these are not lost while the new design grows screens of its own —
+      // they are one tap away in More.
       GoRoute(
-        path: '/clinician/home-preview',
-        builder: (context, state) => const DoctorHomeScreen(),
+        path: '/clinician/clinical-cards',
+        builder: (context, state) => const ClinicianDashboardScreen(),
       ),
       GoRoute(
         path: '/clinician/appointments',
@@ -699,7 +701,7 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/clinician/dashboard',
-                builder: (context, state) => const ClinicianDashboardScreen(),
+                builder: (context, state) => const DoctorHomeScreen(),
               ),
             ],
           ),
