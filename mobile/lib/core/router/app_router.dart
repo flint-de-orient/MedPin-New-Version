@@ -25,6 +25,7 @@ import '../../features/doctor_home/presentation/doctor_home_screen.dart';
 import '../../features/doctor_home/presentation/doctor_messages_screen.dart';
 import '../../features/doctor_home/presentation/doctor_add_patient_screen.dart';
 import '../../features/doctor_home/presentation/doctor_bulk_message_screen.dart';
+import '../../features/doctor_home/presentation/doctor_consult_screen.dart';
 import '../../features/doctor_home/presentation/doctor_patient_profile_screen.dart';
 import '../../features/doctor_home/presentation/doctor_patients_screen.dart';
 import '../../features/doctor_home/presentation/follow_ups_screen.dart';
@@ -47,7 +48,6 @@ import '../../features/clinician/presentation/knowledge_screen.dart';
 import '../../features/clinician/presentation/patient_thread_screen.dart';
 import '../../features/clinician/presentation/nutrition_inbox_screen.dart';
 import '../../features/clinician/presentation/add_patient_screen.dart';
-import '../../features/clinician/presentation/consult_screen.dart';
 import '../../features/clinician/presentation/patients_screen.dart';
 import '../../features/clinician/presentation/billing_screen.dart';
 import '../../features/clinician/presentation/practice_screen.dart';
@@ -371,8 +371,11 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       // The consultation flow: vitals → diagnosis → advice → prescription.
       GoRoute(
         path: '/clinician/patients/:id/consult',
+        // The new design's one page. The seven-step ConsultScreen is still in
+        // the tree and is now reached by nothing — left there for one release
+        // so going back is this line, not a revert.
         builder:
-            (context, state) => ConsultScreen(
+            (context, state) => DoctorConsultScreen(
               patientId: state.pathParameters['id']!,
               patientName: state.extra as String?,
             ),

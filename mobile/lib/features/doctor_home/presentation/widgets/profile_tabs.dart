@@ -609,7 +609,6 @@ class _Vitals extends StatelessWidget {
 /// Temperature is not here. The artboard has a tile for it, and this server
 /// has no field for it on a vital record — so there is nothing to show and
 /// nothing the Record sheet could save.
-@visibleForTesting
 List<({String label, String value, String? unit, String? band, Color colour})> vitalsOf(
   PatientSummary p,
 ) {
@@ -1324,7 +1323,7 @@ class _Medicine extends StatelessWidget {
 typedef Finding = ({Analyte analyte, LabReport report});
 
 /// Every value outside its reference range, worst first.
-@visibleForTesting
+/// Also read by the consult's snapshot, which shows the same findings.
 List<Finding> abnormalFindings(List<LabReport> reports) {
   final found = <Finding>[
     for (final r in reports)
@@ -1353,7 +1352,6 @@ bool hasAbnormal(LabReport r) => r.analytes.any((a) => a.abnormal);
 String valueOf(Analyte a) =>
     [a.value, if ((a.unit ?? '').isNotEmpty) a.unit].join(' ').trim();
 
-@visibleForTesting
 String valueOnly(Analyte a) => a.hasValue ? '${a.value}' : '—';
 
 @visibleForTesting

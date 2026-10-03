@@ -284,6 +284,10 @@ class ClinicianRepository {
     List<String> labTestsAdvised = const [],
     String? generalAdvice,
     DateTime? followUpOn,
+
+    /// When the prescription stops standing. The server has always taken it;
+    /// nothing sent it until the consult offered the choice.
+    DateTime? validUntil,
     SubmissionKeys? submission,
   }) async {
     final body = <String, dynamic>{
@@ -294,6 +298,7 @@ class ClinicianRepository {
       if (generalAdvice != null && generalAdvice.isNotEmpty)
         'generalAdvice': generalAdvice,
       if (followUpOn != null) 'followUpOn': followUpOn.toIso8601String(),
+      if (validUntil != null) 'validUntil': validUntil.toIso8601String(),
     };
     await _client.postJson(
       '/patients/$patientId/prescriptions',
