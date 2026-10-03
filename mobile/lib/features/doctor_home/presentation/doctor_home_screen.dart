@@ -528,7 +528,7 @@ class _QuickActions extends StatelessWidget {
       _Action('Prescriptions', Icons.description_outlined, '/clinician/patients'),
       _Action('Test results', Icons.science_outlined, null),
       _Action('Start consultation', Icons.mic_none_rounded, '/clinician/appointments'),
-      _Action('Follow-ups', Icons.event_available_outlined, null),
+      _Action('Follow-ups', Icons.event_available_outlined, '/clinician/follow-ups'),
     ];
 
     return LayoutBuilder(

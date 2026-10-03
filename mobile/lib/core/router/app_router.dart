@@ -22,6 +22,7 @@ import '../../features/clinician/presentation/alerts_screen.dart';
 import '../../features/doctor_home/presentation/ai/doctor_ai_chat_screen.dart';
 import '../../features/doctor_home/presentation/ai/doctor_ai_screen.dart';
 import '../../features/doctor_home/presentation/doctor_home_screen.dart';
+import '../../features/doctor_home/presentation/follow_ups_screen.dart';
 import '../../features/clinician/presentation/appointments_admin_screen.dart';
 import '../../features/clinician/presentation/clinic_edit_screen.dart';
 import '../../features/clinician/presentation/clinics_screen.dart';
@@ -230,6 +231,10 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ClinicianDashboardScreen(),
       ),
       // The assistant, from Home's card: its front door and the conversation.
+      GoRoute(
+        path: '/clinician/follow-ups',
+        builder: (context, state) => const FollowUpsScreen(),
+      ),
       GoRoute(
         path: '/clinician/ai',
         builder: (context, state) => const DoctorAiScreen(),
