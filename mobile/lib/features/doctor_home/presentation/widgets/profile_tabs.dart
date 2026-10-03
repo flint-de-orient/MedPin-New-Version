@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/theme/doctor_tokens.dart';
 import '../../../../shared/providers/core_providers.dart';
+import '../../../../shared/widgets/error_view.dart';
 import '../../../clinician/data/prescription_document.dart';
 import '../../../clinician/domain/clinician_models.dart';
 import '../../../clinician/domain/patient_summary.dart';
@@ -775,10 +776,15 @@ class _PrescriptionCardState extends ConsumerState<_PrescriptionCard> {
           ),
         );
       }
-    } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not open the prescription.')),
-      );
+    } catch (e) {
+      // What went wrong, not that something did. "Could not open the
+      // prescription" sent a doctor to ask why, and the answer — the server
+      // could not find the file — was sitting in the exception.
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(ErrorView.messageFor(context, e))),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -799,10 +805,12 @@ class _PrescriptionCardState extends ConsumerState<_PrescriptionCard> {
           subject: 'Prescription ${widget.prescription.referenceNo ?? ''}'.trim(),
         ),
       );
-    } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not save the prescription.')),
-      );
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(ErrorView.messageFor(context, e))),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

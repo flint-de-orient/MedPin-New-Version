@@ -380,7 +380,20 @@ export async function letterheadIdentityFor(prescription) {
 export async function ensurePrescriptionPdf(prescription) {
   if (prescription.pdfFile) {
     const existing = await MediaAsset.findOne({ _id: prescription.pdfFile, deletedAt: null });
-    if (existing) return { asset: existing, filePath: await assetPath(existing) };
+    if (existing) {
+      const filePath = await assetPath(existing);
+      // The row can outlive the file. A database restored onto a box whose
+      // uploads directory did not come with it has every prescription pointing
+      // at a PDF that is not on that disk — and `res.sendFile` on a missing
+      // path is a 500 the doctor reads as "could not open the prescription",
+      // for a document that is perfectly fine.
+      //
+      // So the cache is only a cache: if the file is gone, render it again.
+      // Nothing is lost by doing so, because the PDF is derived from the
+      // record — the letterhead it was issued under is kept on the
+      // prescription itself, not in the file.
+      if (await readableFile(filePath)) return { asset: existing, filePath };
+    }
   }
 
   const [patient, doctor, profile] = await Promise.all([
@@ -454,6 +467,16 @@ async function uploadRoot() {
 
 async function assetPath(asset) {
   return path.join(await uploadRoot(), asset.storageKey);
+}
+
+/** Whether something is actually there to send — an empty file is not. */
+async function readableFile(filePath) {
+  try {
+    const stat = await fs.stat(filePath);
+    return stat.isFile() && stat.size > 0;
+  } catch {
+    return false;
+  }
 }
 
 /** The doctor's signature image bytes, if they have uploaded one. */
