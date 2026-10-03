@@ -23,6 +23,7 @@ import '../../features/doctor_home/presentation/ai/doctor_ai_chat_screen.dart';
 import '../../features/doctor_home/presentation/ai/doctor_ai_screen.dart';
 import '../../features/doctor_home/presentation/doctor_home_screen.dart';
 import '../../features/doctor_home/presentation/doctor_messages_screen.dart';
+import '../../features/doctor_home/presentation/doctor_add_patient_screen.dart';
 import '../../features/doctor_home/presentation/doctor_patients_screen.dart';
 import '../../features/doctor_home/presentation/follow_ups_screen.dart';
 import '../../features/clinician/presentation/appointments_admin_screen.dart';
@@ -378,7 +379,9 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       // `new` segment is matched as the form, not as a patient id.
       GoRoute(
         path: '/clinician/patients/new',
-        builder: (context, state) => const AddPatientScreen(),
+        // The doctor's half is on the new design; the desk's identical form at
+        // /staff/patients/new is not, and keeps AddPatientScreen.
+        builder: (context, state) => const DoctorAddPatientScreen(),
       ),
       // The patient profile: who they are, the prescribing form, and the
       // clinical record beneath it — one screen per patient. Top-level so it

@@ -96,6 +96,11 @@ class D {
   /// 14/1.5 — a card's prose.
   static final TextStyle body = _f(14, 1.5, 400);
 
+  /// 16/1.3 — what somebody has typed into a field. The artboard's forms are
+  /// set a size up from its prose: this is the one place a reader checks a
+  /// digit at arm's length, across a counter.
+  static final TextStyle input = _f(16, 1.3, 400);
+
   /// 14/1.5 semibold — the red line under an emergency, a card's own action.
   static final TextStyle bodyStrong = _f(14, 1.5, 600);
 
@@ -119,6 +124,9 @@ class D {
   static const Color brandTint = Color(0xFFEBF1FB);
 
   static const Color ground = Color(0xFFF7F9FC);
+
+  /// The sunken track a segmented choice sits in, and a colleague's initials.
+  static const Color track = Color(0xFFF1F4F9);
   static const Color card = Color(0xFFFFFFFF);
   static const Color line = Color(0xFFE5E9F0);
 
@@ -156,6 +164,7 @@ class D {
   // ================================================================ shape
 
   /// A card: stats, quick actions. 20 for the two wide ones, 28 for the bar.
+  static const double rSection = 24;
   static const double rCard = 16;
   static const double rCardLg = 20;
   static const double rMark = 14;
@@ -198,6 +207,9 @@ class D {
   static const double logo = 36;
   static const double disc = 48;
   static const double discLg = 52;
+
+  /// A field is exactly this tall, and so is the button that submits it.
+  static const double inputH = 56;
 
   /// A quick action is at least this tall, and the bar is exactly this.
   static const double tileMin = 112;
