@@ -60,15 +60,6 @@ class _DoctorMessagesScreenState extends ConsumerState<DoctorMessagesScreen> {
 
     return Scaffold(
       backgroundColor: D.ground,
-      floatingActionButton: _tab == _Tab.colleagues
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => newChat(context, ref),
-              backgroundColor: D.brand,
-              foregroundColor: D.onBrand,
-              icon: const Icon(Icons.edit_outlined, size: D.iconLg),
-              label: Text('New chat', style: D.body.copyWith(fontWeight: FontWeight.w600)),
-            ),
       body: SafeArea(
         bottom: false,
         // One scroll view, header included — see the Patients tab for why: a
@@ -77,67 +68,89 @@ class _DoctorMessagesScreenState extends ConsumerState<DoctorMessagesScreen> {
         // then the conversations have nowhere to go.
         child: RefreshIndicator(
           onRefresh: () async => ref.invalidate(patientsProvider(query)),
-          child: ListView(
-            padding: EdgeInsets.only(bottom: D.s8 + D.s8),
-            children: [
-              _Header(
-                waiting: waiting,
-                urgent: urgentCount(patients.valueOrNull?.items ?? const []),
-                search: _search,
-                tab: _tab,
-                onTab: (t) => setState(() {
-                  _tab = t;
-                  _pages = 1;
-                }),
-                onSearchChanged: () => setState(() => _pages = 1),
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: _Header(
+                  waiting: waiting,
+                  urgent: urgentCount(patients.valueOrNull?.items ?? const []),
+                  search: _search,
+                  tab: _tab,
+                  onTab: (t) => setState(() {
+                    _tab = t;
+                    _pages = 1;
+                  }),
+                  onSearchChanged: () => setState(() => _pages = 1),
+                  onNewChat: () => newChat(context, ref),
+                ),
               ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(D.s4, D.s4, D.s4, 0),
-                child: switch (_tab) {
-                  _Tab.colleagues => const _ColleaguesNotBuilt(),
-                  _ => patients.when(
-                    loading: () => Padding(
-                      padding: EdgeInsets.symmetric(vertical: D.s8),
-                      child: const Center(child: CircularProgressIndicator(color: D.brand)),
-                    ),
-                    error: (_, _) => _Failed(onRetry: () => ref.invalidate(patientsProvider(query))),
-                    data: (page) {
-                      final rows = [
-                        for (final p in page.items)
-                          if (p.lastMessage != null && (_tab != _Tab.unread || p.unreadCount > 0)) p,
-                      ];
-                      final urgent = [for (final p in rows) if (isUrgent(p)) p];
-                      final rest = [for (final p in rows) if (!isUrgent(p)) p];
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(D.s4, D.s4, D.s4, 0),
+                  child: switch (_tab) {
+                    _Tab.colleagues => const _ColleaguesNotBuilt(),
+                    _ => patients.when(
+                      loading: () => Padding(
+                        padding: EdgeInsets.symmetric(vertical: D.s8),
+                        child: const Center(child: CircularProgressIndicator(color: D.brand)),
+                      ),
+                      error: (_, _) =>
+                          _Failed(onRetry: () => ref.invalidate(patientsProvider(query))),
+                      data: (page) {
+                        final rows = [
+                          for (final p in page.items)
+                            if (p.lastMessage != null &&
+                                (_tab != _Tab.unread || p.unreadCount > 0))
+                              p,
+                        ];
+                        final urgent = [for (final p in rows) if (isUrgent(p)) p];
+                        final rest = [for (final p in rows) if (!isUrgent(p)) p];
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          for (final p in urgent)
-                            Padding(
-                              padding: EdgeInsets.only(bottom: D.s4),
-                              child: _UrgentCard(patient: p),
-                            ),
-                          if (rest.isNotEmpty) _Conversations(patients: rest),
-                          if (rows.isEmpty) _Empty(tab: _tab, searching: searching),
-                          if (page.hasMore)
-                            TextButton(
-                              onPressed: () => setState(() => _pages += 1),
-                              child: Text(
-                                'Show more',
-                                style: D.subtitle.copyWith(color: D.brand, fontWeight: FontWeight.w600),
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final p in urgent)
+                              Padding(
+                                padding: EdgeInsets.only(bottom: D.s4),
+                                child: _UrgentCard(patient: p),
                               ),
-                            ),
-                          SizedBox(height: D.s4),
-                          Text(
-                            'Patient chats are saved to their records. Urgent messages also alert your front desk.',
-                            textAlign: TextAlign.center,
-                            style: D.caption.copyWith(color: D.inkFaint, height: 1.5),
-                          ),
-                        ],
-                      );
-                    },
+                            if (rest.isNotEmpty) _Conversations(patients: rest),
+                            if (rows.isEmpty) _Empty(tab: _tab, searching: searching),
+                            if (page.hasMore)
+                              TextButton(
+                                onPressed: () => setState(() => _pages += 1),
+                                child: Text(
+                                  'Show more',
+                                  style: D.subtitle.copyWith(
+                                    color: D.brand,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  },
+                ),
+              ),
+              // The note belongs at the foot of the screen, not under the last
+              // row: with three conversations it rode up the page and sat in
+              // the middle of the empty half. This sliver takes whatever room
+              // is left over - none at all, once the list is long enough.
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(D.s5, D.s6, D.s5, D.s6),
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Text(
+                      'Patient chats are saved to their records. Urgent messages also alert your front desk.',
+                      textAlign: TextAlign.center,
+                      style: D.caption.copyWith(color: D.inkFaint, height: 1.5),
+                    ),
                   ),
-                },
+                ),
               ),
             ],
           ),
@@ -166,6 +179,7 @@ class _Header extends StatelessWidget {
     required this.tab,
     required this.onTab,
     required this.onSearchChanged,
+    required this.onNewChat,
   });
 
   /// Unread patient messages, as the server counts them across the practice —
@@ -176,6 +190,7 @@ class _Header extends StatelessWidget {
   final _Tab tab;
   final ValueChanged<_Tab> onTab;
   final VoidCallback onSearchChanged;
+  final VoidCallback onNewChat;
 
   @override
   Widget build(BuildContext context) {
@@ -194,9 +209,46 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Messages', style: D.greeting.copyWith(color: D.ink)),
-          SizedBox(height: D.s1 / 2),
-          Text(line.isEmpty ? ' ' : line, style: D.body.copyWith(color: D.inkMuted)),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Messages', style: D.greeting.copyWith(color: D.ink)),
+                    SizedBox(height: D.s1 / 2),
+                    Text(
+                      line.isEmpty ? ' ' : line,
+                      style: D.body.copyWith(color: D.inkMuted),
+                    ),
+                  ],
+                ),
+              ),
+              // The artboard floats this as a pill over the conversations. It
+              // sits in the header instead, the same button the Patients tab
+              // uses to add somebody: one way to start something, in the same
+              // corner of both screens. Not on the colleague half — there is
+              // nothing to start there yet.
+              if (tab != _Tab.colleagues) ...[
+                SizedBox(width: D.s3),
+                FilledButton.icon(
+                  onPressed: onNewChat,
+                  icon: const Icon(Icons.edit_outlined, size: D.iconMd),
+                  label: Text('New chat', style: D.dateLine),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: D.brandTint,
+                    foregroundColor: D.brand,
+                    elevation: 0,
+                    padding: EdgeInsets.symmetric(horizontal: D.s3),
+                    minimumSize: D.hug,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(D.s3),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
           SizedBox(height: D.cardPad),
           Container(
             // Scaled, not fixed: a constant height around text clips it the
@@ -566,7 +618,16 @@ Future<void> newChat(BuildContext context, WidgetRef ref) async {
   final chosen = await showModalBottomSheet<PatientListItem>(
     context: context,
     isScrollControlled: true,
+    // Over the nav bar, not under it. A sheet opened on the branch's own
+    // navigator sits inside the shell's body, and the floating bar is drawn
+    // on top of it: the last rows of the sheet were behind the bar, and the
+    // bar itself was never dimmed.
+    useRootNavigator: true,
+    // The app's theme turns one on; the artboard draws its own, and two grab
+    // handles stacked on each other is what reached the phone.
+    showDragHandle: false,
     backgroundColor: D.card,
+    barrierColor: D.scrim,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(D.s6)),
     ),
@@ -597,26 +658,38 @@ class _NewChatSheetState extends ConsumerState<_NewChatSheet> {
     );
     final patients = ref.watch(patientsProvider(query));
 
+    // The artboard leaves 72dp above the sheet on an 844dp frame — the status
+    // bar and a little air. Measured from the real inset, not from 72.
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final top = MediaQuery.paddingOf(context).top + D.s6;
+    final height = MediaQuery.sizeOf(context).height - top - keyboard;
+
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      padding: EdgeInsets.only(bottom: keyboard),
       child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.8,
+        height: height,
         child: Column(
           children: [
             SizedBox(height: D.s3),
             Container(
               width: D.s8 + D.s1,
               height: D.s1,
-              decoration: const BoxDecoration(color: D.line, borderRadius: D.rPill),
+              decoration: const BoxDecoration(color: D.lineStrong, borderRadius: D.rPill),
             ),
             Padding(
-              padding: EdgeInsets.fromLTRB(D.s5, D.s4, D.s3, D.s3),
+              padding: EdgeInsets.fromLTRB(D.s5, D.s4, D.gapIcon, D.s4),
               child: Row(
                 children: [
                   Expanded(child: Text('New chat', style: D.screenTitle.copyWith(color: D.ink))),
                   IconButton(
                     tooltip: 'Close',
-                    icon: const Icon(Icons.close_rounded, color: D.inkMuted),
+                    icon: const Icon(Icons.close_rounded, size: D.iconLg, color: D.inkMuted),
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size(D.tap, D.tap),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(D.s3),
+                      ),
+                    ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
@@ -624,20 +697,35 @@ class _NewChatSheetState extends ConsumerState<_NewChatSheet> {
             ),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: D.s5),
-              child: TextField(
-                autofocus: true,
-                onChanged: (v) => setState(() => _search = v),
-                style: D.subtitle.copyWith(color: D.ink),
-                decoration: InputDecoration(
-                  hintText: 'Patient name or mobile',
-                  hintStyle: D.subtitle.copyWith(color: D.inkFaint),
-                  prefixIcon: const Icon(Icons.search_rounded, color: D.inkFaint),
-                  filled: true,
-                  fillColor: D.ground,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(D.rCard),
-                    borderSide: BorderSide.none,
-                  ),
+              child: Container(
+                height: MediaQuery.textScalerOf(context).scale(D.discLg),
+                padding: EdgeInsets.symmetric(horizontal: D.s4),
+                decoration: BoxDecoration(
+                  color: D.card,
+                  borderRadius: BorderRadius.circular(D.rCard),
+                  border: Border.all(color: D.brand, width: 1.5),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search_rounded, size: D.iconLg, color: D.inkFaint),
+                    SizedBox(width: D.gapIcon),
+                    Expanded(
+                      child: TextField(
+                        autofocus: true,
+                        onChanged: (v) => setState(() => _search = v),
+                        style: D.subtitle.copyWith(color: D.ink),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          border: InputBorder.none,
+                          // The artboard offers doctors and staff here too;
+                          // this search only reaches the practice's patients,
+                          // so it says so rather than promising the rest.
+                          hintText: 'Patient name or mobile',
+                          hintStyle: D.subtitle.copyWith(color: D.inkFaint),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -649,27 +737,18 @@ class _NewChatSheetState extends ConsumerState<_NewChatSheet> {
                   child: Text('The list did not load.', style: D.body.copyWith(color: D.inkMuted)),
                 ),
                 data: (page) => ListView(
-                  padding: EdgeInsets.fromLTRB(D.s5, 0, D.s5, D.s6),
+                  padding: EdgeInsets.fromLTRB(D.s5, 0, D.s5, D.s8),
                   children: [
+                    const _SeveralPatients(),
+                    SizedBox(height: D.s4),
                     Text(
                       _search.isEmpty ? 'PATIENTS SEEN RECENTLY' : 'MATCHES',
                       style: D.chip.copyWith(color: D.inkFaint),
                     ),
                     SizedBox(height: D.s2),
                     for (final p in page.items)
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: UserAvatar(
-                          name: p.name,
-                          avatarUrl: p.avatarUrl,
-                          accent: D.brand,
-                          size: D.disc - D.s2,
-                        ),
-                        title: Text(
-                          p.name,
-                          style: D.subtitle.copyWith(color: D.ink, fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text(p.phone, style: D.statLabel.copyWith(color: D.inkMuted)),
+                      _PersonRow(
+                        patient: p,
                         onTap: () => Navigator.of(context).pop(p),
                       ),
                     if (page.items.isEmpty)
@@ -690,6 +769,101 @@ class _NewChatSheetState extends ConsumerState<_NewChatSheet> {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The artboard's first row in this sheet: write to a group of patients at
+/// once. The server sends one thread at a time and has no way to fan a
+/// message out, so the row is drawn as designed and says plainly that it is
+/// not built — rather than opening something that quietly reaches one person.
+class _SeveralPatients extends StatelessWidget {
+  const _SeveralPatients();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: D.s4, vertical: D.cardPad),
+      decoration: BoxDecoration(
+        color: D.ground,
+        borderRadius: BorderRadius.circular(D.rCard),
+        border: Border.all(color: D.line),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: D.disc - D.s2,
+            height: D.disc - D.s2,
+            decoration: BoxDecoration(
+              color: D.brandTint,
+              borderRadius: BorderRadius.circular(D.s3),
+            ),
+            child: const Icon(Icons.groups_2_outlined, size: D.iconLg, color: D.brand),
+          ),
+          SizedBox(width: D.s3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Message several patients',
+                  style: D.subtitle.copyWith(color: D.ink, fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  'e.g. everyone with a follow-up due this week',
+                  style: D.statLabel.copyWith(color: D.inkMuted),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: D.s2),
+          Text('NOT BUILT YET', style: D.chip.copyWith(color: D.inkFaint)),
+        ],
+      ),
+    );
+  }
+}
+
+/// One person in the sheet: who they are, and the number the clinic has.
+class _PersonRow extends StatelessWidget {
+  const _PersonRow({required this.patient, required this.onTap});
+
+  final PatientListItem patient;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(D.s3),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: D.gapIcon),
+        child: Row(
+          children: [
+            UserAvatar(
+              name: patient.name,
+              avatarUrl: patient.avatarUrl,
+              accent: D.brand,
+              size: D.disc - D.s2,
+            ),
+            SizedBox(width: D.s3),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    patient.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: D.subtitle.copyWith(color: D.ink, fontWeight: FontWeight.w600),
+                  ),
+                  Text(patient.phone, style: D.statLabel.copyWith(color: D.inkMuted)),
+                ],
               ),
             ),
           ],

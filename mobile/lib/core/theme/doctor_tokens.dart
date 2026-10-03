@@ -122,6 +122,9 @@ class D {
   static const Color card = Color(0xFFFFFFFF);
   static const Color line = Color(0xFFE5E9F0);
 
+  /// The heavier hairline: a sheet's grab handle, a field's resting border.
+  static const Color lineStrong = Color(0xFFD5DBE5);
+
   static const Color ink = Color(0xFF111827);
   static const Color inkMuted = Color(0xFF545E72);
   static const Color inkFaint = Color(0xFF69738A);

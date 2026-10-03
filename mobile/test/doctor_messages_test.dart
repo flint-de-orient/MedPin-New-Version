@@ -223,6 +223,47 @@ void main() {
     expect(find.text('New chat'), findsNothing, reason: 'nothing to start there');
   });
 
+  testWidgets('New chat is a header button beside the title, not a pill over the list', (tester) async {
+    await _pump(tester, _Clinic(items: [_chat(name: 'Fardin', preview: 'hi')]));
+
+    expect(find.byType(FloatingActionButton), findsNothing);
+
+    final title = tester.getRect(find.text('Messages'));
+    final button = tester.getRect(find.text('New chat'));
+    expect(button.left, greaterThan(title.right), reason: 'it sits beside the title');
+    expect(button.right, lessThanOrEqualTo(360), reason: 'pushed off the right edge');
+    expect(button.top, lessThan(title.bottom + 40), reason: 'in the header, not down the page');
+  });
+
+  testWidgets('the note about records sits at the foot of the screen, not under a short list', (
+    tester,
+  ) async {
+    await _pump(tester, _Clinic(items: [_chat(name: 'Fardin', preview: 'hi')]));
+
+    final row = tester.getRect(find.text('Fardin'));
+    final note = tester.getRect(find.textContaining('Patient chats are saved'));
+    expect(
+      note.top,
+      greaterThan(row.bottom + 100),
+      reason: 'it rode up the page and sat under the last row',
+    );
+    expect(note.bottom, greaterThan(600), reason: 'the view is 800dp tall; this is the foot of it');
+  });
+
+  testWidgets('the new-chat sheet asks who, and says what it cannot do', (tester) async {
+    await _pump(tester, _Clinic(items: [_chat(name: 'Fardin', preview: 'hi')]));
+
+    await tester.tap(find.text('New chat'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Patient name or mobile'), findsOneWidget);
+    expect(find.text('Message several patients'), findsOneWidget);
+    expect(find.text('NOT BUILT YET'), findsOneWidget, reason: 'the server cannot fan one out');
+    expect(find.text('PATIENTS SEEN RECENTLY'), findsOneWidget);
+    expect(find.text('Messaging colleagues is not built yet.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('nothing clips when the reader turns their text size up', (tester) async {
     // The header — title, line, search field, wrapped tabs — scrolls with the
     // conversations rather than sitting fixed above them, because at this size
