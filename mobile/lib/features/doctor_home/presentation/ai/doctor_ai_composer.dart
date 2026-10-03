@@ -84,10 +84,8 @@ class _DoctorAiComposerState extends ConsumerState<DoctorAiComposer> {
                             onSubmitted: (_) => _send(),
                             textInputAction: TextInputAction.send,
                             style: D.subtitle.copyWith(color: D.ink),
-                            decoration: InputDecoration(
-                              isDense: true,
-                              border: InputBorder.none,
-                              hintText: 'Ask about a patient',
+                            decoration: D.bareField(
+                              hint: 'Ask about a patient',
                               hintStyle: D.subtitle.copyWith(color: D.inkFaint),
                             ),
                           ),

@@ -990,14 +990,8 @@ class _Field extends StatelessWidget {
                         inputFormatters: formatters,
                         textCapitalization: textCapitalization,
                         style: D.input.copyWith(color: enabled ? D.ink : D.inkMuted),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          disabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          hintText: hint,
+                        decoration: D.bareField(
+                          hint: hint,
                           hintStyle: D.input.copyWith(color: D.inkFaint),
                         ),
                         onChanged: (v) {

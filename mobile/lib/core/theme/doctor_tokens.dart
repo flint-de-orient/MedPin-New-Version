@@ -118,6 +118,36 @@ class D {
   /// 11/1.2 bold — a count nobody has read.
   static final TextStyle badgeText = _f(11, 1.2, 700);
 
+  // ================================================================ fields
+
+  /// A text field with no chrome of its own.
+  ///
+  /// Every field in this design is a box the widget draws: one hairline, one
+  /// radius, the icon and the unit inside it. The app's own
+  /// `InputDecorationTheme` is the old design's and fights that — it fills the
+  /// field white, adds its own padding, and draws its own rounded border
+  /// *inside* the one already drawn.
+  ///
+  /// `border: InputBorder.none` alone does not stop it: the theme keeps a
+  /// separate border for the enabled, focused, error and focused-error states,
+  /// and each wins in its own state. The new-chat sheet autofocuses its search,
+  /// so the focused border reached the phone as a second rounded box sitting
+  /// inside the first.
+  static InputDecoration bareField({String? hint, TextStyle? hintStyle}) =>
+      InputDecoration(
+        isDense: true,
+        filled: false,
+        contentPadding: EdgeInsets.zero,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        errorBorder: InputBorder.none,
+        focusedErrorBorder: InputBorder.none,
+        hintText: hint,
+        hintStyle: hintStyle,
+      );
+
   // =============================================================== colour
 
   static const Color brand = Color(0xFF003399);

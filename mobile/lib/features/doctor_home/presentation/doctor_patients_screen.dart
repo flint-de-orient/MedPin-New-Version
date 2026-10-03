@@ -240,10 +240,8 @@ class _Header extends StatelessWidget {
                     onChanged: (_) => onSearchChanged(),
                     textInputAction: TextInputAction.search,
                     style: D.subtitle.copyWith(color: D.ink),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      hintText: 'Search by name or mobile number',
+                    decoration: D.bareField(
+                      hint: 'Search by name or mobile number',
                       hintStyle: D.subtitle.copyWith(color: D.inkFaint),
                     ),
                   ),

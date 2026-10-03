@@ -268,10 +268,8 @@ class _Header extends StatelessWidget {
                     controller: search,
                     onChanged: (_) => onSearchChanged(),
                     style: D.subtitle.copyWith(color: D.ink),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      hintText: 'Search people',
+                    decoration: D.bareField(
+                      hint: 'Search people',
                       hintStyle: D.subtitle.copyWith(color: D.inkFaint),
                     ),
                   ),
@@ -714,13 +712,11 @@ class _NewChatSheetState extends ConsumerState<_NewChatSheet> {
                         autofocus: true,
                         onChanged: (v) => setState(() => _search = v),
                         style: D.subtitle.copyWith(color: D.ink),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          border: InputBorder.none,
-                          // The artboard offers doctors and staff here too;
-                          // this search only reaches the practice's patients,
-                          // so it says so rather than promising the rest.
-                          hintText: 'Patient name or mobile',
+                        // The artboard offers doctors and staff here too; this
+                        // search only reaches the practice's patients, so it
+                        // says so rather than promising the rest.
+                        decoration: D.bareField(
+                          hint: 'Patient name or mobile',
                           hintStyle: D.subtitle.copyWith(color: D.inkFaint),
                         ),
                       ),
@@ -779,51 +775,65 @@ class _NewChatSheetState extends ConsumerState<_NewChatSheet> {
 }
 
 /// The artboard's first row in this sheet: write to a group of patients at
-/// once. The server sends one thread at a time and has no way to fan a
-/// message out, so the row is drawn as designed and says plainly that it is
-/// not built — rather than opening something that quietly reaches one person.
+/// once.
+///
+/// The server has no fan-out call, so this does not promise one. It opens a
+/// screen that chooses the people, writes the message once, and then sends it
+/// to each of them one at a time through the ordinary reply — and says which
+/// ones it reached. See [DoctorBulkMessageScreen].
 class _SeveralPatients extends StatelessWidget {
   const _SeveralPatients();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: D.s4, vertical: D.cardPad),
-      decoration: BoxDecoration(
-        color: D.ground,
+    return Material(
+      color: D.ground,
+      borderRadius: BorderRadius.circular(D.rCard),
+      child: InkWell(
+        onTap: () {
+          // The sheet is in the way of the screen it opens.
+          Navigator.of(context).pop();
+          context.push('/clinician/messages/several');
+        },
         borderRadius: BorderRadius.circular(D.rCard),
-        border: Border.all(color: D.line),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: D.disc - D.s2,
-            height: D.disc - D.s2,
-            decoration: BoxDecoration(
-              color: D.brandTint,
-              borderRadius: BorderRadius.circular(D.s3),
-            ),
-            child: const Icon(Icons.groups_2_outlined, size: D.iconLg, color: D.brand),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: D.s4, vertical: D.cardPad),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(D.rCard),
+            border: Border.all(color: D.line),
           ),
-          SizedBox(width: D.s3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Message several patients',
-                  style: D.subtitle.copyWith(color: D.ink, fontWeight: FontWeight.w700),
+          child: Row(
+            children: [
+              Container(
+                width: D.disc - D.s2,
+                height: D.disc - D.s2,
+                decoration: BoxDecoration(
+                  color: D.brandTint,
+                  borderRadius: BorderRadius.circular(D.s3),
                 ),
-                Text(
-                  'e.g. everyone with a follow-up due this week',
-                  style: D.statLabel.copyWith(color: D.inkMuted),
+                child: const Icon(Icons.groups_2_outlined, size: D.iconLg, color: D.brand),
+              ),
+              SizedBox(width: D.s3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Message several patients',
+                      style: D.subtitle.copyWith(color: D.ink, fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      'e.g. everyone with a follow-up due this week',
+                      style: D.statLabel.copyWith(color: D.inkMuted),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              SizedBox(width: D.s2),
+              const Icon(Icons.chevron_right_rounded, size: D.iconLg, color: D.inkFaint),
+            ],
           ),
-          SizedBox(width: D.s2),
-          Text('NOT BUILT YET', style: D.chip.copyWith(color: D.inkFaint)),
-        ],
+        ),
       ),
     );
   }

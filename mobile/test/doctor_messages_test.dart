@@ -250,7 +250,7 @@ void main() {
     expect(note.bottom, greaterThan(600), reason: 'the view is 800dp tall; this is the foot of it');
   });
 
-  testWidgets('the new-chat sheet asks who, and says what it cannot do', (tester) async {
+  testWidgets('the new-chat sheet asks who, and offers the group send', (tester) async {
     await _pump(tester, _Clinic(items: [_chat(name: 'Fardin', preview: 'hi')]));
 
     await tester.tap(find.text('New chat'));
@@ -258,7 +258,11 @@ void main() {
 
     expect(find.text('Patient name or mobile'), findsOneWidget);
     expect(find.text('Message several patients'), findsOneWidget);
-    expect(find.text('NOT BUILT YET'), findsOneWidget, reason: 'the server cannot fan one out');
+    expect(
+      find.text('NOT BUILT YET'),
+      findsNothing,
+      reason: 'it is built: the row opens the screen that chooses who it goes to',
+    );
     expect(find.text('PATIENTS SEEN RECENTLY'), findsOneWidget);
     expect(find.text('Messaging colleagues is not built yet.'), findsOneWidget);
     expect(tester.takeException(), isNull);
