@@ -243,8 +243,9 @@ class _RecordVitalsSheetState extends ConsumerState<_RecordVitalsSheet> {
                           controller: _sugar,
                           validator: VitalsValidators.sugar,
                           // The one measurement here that is also a reading:
-                          // it joins the glucose series the chart draws.
-                          note: 'Goes on the fasting sugar chart',
+                          // it joins the patient's own glucose series rather
+                          // than sitting on this visit alone.
+                          note: 'Saved as a blood sugar reading',
                         ),
                         SizedBox(height: D.s3),
                         Row(

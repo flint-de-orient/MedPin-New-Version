@@ -276,12 +276,6 @@ class SummaryTab extends ConsumerWidget {
           ),
           child: _Vitals(patient: patient),
         ),
-        SizedBox(height: D.s4),
-        ProfileCard(
-          title: 'Fasting sugar',
-          subtitle: windowLine(patient.glucoseDaily),
-          child: GlucoseChart(points: patient.glucoseDaily),
-        ),
       ],
     );
   }
@@ -1374,11 +1368,4 @@ String bmiBand(double bmi) {
   if (bmi < 25) return 'Normal';
   if (bmi < 30) return 'Overweight';
   return 'Obese';
-}
-
-@visibleForTesting
-String windowLine(List<GlucoseDailyPoint> points) {
-  if (points.isEmpty) return 'Nothing logged';
-  final average = points.map((p) => p.average).reduce((a, b) => a + b) / points.length;
-  return 'Last ${points.length} days · avg ${average.round()} mg/dL';
 }
