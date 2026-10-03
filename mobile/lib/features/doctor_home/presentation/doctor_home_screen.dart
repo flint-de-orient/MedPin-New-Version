@@ -192,7 +192,6 @@ class _Greeting extends ConsumerWidget {
 }
 
 /// "Dr." in front of a doctor's name, unless they have written it themselves.
-@visibleForTesting
 String doctorNameOf(String? name, String? role) {
   final bare = (name ?? '').trim();
   if (bare.isEmpty) return 'Doctor';

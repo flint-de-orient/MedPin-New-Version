@@ -22,6 +22,7 @@ import '../../features/clinician/presentation/alerts_screen.dart';
 import '../../features/doctor_home/presentation/ai/doctor_ai_chat_screen.dart';
 import '../../features/doctor_home/presentation/ai/doctor_ai_screen.dart';
 import '../../features/doctor_home/presentation/doctor_home_screen.dart';
+import '../../features/doctor_home/presentation/doctor_patients_screen.dart';
 import '../../features/doctor_home/presentation/follow_ups_screen.dart';
 import '../../features/clinician/presentation/appointments_admin_screen.dart';
 import '../../features/clinician/presentation/clinic_edit_screen.dart';
@@ -725,7 +726,7 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/clinician/patients',
-                builder: (context, state) => const PatientsScreen(),
+                builder: (context, state) => const DoctorPatientsScreen(),
               ),
             ],
           ),
