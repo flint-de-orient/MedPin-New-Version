@@ -6,9 +6,9 @@ import 'package:medpin/core/network/api_client.dart';
 import 'package:medpin/core/storage/secure_store.dart';
 import 'package:medpin/features/clinician/data/clinician_repository.dart';
 import 'package:medpin/features/clinician/domain/clinician_models.dart';
-import 'package:medpin/features/clinician/domain/patient_summary.dart';
 import 'package:medpin/features/doctor_home/presentation/doctor_patient_profile_screen.dart';
 import 'package:medpin/features/doctor_home/presentation/widgets/profile_tabs.dart';
+import 'package:medpin/features/clinician/domain/patient_summary.dart';
 import 'package:medpin/features/medications/domain/medication.dart';
 import 'package:medpin/l10n/gen/app_localizations.dart';
 import 'package:medpin/shared/providers/core_providers.dart';
@@ -51,11 +51,14 @@ Map<String, dynamic> _lab({
 };
 
 class _Clinic implements ClinicianRepository {
-  _Clinic({required this.patient, this.prescriptions = const [], this.medicines = const []});
+  _Clinic({required this.patient, this.medicines = const []});
 
   PatientSummary patient;
-  List<PrescriptionSummary> prescriptions;
   List<Medication> medicines;
+
+  /// Nothing in these tests needs a prescription; the tabs that show them are
+  /// covered by their own cases above.
+  static const prescriptions = <PrescriptionSummary>[];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => switch (invocation.memberName) {
@@ -198,6 +201,124 @@ void main() {
       );
       expect(metaLine(r), '3 medicines · 1 test · Follow-up 29 Oct');
     });
+  });
+
+  group('what the summary was written from', () {
+    test('every record the assistant reads is named, including the empty ones', () {
+      final sources = sourcesOf(_patient(), const []);
+      expect(
+        sources.map((s) => s.label),
+        containsAll(<String>[
+          'Profile and targets',
+          'Test reports',
+          'Medicines',
+          'Prescriptions',
+          'Blood sugar readings',
+          'HbA1c',
+          'Vitals',
+        ]),
+      );
+      // Looked and found nothing is not the same as never looked.
+      expect(
+        sources.firstWhere((s) => s.label == 'Test reports').detail,
+        'None on file',
+      );
+      expect(sources.firstWhere((s) => s.label == 'Medicines').detail, 'None active');
+      expect(
+        sources.firstWhere((s) => s.label == 'Blood sugar readings').detail,
+        'None recorded',
+      );
+    });
+
+    test('a record with nothing in it offers no way in', () {
+      final sources = sourcesOf(_patient(), const []);
+      expect(sources.firstWhere((s) => s.label == 'Test reports').tab, isNull);
+      expect(sources.firstWhere((s) => s.label == 'Medicines').tab, isNull);
+    });
+
+    test('a record that has something points at the tab holding it', () {
+      final sources = sourcesOf(
+        _patient(
+          labs: [
+            _lab(
+              name: 'Lipid profile',
+              analytes: [
+                {'code': 'ldl', 'label': 'LDL', 'value': 162, 'refHigh': 100, 'flag': 'high'},
+              ],
+            ),
+          ],
+        ),
+        const [],
+      );
+      final reports = sources.firstWhere((s) => s.label == 'Test reports');
+      expect(reports.tab, 2, reason: 'the Test results tab');
+      expect(reports.detail, '1 on file · newest 18 Jul 2026');
+    });
+
+    test('a report nobody has read is not described as normal', () {
+      expect(
+        reportLine(LabReport.fromJson(_lab(name: 'Scan', analytes: []))),
+        '18 Jul 2026 · Not read yet',
+      );
+      expect(
+        reportLine(
+          LabReport.fromJson(
+            _lab(
+              name: 'CBC',
+              analytes: [
+                {'code': 'hb', 'label': 'Haemoglobin', 'value': 13, 'refLow': 12, 'flag': 'normal'},
+              ],
+            ),
+          ),
+        ),
+        '18 Jul 2026 · Nothing flagged',
+      );
+    });
+  });
+
+  testWidgets('the AI card lists the reports and medicines, and sources opens', (tester) async {
+    await _pump(
+      tester,
+      _Clinic(
+        patient: _patient(
+          extra: {'aiContext': 'Prediabetes. No readings yet.'},
+          labs: [
+            _lab(
+              name: 'Lipid profile',
+              analytes: [
+                {'code': 'ldl', 'label': 'LDL', 'value': 162, 'unit': 'mg/dL', 'refHigh': 100, 'flag': 'high'},
+              ],
+            ),
+          ],
+        ),
+        medicines: [
+          Medication.fromJson(const {
+            'id': 'm1',
+            'name': 'Metformin',
+            'strength': '500 mg',
+            'dose': '1 tablet',
+            'form': 'tablet',
+            'isActive': true,
+            'schedule': [
+              {'time': '08:00'},
+              {'time': '20:00'},
+            ],
+          }),
+        ],
+      ),
+    );
+
+    expect(find.text('TEST REPORTS'), findsOneWidget);
+    expect(find.text('Lipid profile'), findsWidgets);
+    expect(find.text('MEDICINES'), findsOneWidget);
+    expect(find.text('Metformin 500 mg'), findsOneWidget);
+
+    await tester.tap(find.text('Sources'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('What this was written from'), findsOneWidget);
+    expect(find.text('1 on file · newest 18 Jul 2026'), findsOneWidget);
+    expect(find.text('1 active'), findsOneWidget);
   });
 
   testWidgets('the record opens on the summary, with the patient in the header', (tester) async {

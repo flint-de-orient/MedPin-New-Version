@@ -19,16 +19,28 @@ import 'profile_parts.dart';
 
 // =============================================================== Summary ====
 
-class SummaryTab extends StatelessWidget {
-  const SummaryTab({super.key, required this.patient});
+class SummaryTab extends ConsumerWidget {
+  const SummaryTab({
+    super.key,
+    required this.patient,
+    required this.patientId,
+    required this.onOpenTab,
+  });
 
   final PatientSummary patient;
+  final String patientId;
+
+  /// Where a source lives: tapping one in the sources sheet opens the tab that
+  /// holds it, rather than naming a record the doctor then has to go and find.
+  final ValueChanged<int> onOpenTab;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final abnormal = abnormalFindings(patient.labResults);
     final context_ = (patient.aiContext ?? '').trim();
     final open = [for (final a in patient.alerts) if (a.status == 'open') a];
+    final medicines = ref.watch(patientMedicationsProvider(patientId)).valueOrNull ?? const [];
+    final current = [for (final m in medicines) if (m.isActive) m];
 
     return ListView(
       padding: EdgeInsets.fromLTRB(D.s5, D.s5, D.s5, D.s8),
@@ -160,6 +172,39 @@ class SummaryTab extends StatelessWidget {
                       ),
                     ),
                 ],
+                if (patient.labResults.isNotEmpty) ...[
+                  SizedBox(height: D.s5),
+                  _AiGroup(
+                    label: 'Test reports',
+                    count: patient.labResults.length,
+                    onMore: () => onOpenTab(2),
+                    rows: [
+                      for (final r in patient.labResults.take(3))
+                        (
+                          title: r.testName.trim().isEmpty ? 'Test report' : r.testName,
+                          detail: reportLine(r),
+                        ),
+                    ],
+                  ),
+                ],
+                if (current.isNotEmpty) ...[
+                  SizedBox(height: D.s5),
+                  _AiGroup(
+                    label: 'Medicines',
+                    count: current.length,
+                    onMore: () => onOpenTab(3),
+                    rows: [
+                      for (final m in current.take(3))
+                        (
+                          title: [
+                            m.name,
+                            m.strength,
+                          ].where((t) => t.trim().isNotEmpty).join(' '),
+                          detail: doseLine(m),
+                        ),
+                    ],
+                  ),
+                ],
                 SizedBox(height: D.s3),
                 Padding(
                   padding: EdgeInsets.only(top: D.s3),
@@ -169,10 +214,34 @@ class SummaryTab extends StatelessWidget {
                     ),
                     child: Padding(
                       padding: EdgeInsets.only(top: D.s3),
-                      child: Text(
-                        'Written by AI from ${first(patient.name)}’s shared records. Check the '
-                        'source before acting.',
-                        style: D.statLabel.copyWith(color: D.inkFaint, height: 1.4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Written by AI from ${first(patient.name)}’s shared records. '
+                              'Check the source before acting.',
+                              style: D.statLabel.copyWith(color: D.inkFaint, height: 1.4),
+                            ),
+                          ),
+                          SizedBox(width: D.s2),
+                          TextButton(
+                            onPressed: () => showAiSources(
+                              context,
+                              patient: patient,
+                              medicines: current,
+                              onOpenTab: onOpenTab,
+                            ),
+                            style: TextButton.styleFrom(
+                              minimumSize: D.hug,
+                              padding: EdgeInsets.symmetric(horizontal: D.s2),
+                            ),
+                            child: Text(
+                              'Sources',
+                              style: D.dateLine.copyWith(color: D.brand),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -196,6 +265,282 @@ class SummaryTab extends StatelessWidget {
       ],
     );
   }
+}
+
+/// A short list inside the AI card: what it read, and the way to all of it.
+class _AiGroup extends StatelessWidget {
+  const _AiGroup({
+    required this.label,
+    required this.count,
+    required this.rows,
+    required this.onMore,
+  });
+
+  final String label;
+  final int count;
+  final List<({String title, String detail})> rows;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final hidden = count - rows.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: ProfileEyebrow(label: label)),
+            Text('$count', style: D.statLabel.copyWith(color: D.inkFaint)),
+          ],
+        ),
+        SizedBox(height: D.s2),
+        for (final (i, row) in rows.indexed)
+          ProfileRow(
+            first: i == 0,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        row.title,
+                        style: D.subtitle.copyWith(color: D.ink, fontWeight: FontWeight.w600),
+                      ),
+                      if (row.detail.trim().isNotEmpty)
+                        Text(row.detail, style: D.statLabel.copyWith(color: D.inkFaint)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (hidden > 0)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: onMore,
+              style: TextButton.styleFrom(minimumSize: D.hug, padding: EdgeInsets.zero),
+              child: Text(
+                '$hidden more',
+                style: D.dateLine.copyWith(color: D.brand),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// What the summary was written from.
+///
+/// The server composes `aiContext` from a fixed set of records — the profile
+/// and its targets, glucose readings, the latest HbA1c, the latest vitals, the
+/// current medicines, the next appointment, the latest prescription with its
+/// advice and tests, the reports on file and the diet plan. This sheet names
+/// those, with what is actually on this patient's record beside each, and opens
+/// the tab that holds it.
+///
+/// It does not claim a sentence came from a particular record. The summary is
+/// prose written over all of it; what can be said truthfully is what it was
+/// allowed to read, and a doctor checking a claim needs that list and a way in.
+Future<void> showAiSources(
+  BuildContext context, {
+  required PatientSummary patient,
+  required List<Medication> medicines,
+  required ValueChanged<int> onOpenTab,
+}) {
+  final sources = sourcesOf(patient, medicines);
+
+  return showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    showDragHandle: false,
+    isScrollControlled: true,
+    backgroundColor: D.card,
+    barrierColor: D.scrim,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(D.rSection)),
+    ),
+    builder: (sheet) => SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(D.s5, D.s3, D.s5, D.s6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: D.s8 + D.s1,
+                height: D.s1,
+                decoration: const BoxDecoration(color: D.lineStrong, borderRadius: D.rPill),
+              ),
+            ),
+            SizedBox(height: D.s5),
+            Text('What this was written from', style: D.screenTitle.copyWith(color: D.ink)),
+            SizedBox(height: D.s2),
+            Text(
+              'The assistant reads these records for ${first(patient.name)}, as this practice '
+              'can see them. It is prose over all of it, so check the record itself before '
+              'acting on a number.',
+              style: D.body.copyWith(color: D.inkMuted),
+            ),
+            SizedBox(height: D.s4),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final (i, source) in sources.indexed)
+                    ProfileRow(
+                      first: i == 0,
+                      onTap: source.tab == null
+                          ? null
+                          : () {
+                              Navigator.of(sheet).pop();
+                              onOpenTab(source.tab!);
+                            },
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(source.icon, size: D.iconLg, color: D.inkFaint),
+                          SizedBox(width: D.s3),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  source.label,
+                                  style: D.subtitle.copyWith(
+                                    color: D.ink,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  source.detail,
+                                  style: D.statLabel.copyWith(color: D.inkFaint),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (source.tab != null)
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              size: D.iconLg,
+                              color: D.inkFaint,
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// One kind of record the summary may draw on, and what is on file.
+typedef AiSource = ({String label, String detail, IconData icon, int? tab});
+
+/// The records behind the summary, each with what this patient actually has.
+///
+/// Every row says what is there — including "none on file", because a doctor
+/// reading "no blood sugar readings recorded" in the summary needs to see that
+/// the assistant looked and found nothing, not that it never looked.
+@visibleForTesting
+List<AiSource> sourcesOf(PatientSummary p, List<Medication> medicines) {
+  final reports = p.labResults.length;
+  final newest = p.labResults.isNotEmpty ? p.labResults.first.createdAt : null;
+
+  return [
+    (
+      label: 'Profile and targets',
+      detail: [
+        if ((p.diabetesType ?? '').trim().isNotEmpty) p.diabetesType!.trim(),
+        if (p.details.comorbidities.isNotEmpty)
+          '${p.details.comorbidities.length} other condition'
+              '${p.details.comorbidities.length == 1 ? '' : 's'}',
+        if (p.details.allergies.isNotEmpty) '${p.details.allergies.length} allergy noted',
+      ].join(' · ').ifEmpty('On file'),
+      icon: Icons.badge_outlined,
+      tab: null,
+    ),
+    (
+      label: 'Test reports',
+      detail: reports == 0
+          ? 'None on file'
+          : '$reports on file${newest == null ? '' : ' · newest ${DateFormat('d MMM yyyy').format(newest)}'}',
+      icon: Icons.science_outlined,
+      tab: reports == 0 ? null : 2,
+    ),
+    (
+      label: 'Medicines',
+      detail: medicines.isEmpty ? 'None active' : '${medicines.length} active',
+      icon: Icons.medication_outlined,
+      tab: medicines.isEmpty ? null : 3,
+    ),
+    (
+      label: 'Prescriptions',
+      detail: 'The latest one, with its diagnosis, advice and tests',
+      icon: Icons.description_outlined,
+      tab: 1,
+    ),
+    (
+      label: 'Blood sugar readings',
+      detail: p.glucoseDaily.isEmpty
+          ? 'None recorded'
+          : '${p.glucoseDaily.length} days logged'
+                '${p.glucoseAverage == null ? '' : ' · avg ${p.glucoseAverage}'}',
+      icon: Icons.show_chart_rounded,
+      tab: null,
+    ),
+    (
+      label: 'HbA1c',
+      detail: p.lastHba1c == null ? 'None on record' : 'Latest ${p.lastHba1c}%',
+      icon: Icons.bloodtype_outlined,
+      tab: null,
+    ),
+    (
+      label: 'Vitals',
+      detail: p.systolic == null && p.weightKg == null
+          ? 'None recorded'
+          : 'The latest recorded at this practice',
+      icon: Icons.monitor_heart_outlined,
+      tab: null,
+    ),
+    if (p.nutritionCare != null)
+      (
+        label: 'Diet plan',
+        detail: 'From the dietician looking after them',
+        icon: Icons.restaurant_outlined,
+        tab: null,
+      ),
+  ];
+}
+
+extension on String {
+  String ifEmpty(String fallback) => trim().isEmpty ? fallback : this;
+}
+
+/// "18 Jul 2026 · SRL Diagnostics" — whatever the report says about itself.
+@visibleForTesting
+String reportLine(LabReport r) {
+  final flagged = [for (final a in r.analytes) if (a.abnormal) a];
+  return [
+    if (r.createdAt != null) DateFormat('d MMM yyyy').format(r.createdAt!),
+    if (flagged.isNotEmpty)
+      flagLabel(flagged)
+    else if (r.analytes.isNotEmpty)
+      'Nothing flagged'
+    else if (r.note.trim().isNotEmpty)
+      r.note.trim()
+    else
+      'Not read yet',
+  ].join(' · ');
 }
 
 class _Vitals extends StatelessWidget {

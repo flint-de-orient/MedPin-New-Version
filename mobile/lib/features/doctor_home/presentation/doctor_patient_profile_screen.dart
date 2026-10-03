@@ -89,7 +89,11 @@ class _DoctorPatientProfileScreenState extends ConsumerState<DoctorPatientProfil
                 data: (p) => TabBarView(
                   controller: _tabs,
                   children: [
-                    SummaryTab(patient: p),
+                    SummaryTab(
+                      patient: p,
+                      patientId: widget.patientId,
+                      onOpenTab: _tabs.animateTo,
+                    ),
                     PrescriptionsTab(patientId: widget.patientId),
                     TestsTab(patient: p),
                     TreatmentTab(patient: p, patientId: widget.patientId),
