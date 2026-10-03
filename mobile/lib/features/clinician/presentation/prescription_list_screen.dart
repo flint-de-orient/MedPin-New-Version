@@ -1,13 +1,10 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../../core/config/app_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../shared/providers/core_providers.dart';
@@ -19,6 +16,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../shared/data/upload_repository.dart';
 import '../../../core/network/api_exception.dart';
 import '../data/clinician_repository.dart';
+import '../data/prescription_document.dart';
 import '../../../shared/widgets/authed_image.dart';
 import '../../../shared/widgets/fullscreen_photo.dart';
 import '../domain/prescription_scan.dart';
@@ -328,30 +326,13 @@ class _PrescriptionCardState extends ConsumerState<_PrescriptionCard> {
   bool _busy = false;
   bool _expanded = false;
 
-  /// Fetch the PDF to a cached file and return its path, or null.
+  /// Fetch the document to a cached file and return its path, or null.
   ///
-  /// Split out of the open so sharing does not download a second copy — a
-  /// prescription is immutable once issued, so whatever is on disk is current.
-  Future<String?> _fetchPdf() async {
-    // Whichever document this prescription is. A composed one has a PDF
-    // generated from its items; a filed paper one has the photograph, and
-    // nothing to generate a PDF from.
-    final url = widget.rx.documentUrl;
-    if (url == null || url.isEmpty) return null;
-    final dir = await getTemporaryDirectory();
-    final name =
-        '${widget.rx.referenceNo ?? widget.rx.id}.${widget.rx.documentExtension}'
-            .replaceAll(RegExp(r'[^\w.\-]'), '_');
-    final cached = File('${dir.path}/rx_${url.hashCode}_$name');
-    if (!await cached.exists() || await cached.length() == 0) {
-      final bytes = await ref
-          .read(apiClientProvider)
-          .getBytes('${AppConfig.apiOrigin}$url');
-      if (bytes.isEmpty) throw Exception('empty document download');
-      await cached.writeAsBytes(bytes, flush: true);
-    }
-    return cached.path;
-  }
+  /// The fetch itself lives in data/prescription_document.dart, because the
+  /// record's Prescriptions tab offers the same two actions and a second copy
+  /// of the auth, the naming and the cache is a second place for them to drift.
+  Future<String?> _fetchPdf() =>
+      prescriptionDocumentPath(ref.read(apiClientProvider), widget.rx);
 
   Future<void> _open() async {
     if (_busy || widget.rx.documentUrl == null) return;
@@ -391,7 +372,7 @@ class _PrescriptionCardState extends ConsumerState<_PrescriptionCard> {
       // sending it on and keeping a copy both.
       await SharePlus.instance.share(
         ShareParams(
-          files: [XFile(path, mimeType: 'application/pdf')],
+          files: [XFile(path, mimeType: prescriptionMimeType(widget.rx))],
           subject: 'Prescription ${widget.rx.referenceNo ?? ''}'.trim(),
         ),
       );

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/theme/doctor_tokens.dart';
+import '../../../../shared/providers/core_providers.dart';
+import '../../../clinician/data/prescription_document.dart';
 import '../../../clinician/domain/clinician_models.dart';
 import '../../../clinician/domain/patient_summary.dart';
 import '../../../clinician/presentation/clinician_providers.dart';
@@ -727,11 +730,7 @@ class _PrescriptionsTabState extends ConsumerState<PrescriptionsTab> {
               )
             else
               for (final (i, r) in shown.indexed) ...[
-                _PrescriptionCard(
-                  prescription: r,
-                  latest: i == 0 && _filter == 'all',
-                  patientId: widget.patientId,
-                ),
+                _PrescriptionCard(prescription: r, latest: i == 0 && _filter == 'all'),
                 SizedBox(height: D.s3),
               ],
           ],
@@ -741,21 +740,80 @@ class _PrescriptionsTabState extends ConsumerState<PrescriptionsTab> {
   }
 }
 
-class _PrescriptionCard extends StatelessWidget {
-  const _PrescriptionCard({
-    required this.prescription,
-    required this.latest,
-    required this.patientId,
-  });
+class _PrescriptionCard extends ConsumerStatefulWidget {
+  const _PrescriptionCard({required this.prescription, required this.latest});
 
   final PrescriptionSummary prescription;
   final bool latest;
-  final String patientId;
+
+  @override
+  ConsumerState<_PrescriptionCard> createState() => _PrescriptionCardState();
+}
+
+class _PrescriptionCardState extends ConsumerState<_PrescriptionCard> {
+  bool _busy = false;
+
+  /// The document itself, cached. Null when this prescription has none.
+  Future<String?> _file() =>
+      prescriptionDocumentPath(ref.read(apiClientProvider), widget.prescription);
+
+  Future<void> _open() async {
+    if (_busy) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final path = await _file();
+      if (path == null) return;
+      final result = await OpenFilex.open(path);
+      if (result.type != ResultType.done) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'No app on this phone opens a '
+              '${widget.prescription.documentExtension.toUpperCase()} file.',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not open the prescription.')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Saving it, which on a phone is the share sheet: "Save to Files" and
+  /// "Download" both live in there, next to sending it on.
+  Future<void> _save() async {
+    if (_busy) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final path = await _file();
+      if (path == null) return;
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(path, mimeType: prescriptionMimeType(widget.prescription))],
+          subject: 'Prescription ${widget.prescription.referenceNo ?? ''}'.trim(),
+        ),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not save the prescription.')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final r = prescription;
+    final r = widget.prescription;
+    final latest = widget.latest;
     final ended = r.endedLabel;
+    final hasFile = (r.documentUrl ?? '').isNotEmpty;
 
     return ProfileCard(
       child: Column(
@@ -788,18 +846,73 @@ class _PrescriptionCard extends StatelessWidget {
           SizedBox(height: D.s2),
           Text(metaLine(r), style: D.statLabel.copyWith(color: D.inkFaint)),
           SizedBox(height: D.s3),
-          FilledButton.icon(
-            onPressed: () => context.push('/clinician/patients/$patientId/prescriptions'),
-            icon: const Icon(Icons.visibility_outlined, size: D.iconMd),
-            label: Text('View', style: D.subtitle.copyWith(fontWeight: FontWeight.w600)),
-            style: FilledButton.styleFrom(
-              backgroundColor: D.brandTint,
-              foregroundColor: D.brand,
-              elevation: 0,
-              minimumSize: Size.fromHeight(MediaQuery.textScalerOf(context).scale(D.disc)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(D.s3)),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: hasFile && !_busy ? _open : null,
+                  icon: _busy
+                      ? const SizedBox(
+                          width: D.icon,
+                          height: D.icon,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: D.brand),
+                        )
+                      : const Icon(Icons.visibility_outlined, size: D.iconMd),
+                  label: Text(
+                    'View',
+                    style: D.subtitle.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: D.brandTint,
+                    foregroundColor: D.brand,
+                    disabledBackgroundColor: D.ground,
+                    disabledForegroundColor: D.inkFaint,
+                    elevation: 0,
+                    minimumSize: Size.fromHeight(
+                      MediaQuery.textScalerOf(context).scale(D.disc),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(D.s3),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: D.s2),
+              // The artboard's square beside it. On a phone "download" is the
+              // share sheet: Save to Files and Download both live in there.
+              Semantics(
+                button: true,
+                label: 'Save or send this prescription',
+                child: SizedBox(
+                  width: MediaQuery.textScalerOf(context).scale(D.disc),
+                  height: MediaQuery.textScalerOf(context).scale(D.disc),
+                  child: OutlinedButton(
+                    onPressed: hasFile && !_busy ? _save : null,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: D.brand,
+                      disabledForegroundColor: D.inkFaint,
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      side: const BorderSide(color: D.lineStrong),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(D.s3),
+                      ),
+                    ),
+                    child: const Icon(Icons.download_rounded, size: D.iconLg),
+                  ),
+                ),
+              ),
+            ],
           ),
+          if (!hasFile) ...[
+            SizedBox(height: D.s2),
+            Text(
+              r.source == 'composed'
+                  ? 'No PDF was generated for this one.'
+                  : 'No file was uploaded with this one.',
+              style: D.statLabel.copyWith(color: D.inkFaint),
+            ),
+          ],
         ],
       ),
     );

@@ -51,17 +51,14 @@ Map<String, dynamic> _lab({
 };
 
 class _Clinic implements ClinicianRepository {
-  _Clinic({required this.patient, this.medicines = const []});
+  _Clinic({required this.patient, this.medicines = const [], this.prescriptions = const []});
 
   PatientSummary patient;
   List<Medication> medicines;
+  List<PrescriptionSummary> prescriptions;
 
   /// Every vitals write, as it was sent.
   final recorded = <Map<Symbol, dynamic>>[];
-
-  /// Nothing in these tests needs a prescription; the tabs that show them are
-  /// covered by their own cases above.
-  static const prescriptions = <PrescriptionSummary>[];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => switch (invocation.memberName) {
@@ -413,6 +410,42 @@ void main() {
 
     expect(find.text('A blood pressure needs both numbers.'), findsOneWidget);
     expect(clinic.recorded, isEmpty);
+  });
+
+  testWidgets('a prescription offers View and a download, and says when it has no file', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      _Clinic(
+        patient: _patient(),
+        prescriptions: [
+          PrescriptionSummary(
+            id: 'r1',
+            issuedOn: DateTime(2026, 9, 19),
+            doctorName: 'Dr. Test',
+            itemCount: 1,
+            pdfUrl: '/api/v1/prescriptions/r1.pdf',
+          ),
+          PrescriptionSummary(id: 'r2', issuedOn: DateTime(2026, 8, 1), itemCount: 2),
+        ],
+      ),
+    );
+
+    await tester.tap(find.text('Prescriptions'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('View'), findsNWidgets(2));
+    expect(find.byIcon(Icons.download_rounded), findsNWidgets(2));
+
+    // The one with a PDF can be opened; the one without says so rather than
+    // offering a button that does nothing.
+    expect(find.text('No PDF was generated for this one.'), findsOneWidget);
+    final buttons = tester
+        .widgetList<FilledButton>(find.widgetWithText(FilledButton, 'View'))
+        .toList();
+    expect(buttons.first.onPressed, isNotNull, reason: 'it has a PDF');
+    expect(buttons.last.onPressed, isNull, reason: 'it has no document at all');
   });
 
   testWidgets('the record opens on the summary, with the patient in the header', (tester) async {
