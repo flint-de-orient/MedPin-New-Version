@@ -87,7 +87,12 @@ class _NoSession extends SecureStore {
   Future<String?> readAccessToken() async => null;
 }
 
-Future<void> _pump(WidgetTester tester, _Clinic clinic, {double width = 720}) async {
+Future<void> _pump(
+  WidgetTester tester,
+  _Clinic clinic, {
+  double width = 720,
+  double textScale = 1,
+}) async {
   tester.view.physicalSize = Size(width, 1600);
   tester.view.devicePixelRatio = 2;
   addTearDown(tester.view.reset);
@@ -104,6 +109,11 @@ Future<void> _pump(WidgetTester tester, _Clinic clinic, {double width = 720}) as
         locale: const Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => MediaQuery.withClampedTextScaling(
+          minScaleFactor: textScale,
+          maxScaleFactor: textScale,
+          child: child!,
+        ),
         home: const DoctorMessagesScreen(),
       ),
     ),
@@ -190,7 +200,7 @@ void main() {
         _chat(name: 'Amit Pal', preview: 'thanks'),
       ],
     );
-    await _pump(tester, clinic, width: 1400);
+    await _pump(tester, clinic);
 
     expect(find.text('Amit Pal'), findsOneWidget);
     await tester.tap(find.text('Unread'));
@@ -203,7 +213,7 @@ void main() {
   });
 
   testWidgets('the colleague half says it is not built, rather than looking empty', (tester) async {
-    await _pump(tester, _Clinic(items: [_chat(name: 'Priya Sharma', preview: 'hello')]), width: 1400);
+    await _pump(tester, _Clinic(items: [_chat(name: 'Priya Sharma', preview: 'hello')]));
 
     await tester.tap(find.text('Colleagues'));
     await tester.pump();
@@ -211,6 +221,28 @@ void main() {
 
     expect(find.textContaining('Messaging colleagues is not built yet'), findsOneWidget);
     expect(find.text('New chat'), findsNothing, reason: 'nothing to start there');
+  });
+
+  testWidgets('nothing clips when the reader turns their text size up', (tester) async {
+    // The header — title, line, search field, wrapped tabs — scrolls with the
+    // conversations rather than sitting fixed above them, because at this size
+    // a fixed one is taller than the phone and leaves the list no room.
+    await _pump(
+      tester,
+      _Clinic(unreadTotal: 2, items: [_chat(name: 'Priya Sharma', preview: 'hello', unread: 2)]),
+      textScale: 1.5,
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Messages'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Priya Sharma'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('hello'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('no conversations says so', (tester) async {

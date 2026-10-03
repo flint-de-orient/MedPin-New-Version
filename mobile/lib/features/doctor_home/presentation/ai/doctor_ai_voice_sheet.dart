@@ -150,6 +150,7 @@ class _VoiceSheetState extends ConsumerState<_VoiceSheet> with SingleTickerProvi
                         _speech.cancel();
                         Navigator.of(context).pop();
                       },
+                      style: TextButton.styleFrom(minimumSize: D.hug),
                       child: Text('Cancel', style: D.dateLine.copyWith(color: D.inkMuted)),
                     ),
                   ),
@@ -183,6 +184,7 @@ class _VoiceSheetState extends ConsumerState<_VoiceSheet> with SingleTickerProvi
                         _speech.cancel();
                         Navigator.of(context).pop();
                       },
+                      style: TextButton.styleFrom(minimumSize: D.hug),
                       child: Text('Type instead', style: D.dateLine.copyWith(color: D.brand)),
                     ),
                   ),

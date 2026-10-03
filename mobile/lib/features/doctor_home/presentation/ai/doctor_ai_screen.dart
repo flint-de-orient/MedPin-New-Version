@@ -32,7 +32,8 @@ class DoctorAiScreen extends ConsumerWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         shape: const Border(bottom: BorderSide(color: D.line)),
-        toolbarHeight: D.bar,
+        // The bar holds two lines of text, so its height follows them.
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(D.bar),
         leading: IconButton(
           tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_rounded, size: D.iconDisc),

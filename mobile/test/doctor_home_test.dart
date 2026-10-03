@@ -7,7 +7,6 @@ import 'package:medpin/core/storage/secure_store.dart';
 import 'package:medpin/features/clinician/data/clinician_repository.dart';
 import 'package:medpin/features/clinician/domain/appointment.dart';
 import 'package:medpin/features/clinician/domain/clinician_models.dart';
-import 'package:medpin/features/clinician/presentation/clinician_providers.dart';
 import 'package:medpin/features/doctor_home/presentation/doctor_home_screen.dart';
 import 'package:medpin/l10n/gen/app_localizations.dart';
 import 'package:medpin/shared/data/care_contact.dart';

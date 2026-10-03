@@ -180,6 +180,16 @@ class D {
   /// Nothing tappable is smaller than this.
   static const double tap = 44;
 
+  /// A button that is as wide as its label, and no wider.
+  ///
+  /// The app's global button theme asks every button for `Size.fromHeight(52)`
+  /// — which is an *infinite* minimum width, because that is what
+  /// `Size.fromHeight` means. A button carrying it into a Row starves whatever
+  /// sits beside it: the Patients header's title came out one letter per line,
+  /// with "Add patient" pushed off the screen entirely. Any button here that
+  /// is not meant to span the screen passes this as its `minimumSize`.
+  static const Size hug = Size(0, tap);
+
   /// The logo's height, and the discs: the header's buttons, a quick action's
   /// icon, the emergency's mark, the assistant's tile.
   static const double logo = 36;

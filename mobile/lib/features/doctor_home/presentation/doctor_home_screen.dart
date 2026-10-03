@@ -358,7 +358,11 @@ class _StatsFailed extends StatelessWidget {
               style: D.body.copyWith(color: D.inkMuted),
             ),
           ),
-          TextButton(onPressed: onRetry, child: Text('Try again', style: D.bodyStrong)),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(minimumSize: D.hug),
+            child: Text('Try again', style: D.bodyStrong),
+          ),
         ],
       ),
     );

@@ -77,44 +77,48 @@ class _DoctorPatientsScreenState extends ConsumerState<DoctorPatientsScreen> {
       backgroundColor: D.ground,
       body: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            _Header(
-              total: patients.valueOrNull?.total,
-              search: _search,
-              searchFocus: _searchFocus,
-              view: _view,
-              onView: (v) => setState(() {
-                _view = v;
-                _pages = 1;
-              }),
-              onSearchChanged: () => setState(() => _pages = 1),
-            ),
-            Expanded(
-              child: patients.when(
-                loading: () => const Center(child: CircularProgressIndicator(color: D.brand)),
-                error: (_, _) => _Failed(onRetry: () => ref.invalidate(patientsProvider(query))),
-                data: (page) => RefreshIndicator(
-                  onRefresh: () async => ref.invalidate(patientsProvider(query)),
-                  child: ListView(
-                    padding: EdgeInsets.fromLTRB(D.s4, D.s4, D.s4, D.s6),
+        // One scroll view, header included. The header is not a fixed block
+        // above the list: at a large text size its title, search field and
+        // wrapped chips are taller than the phone, and a fixed header that
+        // tall leaves the roll no room at all — it overflowed by 117px.
+        child: RefreshIndicator(
+          onRefresh: () async => ref.invalidate(patientsProvider(query)),
+          child: ListView(
+            padding: EdgeInsets.only(bottom: D.s6),
+            children: [
+              _Header(
+                total: patients.valueOrNull?.total,
+                search: _search,
+                searchFocus: _searchFocus,
+                view: _view,
+                onView: (v) => setState(() {
+                  _view = v;
+                  _pages = 1;
+                }),
+                onSearchChanged: () => setState(() => _pages = 1),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(D.s4, D.s4, D.s4, 0),
+                child: patients.when(
+                  loading: () => Padding(
+                    padding: EdgeInsets.symmetric(vertical: D.s8),
+                    child: const Center(child: CircularProgressIndicator(color: D.brand)),
+                  ),
+                  error: (_, _) => _Failed(onRetry: () => ref.invalidate(patientsProvider(query))),
+                  data: (page) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (searching)
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(D.s1, 0, D.s1, D.s3),
-                          child: Text(
-                            matchesLine(page.total, _search.text.trim()),
-                            style: D.chip.copyWith(color: D.inkFaint),
-                          ),
-                        )
-                      else
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(D.s1, 0, D.s1, D.s3),
-                          child: Text(
-                            _view.label == 'All' ? 'EVERYBODY' : _view.label.toUpperCase(),
-                            style: D.chip.copyWith(color: D.inkFaint),
-                          ),
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(D.s1, 0, D.s1, D.s3),
+                        child: Text(
+                          searching
+                              ? matchesLine(page.total, _search.text.trim())
+                              : _view.label == 'All'
+                                  ? 'EVERYBODY'
+                                  : _view.label.toUpperCase(),
+                          style: D.chip.copyWith(color: D.inkFaint),
                         ),
+                      ),
                       for (final patient in page.items)
                         Padding(
                           padding: EdgeInsets.only(bottom: D.gapIcon),
@@ -137,8 +141,8 @@ class _DoctorPatientsScreenState extends ConsumerState<DoctorPatientsScreen> {
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -207,6 +211,7 @@ class _Header extends StatelessWidget {
                   foregroundColor: D.brand,
                   elevation: 0,
                   padding: EdgeInsets.symmetric(horizontal: D.s3),
+                  minimumSize: D.hug,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(D.s3)),
                 ),
               ),
@@ -214,7 +219,10 @@ class _Header extends StatelessWidget {
           ),
           SizedBox(height: D.cardPad),
           Container(
-            height: D.discLg,
+            // Scaled, not fixed: a constant height around text clips it the
+            // moment the reader turns their text size up — and this clinic's
+            // doctors are not the only ones who hold the phone.
+            height: MediaQuery.textScalerOf(context).scale(D.discLg),
             padding: EdgeInsets.symmetric(horizontal: D.s4),
             decoration: BoxDecoration(
               color: D.card,
@@ -254,18 +262,15 @@ class _Header extends StatelessWidget {
             ),
           ),
           SizedBox(height: D.cardPad),
-          SizedBox(
-            height: D.s8 + D.s1,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.zero,
-              children: [
-                for (final v in _View.values) ...[
-                  if (v != _View.values.first) SizedBox(width: D.s2),
-                  _Chip(label: v.label, selected: v == view, onTap: () => onView(v)),
-                ],
-              ],
-            ),
+          // Wrapped, not scrolled sideways: five known chips, and a filter a
+          // doctor cannot see is a filter they do not use.
+          Wrap(
+            spacing: D.s2,
+            runSpacing: D.s2,
+            children: [
+              for (final v in _View.values)
+                _Chip(label: v.label, selected: v == view, onTap: () => onView(v)),
+            ],
           ),
         ],
       ),
@@ -292,15 +297,26 @@ class _Chip extends StatelessWidget {
           onTap: onTap,
           borderRadius: D.rPill,
           child: Container(
+            // No `alignment` here, and the height is a minimum, not a box.
+            // An aligned Container with no width fills whatever bounds it is
+            // handed, and a Wrap hands it the whole screen — that is how a row
+            // of chips becomes a stack of full-width bars.
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.textScalerOf(context).scale(D.tap),
+            ),
             padding: EdgeInsets.symmetric(horizontal: D.cardPad),
-            alignment: Alignment.center,
             decoration: BoxDecoration(
               borderRadius: D.rPill,
               border: Border.all(color: selected ? D.brand : D.line),
             ),
-            child: Text(
-              label,
-              style: D.dateLine.copyWith(color: selected ? D.onBrand : D.ink),
+            // widthFactor keeps the chip the width of its own label; the
+            // height is free to fill the 44 above, which centres the text.
+            child: Align(
+              widthFactor: 1,
+              child: Text(
+                label,
+                style: D.dateLine.copyWith(color: selected ? D.onBrand : D.ink),
+              ),
             ),
           ),
         ),
@@ -569,6 +585,7 @@ class _Failed extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: D.brandTint,
                 foregroundColor: D.brand,
+                minimumSize: D.hug,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(D.s3)),
               ),
               child: Text('Try again', style: D.dateLine),

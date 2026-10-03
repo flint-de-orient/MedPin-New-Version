@@ -49,7 +49,8 @@ class _FollowUpsScreenState extends ConsumerState<FollowUpsScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         shape: const Border(bottom: BorderSide(color: D.line)),
-        toolbarHeight: D.bar,
+        // The bar holds two lines of text, so its height follows them.
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(D.bar),
         leading: IconButton(
           tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_rounded, size: D.iconDisc),
@@ -94,7 +95,9 @@ class _FollowUpsScreenState extends ConsumerState<FollowUpsScreen> {
         child: SafeArea(
           top: false,
           child: SizedBox(
-            height: D.discLg + D.s1,
+            // Scaled, not fixed: a constant height around text clips it the
+            // moment the reader turns their text size up.
+            height: MediaQuery.textScalerOf(context).scale(D.discLg + D.s1),
             child: FilledButton.icon(
               // The diary is where a visit is actually given a time; this
               // screen knows who is due, not when the room is free.
@@ -151,7 +154,7 @@ class _Window extends StatelessWidget {
                     borderRadius: BorderRadius.circular(D.s3),
                     onTap: () => onChanged(d),
                     child: Container(
-                      height: D.disc - D.s2,
+                      height: MediaQuery.textScalerOf(context).scale(D.disc - D.s2),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: d == days ? D.card : null,
@@ -404,6 +407,7 @@ class _Failed extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: D.brandTint,
                 foregroundColor: D.brand,
+                minimumSize: D.hug,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(D.s3)),
               ),
               child: Text('Try again', style: D.dateLine),

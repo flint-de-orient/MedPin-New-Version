@@ -31,7 +31,8 @@ class DoctorAiChatScreen extends ConsumerWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         shape: const Border(bottom: BorderSide(color: D.line)),
-        toolbarHeight: D.bar,
+        // The bar holds two lines of text, so its height follows them.
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(D.bar),
         leading: IconButton(
           tooltip: MaterialLocalizations.of(context).backButtonTooltip,
           icon: const Icon(Icons.arrow_back_rounded, size: D.iconDisc),
@@ -375,6 +376,7 @@ class _PatientCard extends StatelessWidget {
                 backgroundColor: D.brandTint,
                 foregroundColor: D.brand,
                 elevation: 0,
+                minimumSize: D.hug,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(D.s3)),
               ),
               child: Text('Open profile', style: D.dateLine),
@@ -389,6 +391,7 @@ class _PatientCard extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: D.ink,
                 side: const BorderSide(color: D.line),
+                minimumSize: D.hug,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(D.s3)),
               ),
               child: Text('Copy', style: D.dateLine),

@@ -65,7 +65,9 @@ class _DoctorAiComposerState extends ConsumerState<DoctorAiComposer> {
               children: [
                 Expanded(
                   child: Container(
-                    height: D.discLg + D.s1,
+                    // Scaled, not fixed: a constant height around text clips
+                    // it the moment the reader turns their text size up.
+                    height: MediaQuery.textScalerOf(context).scale(D.discLg + D.s1),
                     padding: EdgeInsets.fromLTRB(D.cardPadLg, 0, D.s2, 0),
                     decoration: BoxDecoration(
                       color: D.card,

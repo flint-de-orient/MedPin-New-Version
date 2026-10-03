@@ -71,37 +71,46 @@ class _DoctorMessagesScreenState extends ConsumerState<DoctorMessagesScreen> {
             ),
       body: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            _Header(
-              waiting: waiting,
-              urgent: urgentCount(patients.valueOrNull?.items ?? const []),
-              search: _search,
-              tab: _tab,
-              onTab: (t) => setState(() {
-                _tab = t;
-                _pages = 1;
-              }),
-              onSearchChanged: () => setState(() => _pages = 1),
-            ),
-            Expanded(
-              child: switch (_tab) {
-                _Tab.colleagues => const _ColleaguesNotBuilt(),
-                _ => patients.when(
-                  loading: () => const Center(child: CircularProgressIndicator(color: D.brand)),
-                  error: (_, _) => _Failed(onRetry: () => ref.invalidate(patientsProvider(query))),
-                  data: (page) {
-                    final rows = [
-                      for (final p in page.items)
-                        if (p.lastMessage != null && (_tab != _Tab.unread || p.unreadCount > 0)) p,
-                    ];
-                    final urgent = [for (final p in rows) if (isUrgent(p)) p];
-                    final rest = [for (final p in rows) if (!isUrgent(p)) p];
+        // One scroll view, header included — see the Patients tab for why: a
+        // fixed header holding a title, a search field and wrapped tabs is
+        // taller than the phone once the reader turns their text size up, and
+        // then the conversations have nowhere to go.
+        child: RefreshIndicator(
+          onRefresh: () async => ref.invalidate(patientsProvider(query)),
+          child: ListView(
+            padding: EdgeInsets.only(bottom: D.s8 + D.s8),
+            children: [
+              _Header(
+                waiting: waiting,
+                urgent: urgentCount(patients.valueOrNull?.items ?? const []),
+                search: _search,
+                tab: _tab,
+                onTab: (t) => setState(() {
+                  _tab = t;
+                  _pages = 1;
+                }),
+                onSearchChanged: () => setState(() => _pages = 1),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(D.s4, D.s4, D.s4, 0),
+                child: switch (_tab) {
+                  _Tab.colleagues => const _ColleaguesNotBuilt(),
+                  _ => patients.when(
+                    loading: () => Padding(
+                      padding: EdgeInsets.symmetric(vertical: D.s8),
+                      child: const Center(child: CircularProgressIndicator(color: D.brand)),
+                    ),
+                    error: (_, _) => _Failed(onRetry: () => ref.invalidate(patientsProvider(query))),
+                    data: (page) {
+                      final rows = [
+                        for (final p in page.items)
+                          if (p.lastMessage != null && (_tab != _Tab.unread || p.unreadCount > 0)) p,
+                      ];
+                      final urgent = [for (final p in rows) if (isUrgent(p)) p];
+                      final rest = [for (final p in rows) if (!isUrgent(p)) p];
 
-                    return RefreshIndicator(
-                      onRefresh: () async => ref.invalidate(patientsProvider(query)),
-                      child: ListView(
-                        padding: EdgeInsets.fromLTRB(D.s4, D.s4, D.s4, D.s8 + D.s8),
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           for (final p in urgent)
                             Padding(
@@ -125,13 +134,13 @@ class _DoctorMessagesScreenState extends ConsumerState<DoctorMessagesScreen> {
                             style: D.caption.copyWith(color: D.inkFaint, height: 1.5),
                           ),
                         ],
-                      ),
-                    );
-                  },
-                ),
-              },
-            ),
-          ],
+                      );
+                    },
+                  ),
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -190,7 +199,9 @@ class _Header extends StatelessWidget {
           Text(line.isEmpty ? ' ' : line, style: D.body.copyWith(color: D.inkMuted)),
           SizedBox(height: D.cardPad),
           Container(
-            height: D.disc,
+            // Scaled, not fixed: a constant height around text clips it the
+            // moment the reader turns their text size up.
+            height: MediaQuery.textScalerOf(context).scale(D.disc),
             padding: EdgeInsets.symmetric(horizontal: D.s4),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(D.rCard),
@@ -227,18 +238,15 @@ class _Header extends StatelessWidget {
             ),
           ),
           SizedBox(height: D.cardPad),
-          SizedBox(
-            height: D.s8 + D.s1,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.zero,
-              children: [
-                for (final t in _Tab.values) ...[
-                  if (t != _Tab.values.first) SizedBox(width: D.s2),
-                  _Chip(label: t.label, selected: t == tab, onTap: () => onTab(t)),
-                ],
-              ],
-            ),
+          // Wrapped, not scrolled sideways: four known tabs, and one a doctor
+          // cannot see is one they do not use.
+          Wrap(
+            spacing: D.s2,
+            runSpacing: D.s2,
+            children: [
+              for (final t in _Tab.values)
+                _Chip(label: t.label, selected: t == tab, onTap: () => onTab(t)),
+            ],
           ),
         ],
       ),
@@ -265,13 +273,27 @@ class _Chip extends StatelessWidget {
           onTap: onTap,
           borderRadius: D.rPill,
           child: Container(
+            // No `alignment` here, and the height is a minimum, not a box.
+            // An aligned Container with no width fills whatever bounds it is
+            // handed, and a Wrap hands it the whole screen — that is how a row
+            // of chips becomes a stack of full-width bars.
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.textScalerOf(context).scale(D.tap),
+            ),
             padding: EdgeInsets.symmetric(horizontal: D.cardPad),
-            alignment: Alignment.center,
             decoration: BoxDecoration(
               borderRadius: D.rPill,
               border: Border.all(color: selected ? D.brand : D.line),
             ),
-            child: Text(label, style: D.dateLine.copyWith(color: selected ? D.onBrand : D.ink)),
+            // widthFactor keeps the chip the width of its own label; the
+            // height is free to fill the 44 above, which centres the text.
+            child: Align(
+              widthFactor: 1,
+              child: Text(
+                label,
+                style: D.dateLine.copyWith(color: selected ? D.onBrand : D.ink),
+              ),
+            ),
           ),
         ),
       ),
@@ -522,8 +544,10 @@ class _Badge extends StatelessWidget {
       label: '$count unread',
       child: ExcludeSemantics(
         child: Container(
-          height: D.s6 - 2,
-          constraints: const BoxConstraints(minWidth: D.s6 - 2),
+          height: MediaQuery.textScalerOf(context).scale(D.s6 - 2),
+          constraints: BoxConstraints(
+            minWidth: MediaQuery.textScalerOf(context).scale(D.s6 - 2),
+          ),
           padding: EdgeInsets.symmetric(horizontal: D.gapTight),
           alignment: Alignment.center,
           decoration: BoxDecoration(color: colour, borderRadius: D.rPill),
@@ -763,6 +787,7 @@ class _Failed extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: D.brandTint,
                 foregroundColor: D.brand,
+                minimumSize: D.hug,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(D.s3)),
               ),
               child: Text('Try again', style: D.dateLine),

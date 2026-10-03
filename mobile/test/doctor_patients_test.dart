@@ -85,10 +85,15 @@ class _NoSession extends SecureStore {
   Future<String?> readAccessToken() async => null;
 }
 
-/// [width] in physical pixels. The phone is 720; one test asks for a wider
-/// view so that all five chips are on screen at once — under flutter_test's
-/// square stand-in font they run much wider than in Figtree.
-Future<void> _pump(WidgetTester tester, _Clinic clinic, {double width = 720}) async {
+/// [width] in physical pixels. 720 is the clinic's phone: 360dp. Every test
+/// runs at that width, because the layout bugs this screen shipped were all
+/// bugs of not enough room.
+Future<void> _pump(
+  WidgetTester tester,
+  _Clinic clinic, {
+  double width = 720,
+  double textScale = 1,
+}) async {
   tester.view.physicalSize = Size(width, 1600);
   tester.view.devicePixelRatio = 2;
   addTearDown(tester.view.reset);
@@ -105,6 +110,11 @@ Future<void> _pump(WidgetTester tester, _Clinic clinic, {double width = 720}) as
         locale: const Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => MediaQuery.withClampedTextScaling(
+          minScaleFactor: textScale,
+          maxScaleFactor: textScale,
+          child: child!,
+        ),
         home: const DoctorPatientsScreen(),
       ),
     ),
@@ -169,9 +179,46 @@ void main() {
     expect(find.text('Consult'), findsNWidgets(2));
   });
 
+  testWidgets('the title keeps its width beside the button, on a 360dp phone', (tester) async {
+    // What this prevents, seen on the clinic's own phone: "Add patient" asked
+    // for `Size.fromHeight(52)` from the app's button theme — an infinite
+    // minimum width — took the whole row, and the title came out one letter
+    // per line with the button pushed off the screen.
+    await _pump(tester, _Clinic(items: [_patient(name: 'Tanmoy')], total: 4));
+
+    final title = tester.getRect(find.text('Patients'));
+    expect(title.width, greaterThan(80), reason: 'the title was squeezed to a column of letters');
+    // Under flutter_test's square stand-in font every glyph is as wide as it
+    // is tall, so "Patients" wraps here where Figtree would not. Eight lines
+    // is the failure; a line or three is this font.
+    expect(title.height, lessThan(160), reason: 'one letter per line is the bug');
+
+    final button = tester.getRect(find.text('Add patient'));
+    expect(button.right, lessThanOrEqualTo(360), reason: 'pushed off the right edge');
+    expect(button.left, greaterThan(title.right), reason: 'it sits beside the title, not over it');
+  });
+
+  testWidgets('every chip is on the screen, each the width of its own label', (tester) async {
+    // A filter a doctor cannot see is a filter they do not use, so these five
+    // wrap onto a second line rather than scrolling sideways off the edge —
+    // and a chip that fills the row is the aligned-Container bug.
+    await _pump(tester, _Clinic(items: [_patient(name: 'Tanmoy')]));
+
+    for (final label in ['All', 'Unread first', 'Recent visits', 'By name', 'High risk']) {
+      final chip = tester.getRect(find.text(label));
+      expect(chip.right, lessThanOrEqualTo(360), reason: '$label runs off the edge');
+      expect(chip.left, greaterThanOrEqualTo(0), reason: '$label starts off the edge');
+    }
+
+    final box = tester.getRect(
+      find.ancestor(of: find.text('All'), matching: find.byType(Container)).first,
+    );
+    expect(box.width, lessThan(160), reason: 'the chip stretched to the whole row');
+  });
+
   testWidgets('every chip re-asks the server rather than sifting what is loaded', (tester) async {
     final clinic = _Clinic(items: [_patient(name: 'Priya Sharma')]);
-    await _pump(tester, clinic, width: 1400);
+    await _pump(tester, clinic);
 
     expect(clinic.asked.last.sort, 'risk');
     expect(clinic.asked.last.riskBand, isNull);
@@ -181,8 +228,6 @@ void main() {
     await tester.pump();
     expect(clinic.asked.any((q) => q.sort == 'inbox'), isTrue);
 
-    await tester.ensureVisible(find.text('High risk'));
-    await tester.pump();
     await tester.tap(find.text('High risk'));
     await tester.pump();
     await tester.pump();
@@ -205,6 +250,32 @@ void main() {
     expect(find.text('1 MATCH FOR “98765”'), findsOneWidget);
     expect(find.textContaining('Not the patient you’re looking for?'), findsOneWidget);
     expect(find.text('Add new patient'), findsOneWidget);
+  });
+
+  testWidgets('nothing clips when the reader turns their text size up', (tester) async {
+    // Every box on this screen that holds text takes its height from the
+    // scaler. At 1.5 the header, the search field and a patient card all grow;
+    // an overflow here is a box that was given a constant instead.
+    await _pump(
+      tester,
+      _Clinic(items: [_patient(name: 'Tanmoy', unread: 2)], total: 4),
+      textScale: 1.5,
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Patients'), findsOneWidget);
+    expect(find.text('Search by name or mobile number'), findsOneWidget);
+
+    // The header is taller than the phone at this size, so the roll is below
+    // it — reachable, which is the whole point of the header scrolling.
+    await tester.scrollUntilVisible(
+      find.text('Tanmoy'),
+      200,
+      // The page's own scroll view, not the search field's.
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('2 unread messages'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('an empty roll and a failed read each say which it is', (tester) async {
