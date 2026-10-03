@@ -16,6 +16,9 @@ class Appointment {
     required this.mode,
     this.reason,
     this.isPriority = false,
+    this.queueNumber,
+    this.checkedInAt,
+    this.calledAt,
   });
 
   final String id;
@@ -61,6 +64,15 @@ class Appointment {
   /// Free-text reason for the visit, e.g. "Lab Results Review".
   final String? reason;
   final bool isPriority;
+
+  /// The token they were given at the desk, or null before they arrived.
+  final int? queueNumber;
+
+  /// When they arrived, and when they were called in. Null on an appointment
+  /// from before the server recorded them — the queue then says nothing about
+  /// how long, rather than a wait it cannot know.
+  final DateTime? checkedInAt;
+  final DateTime? calledAt;
 
   bool get isCompleted => status == 'completed';
 
@@ -112,6 +124,9 @@ class Appointment {
               ? null
               : j['reason'].toString().trim(),
       isPriority: j['isPriority'] == true,
+      queueNumber: (j['queueNumber'] as num?)?.toInt(),
+      checkedInAt: DateTime.tryParse(j['checkedInAt']?.toString() ?? '')?.toLocal(),
+      calledAt: DateTime.tryParse(j['calledAt']?.toString() ?? '')?.toLocal(),
     );
   }
 }

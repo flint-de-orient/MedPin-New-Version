@@ -1486,7 +1486,7 @@ router.post(
      */
     const checkedIn = await Appointment.findOneAndUpdate(
       { _id: appt._id, status: { $in: ['requested', 'confirmed'] } },
-      { $set: { queueDate: today, queueNumber, status: 'checked_in' } },
+      { $set: { queueDate: today, queueNumber, status: 'checked_in', checkedInAt: new Date() } },
       { new: true },
     ).lean();
 
@@ -1551,6 +1551,11 @@ function serialise(a) {
     status: a.status,
     reason: a.reason ?? null,
     queueNumber: a.queueNumber ?? null,
+    // The two instants the waiting room turns on. Null on an appointment that
+    // predates them being recorded, which the queue shows as no time at all
+    // rather than a wait it cannot know.
+    checkedInAt: a.checkedInAt ?? null,
+    calledAt: a.calledAt ?? null,
     isPriority: a.isPriority ?? false,
     teleconsult: a.teleconsult?.roomId
       ? { roomId: a.teleconsult.roomId, joinUrl: a.teleconsult.joinUrl ?? null }

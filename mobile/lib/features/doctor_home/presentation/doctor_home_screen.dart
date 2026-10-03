@@ -526,11 +526,13 @@ class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const actions = <_Action>[
-      _Action('Patient queue', Icons.groups_2_outlined, '/clinician/appointments'),
+      _Action('Patient queue', Icons.groups_2_outlined, '/clinician/queue'),
       _Action('New patient', Icons.person_add_alt_outlined, '/clinician/patients/new'),
       _Action('Prescriptions', Icons.description_outlined, '/clinician/patients'),
       _Action('Test results', Icons.science_outlined, null),
-      _Action('Start consultation', Icons.mic_none_rounded, '/clinician/appointments'),
+      // Which patient is the first question, and the queue is where it is
+      // answered — this used to open the diary, which is a different question.
+      _Action('Start consultation', Icons.mic_none_rounded, '/clinician/queue'),
       _Action('Follow-ups', Icons.event_available_outlined, '/clinician/follow-ups'),
     ];
 

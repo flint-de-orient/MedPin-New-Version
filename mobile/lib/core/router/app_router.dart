@@ -28,6 +28,7 @@ import '../../features/doctor_home/presentation/doctor_bulk_message_screen.dart'
 import '../../features/doctor_home/presentation/doctor_consult_screen.dart';
 import '../../features/doctor_home/presentation/doctor_patient_profile_screen.dart';
 import '../../features/doctor_home/presentation/doctor_patients_screen.dart';
+import '../../features/doctor_home/presentation/doctor_queue_screen.dart';
 import '../../features/doctor_home/presentation/follow_ups_screen.dart';
 import '../../features/clinician/presentation/appointments_admin_screen.dart';
 import '../../features/clinician/presentation/clinic_edit_screen.dart';
@@ -382,6 +383,11 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       ),
       // Receptionist intake. Declared BEFORE the `:id` route so the static
       // `new` segment is matched as the form, not as a patient id.
+      // Today's waiting room, as the doctor works through it.
+      GoRoute(
+        path: '/clinician/queue',
+        builder: (context, state) => const DoctorQueueScreen(),
+      ),
       // One message to several patients, each in their own thread.
       GoRoute(
         path: '/clinician/messages/several',

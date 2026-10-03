@@ -96,6 +96,10 @@ const appointmentSchema = new mongoose.Schema(
     // booked patients share one ordering.
     queueNumber: { type: Number },
     queueDate: { type: String, index: true }, // 'YYYY-MM-DD' in clinic-local time
+    // When they arrived and when they were called. The queue screen's whole
+    // job is "who has been waiting longest", and nothing recorded the arrival
+    // — a token number says the order people came in, not how long ago.
+    checkedInAt: Date,
     calledAt: Date,
 
     teleconsult: {

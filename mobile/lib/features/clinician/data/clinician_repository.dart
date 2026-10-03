@@ -188,6 +188,17 @@ class ClinicianRepository {
   /// Today's clinic diary, earliest first. The API sorts newest-first and has no
   /// "today" filter of its own, so we pass an explicit day range and re-sort
   /// ascending for a top-to-bottom schedule.
+  /// Moves somebody through the waiting room: checked in, called in, done.
+  ///
+  /// The same PATCH the desk's own screens use, so a patient cannot be in one
+  /// state on the diary and another in the queue.
+  Future<void> setAppointmentStatus({
+    required String appointmentId,
+    required String status,
+  }) async {
+    await _client.patchJson('/appointments/$appointmentId/status', body: {'status': status});
+  }
+
   Future<List<Appointment>> appointmentsToday() async {
     final now = DateTime.now();
     final from = DateTime(now.year, now.month, now.day);
