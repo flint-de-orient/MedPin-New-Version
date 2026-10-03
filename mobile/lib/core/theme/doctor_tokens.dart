@@ -79,6 +79,17 @@ class D {
   /// 18/1.25 bold — a section heading ("Quick actions").
   static final TextStyle section = _f(18, 1.25, 700);
 
+  /// 20/1.25 bold — a screen's own title in the bar, as the artboards set it.
+  static final TextStyle screenTitle = _f(20, 1.25, 700);
+
+  /// 24/1.2 heavy — the assistant's opening question.
+  static final TextStyle opening = _f(24, 1.2, 800, spacing: -0.48);
+
+  /// 26/1 heavy — the health score in an answer, tabular like every figure.
+  static final TextStyle score = _f(26, 1, 800).copyWith(
+    fontFeatures: const [FontFeature.tabularFigures()],
+  );
+
   /// 17/1.3 bold — a card's own title ("Emergency · Priya Sharma").
   static final TextStyle cardTitle = _f(17, 1.3, 700);
 
@@ -128,6 +139,9 @@ class D {
   static const Color dangerFaint = Color(0xFFD5A0A0);
 
   static const Color onBrand = Color(0xFFFFFFFF);
+
+  /// The page behind a sheet, dimmed — the artboard's 40% ink.
+  static const Color scrim = Color(0x66111827);
 
   /// On the brand card: the assistant's tile, its edge, its prose.
   static const Color onBrandTile = Color(0x1FFFFFFF);

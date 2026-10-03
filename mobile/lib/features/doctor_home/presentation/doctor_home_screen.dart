@@ -634,7 +634,7 @@ class _AssistantCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(D.rCardLg),
       child: InkWell(
         borderRadius: BorderRadius.circular(D.rCardLg),
-        onTap: () => context.push('/clinician/chat-review'),
+        onTap: () => context.push('/clinician/ai'),
         child: Container(
           padding: EdgeInsets.all(D.cardPadLg),
           decoration: BoxDecoration(
