@@ -22,6 +22,7 @@ import '../../features/clinician/presentation/alerts_screen.dart';
 import '../../features/doctor_home/presentation/ai/doctor_ai_chat_screen.dart';
 import '../../features/doctor_home/presentation/ai/doctor_ai_screen.dart';
 import '../../features/doctor_home/presentation/doctor_home_screen.dart';
+import '../../features/doctor_home/presentation/doctor_messages_screen.dart';
 import '../../features/doctor_home/presentation/doctor_patients_screen.dart';
 import '../../features/doctor_home/presentation/follow_ups_screen.dart';
 import '../../features/clinician/presentation/appointments_admin_screen.dart';
@@ -341,9 +342,9 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
             (context, state) =>
                 KnowledgeEditScreen(chunk: state.extra as KnowledgeChunk?),
       ),
-      // No '/clinician/messages': the Messages tab is the inbox, and a second
-      // route by the same name pointed at the retired DirectMessage table —
-      // the same word opening different data.
+      // '/clinician/messages' is the Messages tab below, and nothing else: the
+      // route that once bore this name pointed at the retired DirectMessage
+      // table — the same word opening different data.
       // Messaging a patient opens their real conversation — the same thread the
       // patient reads on their Care Team screen — rather than a clinic-only
       // inbox holding a different half of the exchange.
@@ -727,6 +728,14 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/clinician/patients',
                 builder: (context, state) => const DoctorPatientsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/clinician/messages',
+                builder: (context, state) => const DoctorMessagesScreen(),
               ),
             ],
           ),

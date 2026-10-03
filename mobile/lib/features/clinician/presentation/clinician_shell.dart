@@ -83,19 +83,26 @@ class ClinicianShell extends ConsumerWidget {
       ),
       // 'Patients', as the new design names it. It was 'Care', paired with
       // Nutrition as the clinic's two conversation streams; the design calls
-      // the list of people what it is, and the screen behind it is unchanged.
-      1 => DoctorNavItem(
+      // the list of people what it is.
+      1 => const DoctorNavItem(
         icon: Icons.people_alt_outlined,
         selectedIcon: Icons.people_alt_rounded,
         label: 'Patients',
+      ),
+      // The count sits here now, where the design puts it and where the
+      // conversations actually are.
+      2 => DoctorNavItem(
+        icon: Icons.forum_outlined,
+        selectedIcon: Icons.forum_rounded,
+        label: 'Messages',
         badge: waiting,
       ),
-      2 => const DoctorNavItem(
+      3 => const DoctorNavItem(
         icon: Icons.restaurant_menu_outlined,
         selectedIcon: Icons.restaurant_menu_rounded,
         label: 'Nutrition',
       ),
-      3 => DoctorNavItem(
+      4 => DoctorNavItem(
         icon: Icons.person_outline_rounded,
         selectedIcon: Icons.person_rounded,
         label: 'More',

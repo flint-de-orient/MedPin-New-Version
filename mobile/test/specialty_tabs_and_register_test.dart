@@ -72,16 +72,16 @@ void main() {
   group('the Nutrition tab by specialty', () {
     test('a cardiologist or general physician sees it only with a dietician at the practice', () {
       for (final specialty in ['cardiology', 'general_physician']) {
-        expect(visibleBranches(_caps({Cap.aiAssistant}, specialty: specialty)), [0, 1, 3], reason: specialty);
-        expect(visibleBranches(_caps({Cap.aiAssistant}, specialty: specialty, hasDietician: true)), [0, 1, 2, 3],
+        expect(visibleBranches(_caps({Cap.aiAssistant}, specialty: specialty)), [0, 1, 2, 4], reason: specialty);
+        expect(visibleBranches(_caps({Cap.aiAssistant}, specialty: specialty, hasDietician: true)), [0, 1, 2, 3, 4],
             reason: specialty);
       }
     });
 
     test('diabetology, and a server that does not say, keep it as before', () {
-      expect(visibleBranches(_caps({Cap.aiAssistant}, specialty: 'diabetology')), [0, 1, 2, 3]);
-      expect(visibleBranches(_caps({Cap.aiAssistant})), [0, 1, 2, 3]);
-      expect(visibleBranches(_caps({})), [0, 1, 3]);
+      expect(visibleBranches(_caps({Cap.aiAssistant}, specialty: 'diabetology')), [0, 1, 2, 3, 4]);
+      expect(visibleBranches(_caps({Cap.aiAssistant})), [0, 1, 2, 3, 4]);
+      expect(visibleBranches(_caps({})), [0, 1, 2, 4]);
     });
 
     test('the specialty is read from the server’s Home settings', () {

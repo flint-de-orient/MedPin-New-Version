@@ -32,30 +32,32 @@ void main() {
   group('what the bar shows', () {
     test('everything, when the practice has everything', () {
       final visible = visibleBranches(_caps({Cap.aiAssistant}));
-      expect(visible, [0, 1, 2, 3]);
+      // Home, Patients, Messages, Nutrition, More.
+      expect(visible, [0, 1, 2, 3, 4]);
     });
 
     test('no Nutrition when nothing can answer in it', () {
       final visible = visibleBranches(_caps({}));
-      expect(visible, [0, 1, 3]);
+      // Home, Patients, Messages, More — Nutrition (3) left out.
+      expect(visible, [0, 1, 2, 4]);
     });
 
     // Two things can answer in a nutrition conversation and either is enough.
     // Gating on the capability alone hid the tab from a practice that had hired
     // somebody to work in it.
     test('an assistant and no dietician shows it', () {
-      expect(visibleBranches(_caps({Cap.aiAssistant})), contains(2));
+      expect(visibleBranches(_caps({Cap.aiAssistant})), contains(3));
     });
 
     test('a dietician and no assistant shows it', () {
       expect(
         visibleBranches(_caps({}, hasDietician: true)),
-        contains(2),
+        contains(3),
       );
     });
 
     test('neither hides it', () {
-      expect(visibleBranches(_caps({}, hasDietician: false)), isNot(contains(2)));
+      expect(visibleBranches(_caps({}, hasDietician: false)), isNot(contains(3)));
     });
 
     test('a diagnostic centre with a dietician shows it', () {
@@ -66,14 +68,14 @@ void main() {
         visibleBranches(
           _caps({}, hasDietician: true, practiceType: 'diagnostic_centre'),
         ),
-        contains(2),
+        contains(3),
       );
     });
 
     test('and one without keeps it hidden', () {
       expect(
         visibleBranches(_caps({}, practiceType: 'diagnostic_centre')),
-        isNot(contains(2)),
+        isNot(contains(3)),
       );
     });
 
@@ -82,7 +84,7 @@ void main() {
       // itself is a bar somebody can be stranded in.
       for (final caps in [_caps({}), _caps({Cap.aiAssistant})]) {
         final visible = visibleBranches(caps);
-        expect(visible, containsAll(<int>[0, 1, 3]));
+        expect(visible, containsAll(<int>[0, 1, 2, 4]));
         expect(visible, isNotEmpty);
       }
     });
@@ -90,7 +92,7 @@ void main() {
     test('and the unknown default shows everything', () {
       // Before the first answer arrives. Hiding a tab and putting it back a
       // moment later is worse than showing one that turns out to be empty.
-      expect(visibleBranches(Capabilities.unknown), [0, 1, 2, 3]);
+      expect(visibleBranches(Capabilities.unknown), [0, 1, 2, 3, 4]);
     });
   });
 
@@ -114,14 +116,14 @@ void main() {
       // The failure this prevents: -1 range-checked into 0 by the bar, so
       // somebody standing on Nutrition sees Home with Nutrition highlighted.
       final visible = visibleBranches(_caps({}));
-      expect(barIndexFor(visible, 2), isNull);
+      expect(barIndexFor(visible, 3), isNull, reason: 'Nutrition is branch 3');
     });
 
-    test('Profile keeps its position when Nutrition goes', () {
-      // The whole reason for the mapping. Branch 3 is still branch 3; it is
-      // item 2 in a three-item bar and item 3 in a four-item one.
-      expect(barIndexFor(visibleBranches(_caps({})), 3), 2);
-      expect(barIndexFor(visibleBranches(_caps({Cap.aiAssistant})), 3), 3);
+    test('More keeps its position when Nutrition goes', () {
+      // The whole reason for the mapping. Branch 4 is still branch 4; it is
+      // item 3 in a four-item bar and item 4 in a five-item one.
+      expect(barIndexFor(visibleBranches(_caps({})), 4), 3);
+      expect(barIndexFor(visibleBranches(_caps({Cap.aiAssistant})), 4), 4);
     });
   });
 }

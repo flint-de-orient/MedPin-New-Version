@@ -30,8 +30,9 @@ import '../../../core/capabilities/capabilities.dart';
 /// it arises; it is a combination the app already permits anybody to create.
 const _home = 0;
 const _care = 1;
-const _nutrition = 2;
-const _profile = 3;
+const _messages = 2;
+const _nutrition = 3;
+const _profile = 4;
 
 /// Specialties whose doctors see Nutrition only when somebody writes diet plans.
 ///
@@ -48,6 +49,7 @@ List<int> visibleBranches(Capabilities caps) {
   return <int>[
     _home,
     _care,
+    _messages,
     if (nutrition) _nutrition,
     _profile,
   ];
