@@ -295,10 +295,17 @@ class _DoctorAddPatientScreenState extends ConsumerState<DoctorAddPatientScreen>
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('${_name.text.trim()} added.$sharingLine')));
-      // Replace the form with the record just created, so Back lands on the
-      // roll rather than an empty form.
+      // Straight into the consultation, because that is why they were added.
+      //
+      // Somebody is standing at the desk: the doctor who typed their name is
+      // about to see them, and landing on an empty record meant finding the
+      // same patient again through a second screen. Back from the consult
+      // lands on the roll, not on this form.
       if (id.isNotEmpty) {
-        context.pushReplacement('${areaPrefix(ref)}/patients/$id', extra: _name.text.trim());
+        context.pushReplacement(
+          '${areaPrefix(ref)}/patients/$id/consult',
+          extra: _name.text.trim(),
+        );
       } else {
         context.pop();
       }
@@ -546,7 +553,9 @@ class _DoctorAddPatientScreenState extends ConsumerState<DoctorAddPatientScreen>
                           child: CircularProgressIndicator(strokeWidth: 2, color: D.onBrand),
                         )
                       : Text(
-                          'Add patient',
+                          // Named for what happens next, because what happens
+                          // next is a consultation rather than a saved form.
+                          'Add and start consultation',
                           style: D.input.copyWith(
                             color: D.onBrand,
                             fontWeight: FontWeight.w600,

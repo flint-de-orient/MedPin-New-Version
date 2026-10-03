@@ -6,10 +6,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/doctor_tokens.dart';
 import '../../clinician/data/clinician_repository.dart';
+import '../../appointments/domain/clinic.dart';
 import '../../clinician/domain/appointment.dart';
+import '../../../shared/providers/core_providers.dart';
 import '../../clinician/presentation/clinician_providers.dart';
 import '../domain/patient_queue.dart';
 import 'widgets/profile_parts.dart';
+import 'widgets/queue_location_sheet.dart';
 
 /// Today's waiting room (`Queue-List`).
 ///
@@ -35,6 +38,11 @@ class _DoctorQueueScreenState extends ConsumerState<DoctorQueueScreen> {
   DateTime _now = DateTime.now();
   String? _busyWith;
 
+  /// The room being seen. Null until it is known — one location needs no
+  /// asking, several do.
+  String? _clinicId;
+  bool _asked = false;
+
   /// null = everybody; otherwise the one group being shown.
   QueueStage? _only;
 
@@ -48,6 +56,53 @@ class _DoctorQueueScreenState extends ConsumerState<DoctorQueueScreen> {
       setState(() => _now = DateTime.now());
       ref.invalidate(appointmentsTodayProvider);
     });
+    _clinicId = QueueRoom(ref.read(sharedPreferencesProvider)).clinicId;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _askWhichRoom());
+  }
+
+  /// Asks which waiting room this is, once a day, and only when there is more
+  /// than one it could be.
+  Future<void> _askWhichRoom({bool force = false}) async {
+    if (_asked && !force) return;
+    _asked = true;
+
+    // The queue is the point; the room is a refinement of it. A practice
+    // whose locations cannot be read still has patients waiting, so a failure
+    // here means the question is not asked — never that the screen is empty.
+    final List<Clinic> clinics;
+    final List<Appointment> today;
+    try {
+      clinics = await ref.read(queueClinicsProvider.future);
+      today = await ref.read(appointmentsTodayProvider.future);
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+
+    final rooms = locationsOf(clinics, today, now: DateTime.now());
+    // One room is not a choice, and a practice with none has nothing to ask
+    // about — in both cases the queue is simply the day.
+    if (rooms.length < 2) {
+      if (rooms.length == 1 && _clinicId == null) {
+        setState(() => _clinicId = rooms.single.id);
+      }
+      return;
+    }
+
+    final room = QueueRoom(ref.read(sharedPreferencesProvider));
+    if (!force && room.settledFor(DateTime.now()) && _clinicId != null) return;
+
+    final chosen = await chooseQueueLocation(
+      context,
+      locations: rooms,
+      current: _clinicId,
+      onChosen: (clinicId, stopAsking) => room.choose(
+        clinicId,
+        stopAsking: stopAsking,
+        day: DateTime.now(),
+      ),
+    );
+    if (chosen != null && mounted) setState(() => _clinicId = chosen);
   }
 
   @override
@@ -105,7 +160,16 @@ class _DoctorQueueScreenState extends ConsumerState<DoctorQueueScreen> {
           error: (_, _) => ProfileFailed(
             onRetry: () => ref.invalidate(appointmentsTodayProvider),
           ),
-          data: (all) {
+          data: (everywhere) {
+            // One room's queue. Anything with no room on it stays in the list:
+            // an appointment the desk never assigned a location is still
+            // somebody waiting, and hiding it is how they are forgotten.
+            final all = _clinicId == null
+                ? everywhere
+                : [
+                    for (final a in everywhere)
+                      if (a.clinicId == null || a.clinicId == _clinicId) a,
+                  ];
             final groups = queueGroups(all);
             final next = nextUp(all);
             final shown = _only == null
@@ -117,6 +181,14 @@ class _DoctorQueueScreenState extends ConsumerState<DoctorQueueScreen> {
               child: ListView(
                 padding: EdgeInsets.fromLTRB(D.s5, D.s4, D.s5, D.s8),
                 children: [
+                  if (_clinicId != null)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: D.s3),
+                      child: _Room(
+                        name: roomName(everywhere, _clinicId!),
+                        onChange: () => _askWhichRoom(force: true),
+                      ),
+                    ),
                   _Stats(groups: groups, all: all, now: _now),
                   SizedBox(height: D.s4),
                   Wrap(
@@ -207,6 +279,54 @@ class _DoctorQueueScreenState extends ConsumerState<DoctorQueueScreen> {
       ),
     );
   }
+}
+
+/// Which waiting room this is, and the way to the other one.
+class _Room extends StatelessWidget {
+  const _Room({required this.name, required this.onChange});
+
+  final String? name;
+  final VoidCallback onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(D.s4, D.s3, D.s2, D.s3),
+      decoration: BoxDecoration(
+        color: D.card,
+        borderRadius: BorderRadius.circular(D.rCard),
+        border: Border.all(color: D.lineStrong),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.place_outlined, size: D.iconLg, color: D.brand),
+          SizedBox(width: D.s3),
+          Expanded(
+            child: Text(
+              name ?? 'This location',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: D.subtitle.copyWith(color: D.ink, fontWeight: FontWeight.w600),
+            ),
+          ),
+          TextButton(
+            onPressed: onChange,
+            style: TextButton.styleFrom(minimumSize: D.hug),
+            child: Text('Change', style: D.dateLine.copyWith(color: D.brand)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The name today's diary gives that room, since the queue already holds it.
+@visibleForTesting
+String? roomName(List<Appointment> today, String clinicId) {
+  for (final a in today) {
+    if (a.clinicId == clinicId && (a.clinicName ?? '').isNotEmpty) return a.clinicName;
+  }
+  return null;
 }
 
 /// The four figures the room is read by.

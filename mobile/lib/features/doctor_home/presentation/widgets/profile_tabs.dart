@@ -1386,7 +1386,7 @@ String refLine(Finding f) {
 String fromReports(int findings, int reports) =>
     '$findings from $reports report${reports == 1 ? '' : 's'}';
 
-@visibleForTesting
+/// Also used by the consult, which addresses the patient by name.
 String first(String name) => name.trim().split(' ').first;
 
 /// A prescription the patient brought in rather than one written here.

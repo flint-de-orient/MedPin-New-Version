@@ -25,6 +25,7 @@ import '../../features/doctor_home/presentation/doctor_home_screen.dart';
 import '../../features/doctor_home/presentation/doctor_messages_screen.dart';
 import '../../features/doctor_home/presentation/doctor_add_patient_screen.dart';
 import '../../features/doctor_home/presentation/doctor_bulk_message_screen.dart';
+import '../../features/doctor_home/presentation/doctor_consult_pick_screen.dart';
 import '../../features/doctor_home/presentation/doctor_consult_screen.dart';
 import '../../features/doctor_home/presentation/doctor_patient_profile_screen.dart';
 import '../../features/doctor_home/presentation/doctor_patients_screen.dart';
@@ -383,6 +384,12 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       ),
       // Receptionist intake. Declared BEFORE the `:id` route so the static
       // `new` segment is matched as the form, not as a patient id.
+      // The patient a consultation is missing: who is waiting, who was seen,
+      // and the way to add somebody new.
+      GoRoute(
+        path: '/clinician/consult',
+        builder: (context, state) => const DoctorConsultPickScreen(),
+      ),
       // Today's waiting room, as the doctor works through it.
       GoRoute(
         path: '/clinician/queue',

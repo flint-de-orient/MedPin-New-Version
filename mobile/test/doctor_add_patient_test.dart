@@ -112,7 +112,12 @@ void main() {
   testWidgets('the form is the artboard’s three cards, required first', (tester) async {
     await _pump(tester, _Registrations());
 
-    expect(find.text('Add patient'), findsWidgets, reason: 'the bar and the button');
+    expect(find.text('Add patient'), findsOneWidget, reason: 'the bar');
+    expect(
+      find.text('Add and start consultation'),
+      findsOneWidget,
+      reason: 'the button is named for what happens next',
+    );
     expect(find.text('Patient details'), findsOneWidget);
     expect(find.text('Required to add the patient'), findsOneWidget);
     expect(find.text('Full name'), findsOneWidget);

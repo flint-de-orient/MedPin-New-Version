@@ -16,6 +16,8 @@ class Appointment {
     required this.mode,
     this.reason,
     this.isPriority = false,
+    this.clinicId,
+    this.clinicName,
     this.queueNumber,
     this.checkedInAt,
     this.calledAt,
@@ -64,6 +66,11 @@ class Appointment {
   /// Free-text reason for the visit, e.g. "Lab Results Review".
   final String? reason;
   final bool isPriority;
+
+  /// Which room this appointment is at. A doctor who consults at two
+  /// locations has two waiting rooms, and the queue is one of them.
+  final String? clinicId;
+  final String? clinicName;
 
   /// The token they were given at the desk, or null before they arrived.
   final int? queueNumber;
@@ -124,6 +131,8 @@ class Appointment {
               ? null
               : j['reason'].toString().trim(),
       isPriority: j['isPriority'] == true,
+      clinicId: j['clinicId']?.toString() ?? (j['clinic'] as Map?)?['id']?.toString(),
+      clinicName: (j['clinic'] as Map?)?['name']?.toString(),
       queueNumber: (j['queueNumber'] as num?)?.toInt(),
       checkedInAt: DateTime.tryParse(j['checkedInAt']?.toString() ?? '')?.toLocal(),
       calledAt: DateTime.tryParse(j['calledAt']?.toString() ?? '')?.toLocal(),

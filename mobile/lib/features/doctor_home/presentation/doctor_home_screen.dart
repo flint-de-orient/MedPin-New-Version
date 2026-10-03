@@ -519,22 +519,38 @@ String agoOf(DateTime? at, {DateTime? now}) {
   return '$days day${days == 1 ? '' : 's'} ago';
 }
 
+/// The six tiles, and where each one goes.
+///
+/// Three of them are the same sentence with the patient missing — start a
+/// consultation, record vitals, write a prescription — so all three open the
+/// screen that asks who, which also offers the people already waiting. None of
+/// them opens nothing: a tile that leads nowhere does not belong on the screen
+/// a doctor taps between patients.
+const List<_Action> kQuickActions = [
+  _Action('Start consultation', Icons.mic_none_rounded, '/clinician/consult'),
+  _Action('Patient queue', Icons.groups_2_outlined, '/clinician/queue'),
+  _Action('New patient', Icons.person_add_alt_outlined, '/clinician/patients/new'),
+  _Action('Write prescription', Icons.description_outlined, '/clinician/consult'),
+  _Action('Record vitals', Icons.monitor_heart_outlined, '/clinician/consult'),
+  _Action('Follow-ups', Icons.event_available_outlined, '/clinician/follow-ups'),
+];
+
+/// Where a tile goes, by its label — for the test that nothing leads nowhere.
+@visibleForTesting
+String? routeOf(String label) {
+  for (final a in kQuickActions) {
+    if (a.label == label) return a.route;
+  }
+  return null;
+}
+
 /// What a doctor does between patients, in one tap.
 class _QuickActions extends StatelessWidget {
   const _QuickActions();
 
   @override
   Widget build(BuildContext context) {
-    const actions = <_Action>[
-      _Action('Patient queue', Icons.groups_2_outlined, '/clinician/queue'),
-      _Action('New patient', Icons.person_add_alt_outlined, '/clinician/patients/new'),
-      _Action('Prescriptions', Icons.description_outlined, '/clinician/patients'),
-      _Action('Test results', Icons.science_outlined, null),
-      // Which patient is the first question, and the queue is where it is
-      // answered — this used to open the diary, which is a different question.
-      _Action('Start consultation', Icons.mic_none_rounded, '/clinician/queue'),
-      _Action('Follow-ups', Icons.event_available_outlined, '/clinician/follow-ups'),
-    ];
+    const actions = kQuickActions;
 
     return LayoutBuilder(
       builder: (context, constraints) {

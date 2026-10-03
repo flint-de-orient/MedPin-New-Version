@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:medpin/core/network/api_client.dart';
 import 'package:medpin/core/storage/secure_store.dart';
 import 'package:medpin/features/clinician/data/clinician_repository.dart';
+import 'package:medpin/features/appointments/domain/clinic.dart';
+import 'package:medpin/features/appointments/presentation/appointment_providers.dart';
 import 'package:medpin/features/clinician/domain/appointment.dart';
 import 'package:medpin/features/doctor_home/domain/patient_queue.dart';
 import 'package:medpin/features/doctor_home/presentation/doctor_queue_screen.dart';
@@ -75,9 +78,17 @@ Future<void> _pump(WidgetTester tester, _Clinic clinic) async {
   tester.view.devicePixelRatio = 2;
   addTearDown(tester.view.reset);
 
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferences.getInstance();
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        // One practice, one room: the queue never asks which. Overridden so the
+        // test does not reach for the network — and so its timeouts do not
+        // outlive the test.
+        clinicsProvider.overrideWith((ref) async => <Clinic>[]),
         secureStoreProvider.overrideWithValue(_NoSession()),
         apiClientProvider.overrideWithValue(ApiClient(secureStore: _NoSession())),
         clinicianRepositoryProvider.overrideWithValue(clinic),

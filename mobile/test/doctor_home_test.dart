@@ -243,7 +243,7 @@ void main() {
 
     // Nothing overflows its card, and nothing is laid out off the screen.
     expect(tester.takeException(), isNull);
-    for (final label in ['Prescriptions', 'Start consultation', 'Total appointments']) {
+    for (final label in ['Write prescription', 'Start consultation', 'Total appointments']) {
       final box = tester.getRect(find.text(label));
       expect(box.left, greaterThanOrEqualTo(0));
       expect(box.right, lessThanOrEqualTo(360));
@@ -253,7 +253,7 @@ void main() {
     // lines the label then takes is the font's business, and the test font
     // here is not the font on the phone — that part is read on the device.
     final tileWidth = tester.getSize(find.ancestor(
-      of: find.text('Prescriptions'),
+      of: find.text('Write prescription'),
       matching: find.byType(SizedBox),
     ).first).width;
     expect(tileWidth, greaterThan(100), reason: 'three cards across 360dp, gaps included');
@@ -271,15 +271,26 @@ void main() {
     );
   });
 
-  testWidgets('a tile with no screen behind it says so instead of opening something else', (tester) async {
+  testWidgets('every quick action goes somewhere', (tester) async {
+    // The "not built yet" card is gone because nothing on this row is unbuilt
+    // any more. What replaced it is the thing worth pinning: a tile that opens
+    // nothing is a tile that should not be on the screen.
     await _pump(tester, _Clinic());
 
-    await tester.scrollUntilVisible(find.text('Test results'), 200, scrollable: find.byType(Scrollable).first);
-    await tester.pump();
-    await tester.tap(find.text('Test results'), warnIfMissed: true);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(find.text('Test results is not built yet.'), findsOneWidget);
+    for (final label in [
+      'Start consultation',
+      'Patient queue',
+      'New patient',
+      'Write prescription',
+      'Record vitals',
+      'Follow-ups',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: '$label is missing');
+      expect(
+        routeOf(label),
+        isNotNull,
+        reason: '$label opens nothing',
+      );
+    }
   });
 }

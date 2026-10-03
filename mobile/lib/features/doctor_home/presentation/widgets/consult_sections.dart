@@ -163,7 +163,32 @@ class ConsultSnapshot extends StatelessWidget {
     final context_ = (patient.aiContext ?? '').trim();
     final abnormal = abnormalFindings(patient.labResults);
 
-    if (context_.isEmpty && abnormal.isEmpty) return const SizedBox.shrink();
+    // A patient added five minutes ago has no record, and the card says that
+    // rather than vanishing — a section that is missing reads as a section
+    // that failed to load.
+    if (context_.isEmpty && abnormal.isEmpty) {
+      return Container(
+        padding: EdgeInsets.all(D.s5),
+        decoration: BoxDecoration(
+          color: D.card,
+          borderRadius: BorderRadius.circular(D.rSection),
+          border: Border.all(color: D.lineStrong, style: BorderStyle.solid),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Patient snapshot', style: D.screenTitle.copyWith(color: D.ink)),
+            SizedBox(height: D.s2),
+            Text(
+              'Nothing on file yet. The summary, out-of-range results and '
+              'current medicines appear here once ${first(patient.name)} has a '
+              'record with this practice.',
+              style: D.subtitle.copyWith(color: D.inkMuted, height: 1.5),
+            ),
+          ],
+        ),
+      );
+    }
 
     return ProfileCard(
       title: 'Patient snapshot',
@@ -227,7 +252,7 @@ class ConsultVitals extends StatelessWidget {
     return ProfileCard(
       title: 'Vitals',
       subtitle: tiles.isEmpty
-          ? 'Nothing measured for this visit yet'
+          ? 'Not recorded at the desk. Enter what you measure.'
           : 'The latest recorded at this practice',
       action: TextButton(
         onPressed: onRecord,
