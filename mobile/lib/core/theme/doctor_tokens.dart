@@ -73,6 +73,13 @@ class D {
     fontFeatures: const [FontFeature.tabularFigures()],
   );
 
+  /// 22/1.15 heavy — a measurement on a tile, tabular so a column of them
+  /// lines up. Smaller than [metric]: eight of these fit a screen, four of
+  /// those do.
+  static final TextStyle tileFigure = _f(22, 1.15, 800, spacing: -0.22).copyWith(
+    fontFeatures: const [FontFeature.tabularFigures()],
+  );
+
   /// 13/1.3 — a stat card's label under its number.
   static final TextStyle statLabel = _f(13, 1.3, 400);
 
@@ -89,6 +96,9 @@ class D {
   static final TextStyle score = _f(26, 1, 800).copyWith(
     fontFeatures: const [FontFeature.tabularFigures()],
   );
+
+  /// 16/1.25 bold — a heading inside a card, under the card's own title.
+  static final TextStyle subhead = _f(16, 1.25, 700);
 
   /// 17/1.3 bold — a card's own title ("Emergency · Priya Sharma").
   static final TextStyle cardTitle = _f(17, 1.3, 700);
@@ -169,6 +179,14 @@ class D {
 
   /// Waiting, and done. Each carries a word as well as a colour.
   static const Color pending = Color(0xFFB45309);
+
+  /// The ground and the edge that go with it: a risk chip, an allergy, a
+  /// reading that is out of range.
+  static const Color pendingGround = Color(0xFFFEF6E7);
+  static const Color pendingLine = Color(0xFFF0D3A8);
+
+  /// Done, on a chip of its own: a result inside its reference range.
+  static const Color doneGround = Color(0xFFE7F5EE);
   static const Color done = Color(0xFF076B3C);
 
   /// An emergency: its card, its edge, the disc its mark sits on, its words,

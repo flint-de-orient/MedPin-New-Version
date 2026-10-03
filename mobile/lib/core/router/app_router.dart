@@ -25,6 +25,7 @@ import '../../features/doctor_home/presentation/doctor_home_screen.dart';
 import '../../features/doctor_home/presentation/doctor_messages_screen.dart';
 import '../../features/doctor_home/presentation/doctor_add_patient_screen.dart';
 import '../../features/doctor_home/presentation/doctor_bulk_message_screen.dart';
+import '../../features/doctor_home/presentation/doctor_patient_profile_screen.dart';
 import '../../features/doctor_home/presentation/doctor_patients_screen.dart';
 import '../../features/doctor_home/presentation/follow_ups_screen.dart';
 import '../../features/clinician/presentation/appointments_admin_screen.dart';
@@ -395,9 +396,12 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       // inside the shell.
       GoRoute(
         path: '/clinician/patients/:id',
-        builder:
-            (context, state) =>
-                PatientProfileScreen(patientId: state.pathParameters['id']!),
+        // The doctor's record is on the new design; the desk's and the
+        // dietician's keep PatientProfileScreen, where prescribing still lives.
+        builder: (context, state) => DoctorPatientProfileScreen(
+          patientId: state.pathParameters['id']!,
+          patientName: state.extra as String?,
+        ),
       ),
 
       // Editing your own details is a form, not a place. Nested inside a shell
