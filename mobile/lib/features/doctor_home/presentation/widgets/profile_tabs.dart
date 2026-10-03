@@ -9,6 +9,7 @@ import '../../../clinician/domain/patient_summary.dart';
 import '../../../clinician/presentation/clinician_providers.dart';
 import '../../../medications/domain/medication.dart';
 import 'profile_parts.dart';
+import 'record_vitals_sheet.dart';
 
 /// The four tabs of the patient's record.
 ///
@@ -254,6 +255,25 @@ class SummaryTab extends ConsumerWidget {
         ProfileCard(
           title: 'Vitals',
           subtitle: 'The latest recorded at this practice',
+          action: TextButton(
+            onPressed: () async {
+              final saved = await recordVitals(
+                context,
+                patientId: patientId,
+                patient: patient,
+              );
+              if (saved && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Recorded.')),
+                );
+              }
+            },
+            style: TextButton.styleFrom(
+              minimumSize: D.hug,
+              padding: EdgeInsets.symmetric(horizontal: D.s2),
+            ),
+            child: Text('Record', style: D.dateLine.copyWith(color: D.brand)),
+          ),
           child: _Vitals(patient: patient),
         ),
         SizedBox(height: D.s4),
@@ -550,66 +570,86 @@ class _Vitals extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bmi = patient.bmi;
-    final tiles = <Widget>[
-      if (patient.systolic != null && patient.diastolic != null)
-        VitalTile(
-          label: 'Blood pressure',
-          value: '${patient.systolic}/${patient.diastolic}',
-          unit: 'mmHg',
-          band: bpBand(patient.systolic!, patient.diastolic!),
-          bandColour: bpBand(patient.systolic!, patient.diastolic!) == 'Normal'
-              ? D.done
-              : D.pending,
-        ),
-      if (patient.pulse != null)
-        VitalTile(label: 'Pulse', value: '${patient.pulse}', unit: 'bpm'),
-      if (patient.spo2 != null) VitalTile(label: 'SpO₂', value: '${patient.spo2}', unit: '%'),
-      if (patient.lastFasting != null)
-        VitalTile(
-          label: 'Fasting sugar',
-          value: '${patient.lastFasting}',
-          unit: 'mg/dL',
-          band: patient.lastFastingAt == null
-              ? null
-              : DateFormat('d MMM').format(patient.lastFastingAt!),
-        ),
-      if (bmi != null)
-        VitalTile(
-          label: 'BMI',
-          value: bmi.toStringAsFixed(1),
-          band: bmiBand(bmi),
-          bandColour: bmiBand(bmi) == 'Normal' ? D.done : D.pending,
-        ),
-      if (patient.weightKg != null)
-        VitalTile(label: 'Weight', value: patient.weightKg!.toStringAsFixed(1), unit: 'kg'),
-      if (patient.heightCm != null)
-        VitalTile(label: 'Height', value: patient.heightCm!.toStringAsFixed(0), unit: 'cm'),
-      if (patient.waistCm != null)
-        VitalTile(label: 'Waist', value: patient.waistCm!.toStringAsFixed(0), unit: 'cm'),
-    ];
-
-    if (tiles.isEmpty) {
-      return const ProfileEmpty(
-        text: 'Nothing has been measured for this patient yet.',
-        icon: Icons.monitor_heart_outlined,
-      );
-    }
+    final tiles = vitalsOf(patient);
 
     return LayoutBuilder(
       builder: (context, c) {
-        final wide = c.maxWidth >= 280;
+        // Two across wherever two will fit. The card's own border takes two
+        // pixels off the width, which is how eight tiles came out in one
+        // column on a 360dp phone.
+        final columns = c.maxWidth >= 260 ? 2 : 1;
+        final width = (c.maxWidth - D.s2 * (columns - 1)) / columns;
         return Wrap(
           spacing: D.s2,
           runSpacing: D.s2,
           children: [
-            for (final tile in tiles)
-              SizedBox(width: wide ? (c.maxWidth - D.s2) / 2 : c.maxWidth, child: tile),
+            for (final t in tiles)
+              SizedBox(
+                width: width,
+                child: VitalTile(
+                  label: t.label,
+                  value: t.value,
+                  unit: t.unit,
+                  band: t.band,
+                  bandColour: t.colour,
+                ),
+              ),
           ],
         );
       },
     );
   }
+}
+
+/// Every measurement this practice records, in the artboard's order — with
+/// the ones nobody has taken still on the grid.
+///
+/// A missing blood pressure is itself a finding: the doctor is about to see
+/// this patient and nobody measured it. Dropping the tile makes that invisible,
+/// which is the opposite of what an empty state is for.
+///
+/// Temperature is not here. The artboard has a tile for it, and this server
+/// has no field for it on a vital record — so there is nothing to show and
+/// nothing the Record sheet could save.
+@visibleForTesting
+List<({String label, String value, String? unit, String? band, Color colour})> vitalsOf(
+  PatientSummary p,
+) {
+  final bmi = p.bmi;
+  String n(num? v, {int places = 0}) => v == null ? '' : v.toStringAsFixed(places);
+
+  return [
+    (
+      label: 'Blood pressure',
+      value: p.systolic == null || p.diastolic == null ? '' : '${p.systolic}/${p.diastolic}',
+      unit: 'mmHg',
+      band: p.systolic == null || p.diastolic == null
+          ? null
+          : bpBand(p.systolic!, p.diastolic!),
+      colour: p.systolic != null && p.diastolic != null && bpBand(p.systolic!, p.diastolic!) == 'Normal'
+          ? D.done
+          : D.pending,
+    ),
+    (label: 'Pulse', value: n(p.pulse), unit: 'bpm', band: null, colour: D.inkMuted),
+    (label: 'SpO₂', value: n(p.spo2), unit: '%', band: null, colour: D.inkMuted),
+    (
+      label: 'Fasting sugar',
+      value: n(p.lastFasting),
+      unit: 'mg/dL',
+      band: p.lastFastingAt == null ? null : DateFormat('d MMM').format(p.lastFastingAt!),
+      colour: D.inkMuted,
+    ),
+    (
+      label: 'BMI',
+      value: bmi == null ? '' : bmi.toStringAsFixed(1),
+      unit: null,
+      band: bmi == null ? null : bmiBand(bmi),
+      colour: bmi != null && bmiBand(bmi) == 'Normal' ? D.done : D.pending,
+    ),
+    (label: 'Weight', value: n(p.weightKg, places: 1), unit: 'kg', band: null, colour: D.inkMuted),
+    (label: 'Height', value: n(p.heightCm), unit: 'cm', band: null, colour: D.inkMuted),
+    (label: 'Waist', value: n(p.waistCm), unit: 'cm', band: null, colour: D.inkMuted),
+  ];
 }
 
 // ========================================================= Prescriptions ====

@@ -243,6 +243,11 @@ class VitalTile extends StatelessWidget {
   final String? band;
   final Color bandColour;
 
+  /// Nothing has been measured. The tile stays — a doctor needs to see that
+  /// the blood pressure is missing, not that there is no row for it — but it
+  /// reads as an absence rather than a figure.
+  bool get missing => value.trim().isEmpty || value == '—';
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -255,10 +260,10 @@ class VitalTile extends StatelessWidget {
           SizedBox(height: D.s1),
           Text.rich(
             TextSpan(
-              text: value,
-              style: D.tileFigure.copyWith(color: D.ink),
+              text: missing ? '—' : value,
+              style: D.tileFigure.copyWith(color: missing ? D.inkFaint : D.ink),
               children: [
-                if (unit != null && unit!.isNotEmpty)
+                if (!missing && unit != null && unit!.isNotEmpty)
                   TextSpan(
                     text: ' $unit',
                     style: D.statLabel.copyWith(color: D.inkFaint, fontWeight: FontWeight.w500),
@@ -266,7 +271,13 @@ class VitalTile extends StatelessWidget {
               ],
             ),
           ),
-          if (band != null) ...[
+          if (missing) ...[
+            SizedBox(height: D.s1),
+            Text(
+              'Not recorded',
+              style: D.caption.copyWith(color: D.inkFaint, fontWeight: FontWeight.w600),
+            ),
+          ] else if (band != null) ...[
             SizedBox(height: D.s1),
             Text(
               band!,
@@ -301,7 +312,7 @@ class GlucoseChart extends StatelessWidget {
     if (points.length < 2) {
       return ProfileEmpty(
         text: points.isEmpty
-            ? 'No glucose readings in this window.'
+            ? 'No readings logged yet. Record a fasting sugar and the line starts here.'
             : 'One reading so far — a line needs two.',
       );
     }

@@ -56,12 +56,19 @@ class _Clinic implements ClinicianRepository {
   PatientSummary patient;
   List<Medication> medicines;
 
+  /// Every vitals write, as it was sent.
+  final recorded = <Map<Symbol, dynamic>>[];
+
   /// Nothing in these tests needs a prescription; the tabs that show them are
   /// covered by their own cases above.
   static const prescriptions = <PrescriptionSummary>[];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => switch (invocation.memberName) {
+    #recordConsultVitals => () {
+      recorded.add(Map<Symbol, dynamic>.from(invocation.namedArguments));
+      return Future<void>.value();
+    }(),
     #patientSummary => Future<PatientSummary>.value(patient),
     #patientPrescriptions => Future<List<PrescriptionSummary>>.value(prescriptions),
     #patientMedications => Future<List<Medication>>.value(medicines),
@@ -319,6 +326,93 @@ void main() {
     expect(find.text('What this was written from'), findsOneWidget);
     expect(find.text('1 on file · newest 18 Jul 2026'), findsOneWidget);
     expect(find.text('1 active'), findsOneWidget);
+  });
+
+  group('the vitals grid', () {
+    test('every measurement has a tile, taken or not', () {
+      final tiles = vitalsOf(_patient());
+      expect(
+        tiles.map((t) => t.label),
+        ['Blood pressure', 'Pulse', 'SpO₂', 'Fasting sugar', 'BMI', 'Weight', 'Height', 'Waist'],
+      );
+      // Nobody measured any of it, and the grid says so rather than vanishing.
+      expect(tiles.every((t) => t.value.isEmpty), isTrue);
+    });
+
+    test('what was measured carries its figure and what it means', () {
+      final tiles = vitalsOf(
+        _patient(
+          extra: {
+            'latestVitals': {
+              'systolic': 148,
+              'diastolic': 94,
+              'pulse': 78,
+              'weightKg': 56,
+            },
+            // Height lives on the profile, not on a visit's vital record.
+            'profile': {'heightCm': 170},
+          },
+        ),
+      );
+      final bp = tiles.firstWhere((t) => t.label == 'Blood pressure');
+      expect(bp.value, '148/94');
+      expect(bp.band, 'High');
+      expect(tiles.firstWhere((t) => t.label == 'Pulse').value, '78');
+      // 56 kg at 170 cm.
+      final bmi = tiles.firstWhere((t) => t.label == 'BMI');
+      expect(bmi.value, '19.4');
+      expect(bmi.band, 'Normal');
+    });
+
+    test('a blood pressure with one half missing is not a reading', () {
+      final tiles = vitalsOf(
+        _patient(extra: {'latestVitals': {'systolic': 148}}),
+      );
+      expect(tiles.firstWhere((t) => t.label == 'Blood pressure').value, isEmpty);
+    });
+  });
+
+  testWidgets('Record writes what was measured and nothing else', (tester) async {
+    final clinic = _Clinic(patient: _patient());
+    await _pump(tester, clinic);
+
+    await tester.tap(find.text('Record'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Record vitals'), findsOneWidget);
+    expect(find.text('Nothing to save yet'), findsOneWidget, reason: 'nothing typed');
+
+    await tester.enterText(find.byKey(const Key('v-systolic')), '128');
+    await tester.enterText(find.byKey(const Key('v-diastolic')), '82');
+    await tester.enterText(find.byKey(const Key('v-sugar')), '142');
+    await tester.pump();
+
+    await tester.tap(find.text('Save to the record'));
+    await tester.pumpAndSettle();
+
+    expect(clinic.recorded, hasLength(1));
+    final sent = clinic.recorded.single;
+    expect(sent[const Symbol('systolic')], 128);
+    expect(sent[const Symbol('diastolic')], 82);
+    expect(sent[const Symbol('glucoseMgDl')], 142);
+    expect(sent[const Symbol('pulse')], isNull, reason: 'it was not measured');
+    expect(find.text('Recorded.'), findsOneWidget);
+  });
+
+  testWidgets('half a blood pressure is refused, and says why', (tester) async {
+    final clinic = _Clinic(patient: _patient());
+    await _pump(tester, clinic);
+
+    await tester.tap(find.text('Record'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('v-systolic')), '128');
+    await tester.pump();
+    await tester.tap(find.text('Save to the record'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('A blood pressure needs both numbers.'), findsOneWidget);
+    expect(clinic.recorded, isEmpty);
   });
 
   testWidgets('the record opens on the summary, with the patient in the header', (tester) async {
