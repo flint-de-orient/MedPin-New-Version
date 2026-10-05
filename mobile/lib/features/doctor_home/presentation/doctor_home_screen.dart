@@ -519,19 +519,22 @@ String agoOf(DateTime? at, {DateTime? now}) {
   return '$days day${days == 1 ? '' : 's'} ago';
 }
 
-/// The six tiles, and where each one goes.
+/// The six the artboard draws, in its order (`Doctor-Dashboard`).
 ///
-/// Three of them are the same sentence with the patient missing — start a
-/// consultation, record vitals, write a prescription — so all three open the
-/// screen that asks who, which also offers the people already waiting. None of
-/// them opens nothing: a tile that leads nowhere does not belong on the screen
-/// a doctor taps between patients.
+/// Two of them are a sentence with the patient missing — start a consultation,
+/// open somebody's prescriptions — so both go to the screen that asks who,
+/// which also offers the people already waiting and the way to add somebody
+/// new. The rest go straight to what they name.
+///
+/// Nothing here opens nothing. Test results was the last tile with no screen
+/// behind it; it asks whose, like the other two, and lands on that patient's
+/// Test results tab.
 const List<_Action> kQuickActions = [
-  _Action('Start consultation', Icons.mic_none_rounded, '/clinician/consult'),
   _Action('Patient queue', Icons.groups_2_outlined, '/clinician/queue'),
   _Action('New patient', Icons.person_add_alt_outlined, '/clinician/patients/new'),
-  _Action('Write prescription', Icons.description_outlined, '/clinician/consult'),
-  _Action('Record vitals', Icons.monitor_heart_outlined, '/clinician/consult'),
+  _Action('Prescriptions', Icons.description_outlined, '/clinician/prescriptions'),
+  _Action('Test results', Icons.science_outlined, '/clinician/test-results'),
+  _Action('Start consultation', Icons.mic_none_rounded, '/clinician/consult'),
   _Action('Follow-ups', Icons.event_available_outlined, '/clinician/follow-ups'),
 ];
 

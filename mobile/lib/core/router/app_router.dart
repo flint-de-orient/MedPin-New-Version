@@ -384,6 +384,19 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       ),
       // Receptionist intake. Declared BEFORE the `:id` route so the static
       // `new` segment is matched as the form, not as a patient id.
+      // Whose test results — the same picker again, landing on the record's
+      // own Test results tab.
+      GoRoute(
+        path: '/clinician/test-results',
+        builder: (context, state) =>
+            const DoctorConsultPickScreen(purpose: PickPurpose.testResults),
+      ),
+      // Whose prescriptions — the same picker, asked for a different reason.
+      GoRoute(
+        path: '/clinician/prescriptions',
+        builder: (context, state) =>
+            const DoctorConsultPickScreen(purpose: PickPurpose.prescriptions),
+      ),
       // The patient a consultation is missing: who is waiting, who was seen,
       // and the way to add somebody new.
       GoRoute(
@@ -417,6 +430,13 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => DoctorPatientProfileScreen(
           patientId: state.pathParameters['id']!,
           patientName: state.extra as String?,
+          // ?tab=tests opens the record where the question was asked.
+          initialTab: switch (state.uri.queryParameters['tab']) {
+            'prescriptions' => 1,
+            'tests' => 2,
+            'treatment' => 3,
+            _ => 0,
+          },
         ),
       ),
 

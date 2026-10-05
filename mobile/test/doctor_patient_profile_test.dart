@@ -78,7 +78,7 @@ class _NoSession extends SecureStore {
   Future<String?> readAccessToken() async => null;
 }
 
-Future<void> _pump(WidgetTester tester, _Clinic clinic) async {
+Future<void> _pump(WidgetTester tester, _Clinic clinic, {int initialTab = 0}) async {
   // Wider than the phone so all four tab labels are on screen at once: under
   // flutter_test's square stand-in font they run much wider than in Figtree.
   tester.view.physicalSize = const Size(1200, 2400);
@@ -97,7 +97,7 @@ Future<void> _pump(WidgetTester tester, _Clinic clinic) async {
         locale: const Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const DoctorPatientProfileScreen(patientId: 'p1'),
+        home: DoctorPatientProfileScreen(patientId: 'p1', initialTab: initialTab),
       ),
     ),
   );
@@ -483,6 +483,30 @@ void main() {
     expect(find.textContaining('128/82'), findsOneWidget);
 
     expect(find.text('Start consultation'), findsOneWidget);
+  });
+
+  testWidgets('the record can be opened on the tab the question was asked on', (tester) async {
+    // "Whose test results?" lands here; the summary is one tap away, not the
+    // other way round.
+    await _pump(
+      tester,
+      _Clinic(
+        patient: _patient(
+          labs: [
+            _lab(
+              name: 'Lipid profile',
+              analytes: [
+                {'code': 'ldl', 'label': 'LDL', 'value': 162, 'refHigh': 100, 'flag': 'high'},
+              ],
+            ),
+          ],
+        ),
+      ),
+      initialTab: 2,
+    );
+
+    expect(find.textContaining('Reports the patient has shared'), findsOneWidget);
+    expect(find.text('ABNORMAL FINDINGS'), findsOneWidget);
   });
 
   testWidgets('each tab is its own answer, and an empty one says so', (tester) async {

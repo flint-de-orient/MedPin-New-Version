@@ -18,19 +18,27 @@ import 'package:medpin/shared/providers/core_providers.dart';
 
 final _now = DateTime(2026, 10, 3, 9);
 
-FollowUps _followUps({int days = 7, int overdueTotal = 2, int dueTotal = 2}) => FollowUps.fromJson({
+/// Dates are counted from the real clock, not from [_now].
+///
+/// The screen words these against `DateTime.now()`, so a fixture pinned to a
+/// fixed day says "23 days overdue" only while that day is today — these two
+/// tests failed the morning the date rolled over, for no reason but that.
+/// [_now] stays for the pure tests below, which pass their own clock in.
+FollowUps _followUps({int days = 7, int overdueTotal = 2, int dueTotal = 2}) {
+  final today = DateTime.now();
+  return FollowUps.fromJson({
   'days': days,
   'overdue': [
     {
       'patientId': 'p1',
       'name': 'Kaushik Paul',
-      'followUpOn': _now.subtract(const Duration(days: 23)).toUtc().toIso8601String(),
+      'followUpOn': today.subtract(const Duration(days: 23)).toUtc().toIso8601String(),
       'doctorName': 'Dr. Sen',
     },
     {
       'patientId': 'p2',
       'name': 'Shreya Basu',
-      'followUpOn': _now.subtract(const Duration(days: 1)).toUtc().toIso8601String(),
+      'followUpOn': today.subtract(const Duration(days: 1)).toUtc().toIso8601String(),
       'doctorName': 'Dr. Sen',
     },
   ],
@@ -39,18 +47,19 @@ FollowUps _followUps({int days = 7, int overdueTotal = 2, int dueTotal = 2}) => 
     {
       'patientId': 'p3',
       'name': 'Moumita Roy',
-      'followUpOn': _now.toUtc().toIso8601String(),
+      'followUpOn': today.toUtc().toIso8601String(),
       'doctorName': 'Dr. Sen',
     },
     {
       'patientId': 'p4',
       'name': 'Tapas Kar',
-      'followUpOn': _now.add(const Duration(days: 3)).toUtc().toIso8601String(),
+      'followUpOn': today.add(const Duration(days: 3)).toUtc().toIso8601String(),
       'doctorName': 'Dr. Mitra',
     },
   ],
   'dueTotal': dueTotal,
-});
+  });
+}
 
 class _Clinic implements ClinicianRepository {
   _Clinic({this.data});

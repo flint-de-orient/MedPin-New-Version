@@ -22,8 +22,22 @@ import 'widgets/profile_parts.dart';
 /// So: the people waiting in the room, the ones seen recently, a search over
 /// the whole roll, and the way to add somebody who is not on it yet. Choosing
 /// any of them opens the consultation for that patient.
+/// What the chosen patient is wanted for.
+enum PickPurpose {
+  /// Open their consultation.
+  consult,
+
+  /// Open their prescriptions.
+  prescriptions,
+
+  /// Open their test results.
+  testResults,
+}
+
 class DoctorConsultPickScreen extends ConsumerStatefulWidget {
-  const DoctorConsultPickScreen({super.key});
+  const DoctorConsultPickScreen({super.key, this.purpose = PickPurpose.consult});
+
+  final PickPurpose purpose;
 
   @override
   ConsumerState<DoctorConsultPickScreen> createState() => _DoctorConsultPickScreenState();
@@ -38,8 +52,15 @@ class _DoctorConsultPickScreenState extends ConsumerState<DoctorConsultPickScree
     super.dispose();
   }
 
-  void _open(String patientId, String name) =>
-      context.push('/clinician/patients/$patientId/consult', extra: name);
+  void _open(String patientId, String name) => context.push(
+    switch (widget.purpose) {
+      PickPurpose.consult => '/clinician/patients/$patientId/consult',
+      PickPurpose.prescriptions => '/clinician/patients/$patientId/prescriptions',
+      // The record, opened on the tab that was asked for.
+      PickPurpose.testResults => '/clinician/patients/$patientId?tab=tests',
+    },
+    extra: name,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +99,14 @@ class _DoctorConsultPickScreenState extends ConsumerState<DoctorConsultPickScree
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Consultation', style: D.screenTitle.copyWith(color: D.ink)),
+            Text(
+              switch (widget.purpose) {
+                PickPurpose.consult => 'Consultation',
+                PickPurpose.prescriptions => 'Prescriptions',
+                PickPurpose.testResults => 'Test results',
+              },
+              style: D.screenTitle.copyWith(color: D.ink),
+            ),
             Text('No patient selected', style: D.statLabel.copyWith(color: D.inkMuted)),
           ],
         ),
@@ -90,7 +118,11 @@ class _DoctorConsultPickScreenState extends ConsumerState<DoctorConsultPickScree
           children: [
             ProfileCard(
               lifted: true,
-              title: 'Who are you consulting?',
+              title: switch (widget.purpose) {
+                PickPurpose.consult => 'Who are you consulting?',
+                PickPurpose.prescriptions => 'Whose prescriptions?',
+                PickPurpose.testResults => 'Whose test results?',
+              },
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -189,7 +221,10 @@ class _DoctorConsultPickScreenState extends ConsumerState<DoctorConsultPickScree
             ),
             SizedBox(height: D.s4),
             // The steps that are waiting on a name, as the artboard greys them.
-            ProfileCard(
+            // Only for a consultation: nothing is waiting on a name when the
+            // doctor only wants to read what was written.
+            if (widget.purpose == PickPurpose.consult)
+              ProfileCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

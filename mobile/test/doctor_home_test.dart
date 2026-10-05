@@ -243,7 +243,7 @@ void main() {
 
     // Nothing overflows its card, and nothing is laid out off the screen.
     expect(tester.takeException(), isNull);
-    for (final label in ['Write prescription', 'Start consultation', 'Total appointments']) {
+    for (final label in ['Prescriptions', 'Start consultation', 'Total appointments']) {
       final box = tester.getRect(find.text(label));
       expect(box.left, greaterThanOrEqualTo(0));
       expect(box.right, lessThanOrEqualTo(360));
@@ -253,7 +253,7 @@ void main() {
     // lines the label then takes is the font's business, and the test font
     // here is not the font on the phone — that part is read on the device.
     final tileWidth = tester.getSize(find.ancestor(
-      of: find.text('Write prescription'),
+      of: find.text('Prescriptions'),
       matching: find.byType(SizedBox),
     ).first).width;
     expect(tileWidth, greaterThan(100), reason: 'three cards across 360dp, gaps included');
@@ -271,26 +271,28 @@ void main() {
     );
   });
 
-  testWidgets('every quick action goes somewhere', (tester) async {
-    // The "not built yet" card is gone because nothing on this row is unbuilt
-    // any more. What replaced it is the thing worth pinning: a tile that opens
-    // nothing is a tile that should not be on the screen.
+  testWidgets('the six are the artboard’s six, in its order', (tester) async {
     await _pump(tester, _Clinic());
 
-    for (final label in [
-      'Start consultation',
+    expect(kQuickActions.map((a) => a.label).toList(), [
       'Patient queue',
       'New patient',
-      'Write prescription',
-      'Record vitals',
+      'Prescriptions',
+      'Test results',
+      'Start consultation',
       'Follow-ups',
-    ]) {
-      expect(find.text(label), findsOneWidget, reason: '$label is missing');
-      expect(
-        routeOf(label),
-        isNotNull,
-        reason: '$label opens nothing',
-      );
+    ]);
+
+    for (final a in kQuickActions) {
+      expect(routeOf(a.label), isNotNull, reason: '${a.label} opens nothing');
     }
+  });
+
+  test('the three that need a patient ask whose, and say what for', () {
+    // Each opens the same picker with a different question, so none of them
+    // guesses which patient was meant.
+    expect(routeOf('Start consultation'), '/clinician/consult');
+    expect(routeOf('Prescriptions'), '/clinician/prescriptions');
+    expect(routeOf('Test results'), '/clinician/test-results');
   });
 }

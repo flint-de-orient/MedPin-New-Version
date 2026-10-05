@@ -28,9 +28,19 @@ import 'widgets/profile_tabs.dart';
 /// `PatientProfileScreen`, which is also where prescribing still lives — this
 /// screen reads the record and hands off to the consult to change it.
 class DoctorPatientProfileScreen extends ConsumerStatefulWidget {
-  const DoctorPatientProfileScreen({super.key, required this.patientId, this.patientName});
+  const DoctorPatientProfileScreen({
+    super.key,
+    required this.patientId,
+    this.patientName,
+    this.initialTab = 0,
+  });
 
   final String patientId;
+
+  /// Which tab to open on. A doctor who came here asking "whose test results?"
+  /// should land on the test results, not on the summary with one more tap to
+  /// go.
+  final int initialTab;
 
   /// The name the previous screen already knew, so the header is not blank
   /// while the record loads.
@@ -42,8 +52,11 @@ class DoctorPatientProfileScreen extends ConsumerStatefulWidget {
 
 class _DoctorPatientProfileScreenState extends ConsumerState<DoctorPatientProfileScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 4, vsync: this)
-    ..addListener(() => setState(() {}));
+  late final TabController _tabs = TabController(
+    length: 4,
+    initialIndex: widget.initialTab.clamp(0, 3),
+    vsync: this,
+  )..addListener(() => setState(() {}));
 
   @override
   void dispose() {

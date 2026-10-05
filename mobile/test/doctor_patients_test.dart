@@ -161,7 +161,14 @@ void main() {
       tester,
       _Clinic(
         items: [
-          _patient(name: 'Priya Sharma', phone: '+919876543210', alerts: 1, lastMessageAt: _now),
+          // The real clock, because the row words itself against it: pinned to
+          // a fixed day, "Today" stops being today the next morning.
+          _patient(
+            name: 'Priya Sharma',
+            phone: '+919876543210',
+            alerts: 1,
+            lastMessageAt: DateTime.now(),
+          ),
           _patient(name: 'Rahul Das', unread: 3),
         ],
         total: 248,
