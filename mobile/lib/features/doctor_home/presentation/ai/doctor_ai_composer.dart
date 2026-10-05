@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/doctor_tokens.dart';
 import '../../domain/doctor_ai.dart';
+import '../widgets/profile_parts.dart';
 import 'doctor_ai_patient_sheet.dart';
 import 'doctor_ai_voice_sheet.dart';
 
@@ -237,15 +238,3 @@ class AiPatientChip extends ConsumerWidget {
   }
 }
 
-/// Two letters for the disc: a name's own, titles skipped.
-@visibleForTesting
-String initialsOf(String name) {
-  final bare = name.trim().replaceFirst(
-    RegExp(r'^(dr|prof|mr|mrs|ms|smt|shri|sri)\.?\s+', caseSensitive: false),
-    '',
-  );
-  final parts = bare.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-  if (parts.isEmpty) return '?';
-  if (parts.length == 1) return parts.first.characters.first.toUpperCase();
-  return (parts.first.characters.first + parts.last.characters.first).toUpperCase();
-}

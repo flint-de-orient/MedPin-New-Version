@@ -304,3 +304,18 @@ class VitalTile extends StatelessWidget {
     );
   }
 }
+
+/// Two letters for the disc: a name's own, titles skipped.
+///
+/// Shared, because the AI composer and the diary both draw the same disc and
+/// a second copy is a second place "Dr. Arjun Sen" comes out as "DS".
+String initialsOf(String name) {
+  final bare = name.trim().replaceFirst(
+    RegExp(r'^(dr|prof|mr|mrs|ms|smt|shri|sri)\.?\s+', caseSensitive: false),
+    '',
+  );
+  final parts = bare.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first.characters.first.toUpperCase();
+  return (parts.first.characters.first + parts.last.characters.first).toUpperCase();
+}

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/doctor_tokens.dart';
 import '../../clinician/data/clinician_repository.dart';
 import '../../clinician/domain/appointment.dart';
+import 'widgets/appointment_manage_sheet.dart';
 import 'widgets/profile_parts.dart';
 import 'widgets/report_export.dart';
 
@@ -468,31 +469,36 @@ class _HistoryRow extends StatelessWidget {
 
 /// The link at the end of a row, which is a different offer per outcome.
 ///
-/// A visit that happened has something written from it; one that did not has
-/// only the record behind it. Naming the link after what is actually there is
-/// the difference between an affordance and a dead end.
-class _RowLink extends StatelessWidget {
+/// The artboard offers Prescription, Reschedule and Book again. Two of those
+/// are the same act here: the server refuses to move anything completed,
+/// cancelled or missed, because the old row is what happened and moving it
+/// would lose that — so a patient who did not come is offered a second
+/// appointment rather than a move of the one they missed.
+class _RowLink extends ConsumerStatefulWidget {
   const _RowLink({required this.appointment});
 
   final Appointment appointment;
 
   @override
+  ConsumerState<_RowLink> createState() => _RowLinkState();
+}
+
+class _RowLinkState extends ConsumerState<_RowLink> {
+  @override
   Widget build(BuildContext context) {
-    final a = appointment;
-    final completed = a.status == 'completed';
-    final label = completed ? 'Prescription' : 'View record';
+    final a = widget.appointment;
+    final label = switch (a.status) {
+      'completed' => 'Prescription',
+      'no_show' || 'cancelled' => 'Book again',
+      _ => 'View record',
+    };
 
     return Semantics(
       button: true,
       label: '$label for ${a.patientName}',
       child: InkWell(
         borderRadius: BorderRadius.circular(D.s2),
-        onTap: () => context.push(
-          completed
-              ? '/clinician/patients/${a.patientId}?tab=prescriptions'
-              : '/clinician/patients/${a.patientId}',
-          extra: a.patientName,
-        ),
+        onTap: () => _go(label, a),
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: D.s1, vertical: D.s1),
           child: Text(
@@ -501,6 +507,29 @@ class _RowLink extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _go(String label, Appointment a) async {
+    if (label == 'Book again') {
+      final booked = await bookAgain(context, (
+        id: a.id,
+        patientId: a.patientId,
+        patientName: a.patientName,
+        scheduledFor: a.scheduledFor,
+        clinicId: a.clinicId,
+        clinicName: a.clinicName,
+        doctorName: null,
+      ));
+      if (booked) ref.invalidate(historyProvider);
+      return;
+    }
+    if (!mounted) return;
+    context.push(
+      label == 'Prescription'
+          ? '/clinician/patients/${a.patientId}?tab=prescriptions'
+          : '/clinician/patients/${a.patientId}',
+      extra: a.patientName,
     );
   }
 }

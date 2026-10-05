@@ -520,8 +520,17 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
               ProfileRow(
                 icon: Icons.person_outline_rounded,
                 title: l10n.profileEditProfile,
-                showDivider: false,
                 onTap: () => context.push('/clinician/more/edit'),
+              ),
+              // Everything about being this clinic's doctor rather than about
+              // this account: the credentials that print on a prescription,
+              // the rooms, the diary, the people.
+              ProfileRow(
+                icon: Icons.badge_outlined,
+                title: 'My profile',
+                subtitle: 'Credentials, locations, diary and the people you work with',
+                showDivider: false,
+                onTap: () => context.push('/clinician/more/profile'),
               ),
             ],
           ),

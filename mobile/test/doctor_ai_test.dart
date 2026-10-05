@@ -8,7 +8,7 @@ import 'package:medpin/features/clinician/data/clinician_repository.dart';
 import 'package:medpin/features/clinician/domain/patient_summary.dart';
 import 'package:medpin/features/doctor_home/domain/doctor_ai.dart';
 import 'package:medpin/features/doctor_home/presentation/ai/doctor_ai_chat_screen.dart';
-import 'package:medpin/features/doctor_home/presentation/ai/doctor_ai_composer.dart';
+import 'package:medpin/features/doctor_home/presentation/widgets/profile_parts.dart';
 import 'package:medpin/features/doctor_home/presentation/ai/doctor_ai_screen.dart';
 import 'package:medpin/l10n/gen/app_localizations.dart';
 import 'package:medpin/shared/providers/core_providers.dart';

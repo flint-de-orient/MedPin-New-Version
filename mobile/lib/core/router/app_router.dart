@@ -24,6 +24,9 @@ import '../../features/doctor_home/presentation/ai/doctor_ai_screen.dart';
 import '../../features/doctor_home/presentation/doctor_home_screen.dart';
 import '../../features/doctor_home/presentation/doctor_messages_screen.dart';
 import '../../features/doctor_home/presentation/doctor_add_patient_screen.dart';
+import '../../features/doctor_home/presentation/doctor_appointments_screen.dart';
+import '../../features/doctor_home/presentation/doctor_my_profile_screen.dart';
+import '../../features/doctor_home/presentation/doctor_professional_screen.dart';
 import '../../features/doctor_home/presentation/doctor_bulk_message_screen.dart';
 import '../../features/doctor_home/presentation/doctor_consult_pick_screen.dart';
 import '../../features/doctor_home/presentation/doctor_consult_screen.dart';
@@ -253,8 +256,18 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         path: '/clinician/ai/chat',
         builder: (context, state) => const DoctorAiChatScreen(),
       ),
+      // The doctor's own diary, on the new design: who is coming, who is still
+      // waiting for a time, and the way to move somebody.
       GoRoute(
         path: '/clinician/appointments',
+        builder: (context, state) => const DoctorAppointmentsScreen(),
+      ),
+      // The desk's diary, which the doctor's "View all" hands requests to —
+      // giving a request a time needs the slot grid and the same-day checks
+      // that screen already carries, and the desk's panel is not on the new
+      // design.
+      GoRoute(
+        path: '/clinician/appointments/desk',
         builder: (context, state) => const AppointmentsAdminScreen(),
       ),
       GoRoute(
@@ -489,6 +502,18 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/dietician/profile/edit',
         builder: (context, state) => const EditProfileScreen(),
+      ),
+      // Everything about being this clinic's doctor: the credentials that print
+      // on a prescription, the rooms, the diary, the people. Opened from the
+      // Profile tab's identity block, as the artboard does.
+      GoRoute(
+        path: '/clinician/more/profile',
+        builder: (context, state) => const DoctorMyProfileScreen(),
+      ),
+      // The three lines that print at the top of a prescription.
+      GoRoute(
+        path: '/clinician/more/professional',
+        builder: (context, state) => const DoctorProfessionalScreen(),
       ),
       GoRoute(
         path: '/clinician/more/edit',
