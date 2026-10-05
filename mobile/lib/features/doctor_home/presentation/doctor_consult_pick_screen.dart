@@ -52,15 +52,8 @@ class _DoctorConsultPickScreenState extends ConsumerState<DoctorConsultPickScree
     super.dispose();
   }
 
-  void _open(String patientId, String name) => context.push(
-    switch (widget.purpose) {
-      PickPurpose.consult => '/clinician/patients/$patientId/consult',
-      PickPurpose.prescriptions => '/clinician/patients/$patientId/prescriptions',
-      // The record, opened on the tab that was asked for.
-      PickPurpose.testResults => '/clinician/patients/$patientId?tab=tests',
-    },
-    extra: name,
-  );
+  void _open(String patientId, String name) =>
+      context.push(destinationFor(widget.purpose, patientId), extra: name);
 
   @override
   Widget build(BuildContext context) {
@@ -292,6 +285,18 @@ class _DoctorConsultPickScreenState extends ConsumerState<DoctorConsultPickScree
     );
   }
 }
+
+/// Where choosing a patient takes the doctor, for each question asked.
+///
+/// Two of the three open the record on the tab that answers the question they
+/// came in with: a doctor who asked whose prescriptions should not land on the
+/// summary with one more tap to go. The consultation is its own screen.
+@visibleForTesting
+String destinationFor(PickPurpose purpose, String patientId) => switch (purpose) {
+  PickPurpose.consult => '/clinician/patients/$patientId/consult',
+  PickPurpose.prescriptions => '/clinician/patients/$patientId?tab=prescriptions',
+  PickPurpose.testResults => '/clinician/patients/$patientId?tab=tests',
+};
 
 class _WaitingRow extends StatelessWidget {
   const _WaitingRow({required this.appointment});

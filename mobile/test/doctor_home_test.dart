@@ -7,6 +7,7 @@ import 'package:medpin/core/storage/secure_store.dart';
 import 'package:medpin/features/clinician/data/clinician_repository.dart';
 import 'package:medpin/features/clinician/domain/appointment.dart';
 import 'package:medpin/features/clinician/domain/clinician_models.dart';
+import 'package:medpin/features/doctor_home/presentation/doctor_consult_pick_screen.dart';
 import 'package:medpin/features/doctor_home/presentation/doctor_home_screen.dart';
 import 'package:medpin/l10n/gen/app_localizations.dart';
 import 'package:medpin/shared/data/care_contact.dart';
@@ -288,11 +289,25 @@ void main() {
     }
   });
 
-  test('the three that need a patient ask whose, and say what for', () {
+  test('the three that need a patient ask whose, and land where they asked', () {
     // Each opens the same picker with a different question, so none of them
     // guesses which patient was meant.
     expect(routeOf('Start consultation'), '/clinician/consult');
     expect(routeOf('Prescriptions'), '/clinician/prescriptions');
     expect(routeOf('Test results'), '/clinician/test-results');
+
+    // And answering the question lands on the answer, not one tap short of it.
+    expect(
+      destinationFor(PickPurpose.consult, 'p1'),
+      '/clinician/patients/p1/consult',
+    );
+    expect(
+      destinationFor(PickPurpose.prescriptions, 'p1'),
+      '/clinician/patients/p1?tab=prescriptions',
+    );
+    expect(
+      destinationFor(PickPurpose.testResults, 'p1'),
+      '/clinician/patients/p1?tab=tests',
+    );
   });
 }
