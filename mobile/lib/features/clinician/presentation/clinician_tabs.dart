@@ -7,53 +7,37 @@ import '../../../core/capabilities/capabilities.dart';
 /// `StatefulShellRoute.indexedStack` addresses its branches by index. Hiding
 /// one does not renumber the rest — branch 3 is still branch 3 — so a bar
 /// showing three items has to map its own 0,1,2 onto whichever branches those
-/// are. Get that wrong and tapping Profile opens Nutrition, which is the kind
-/// of bug that looks like a routing problem for a day.
+/// are. Get that wrong and tapping one tab opens another, which is the kind of
+/// bug that looks like a routing problem for a day.
 ///
 /// So the mapping is one list, computed once, and testable without a widget
 /// tree. [barIndexFor] is its inverse and the two are checked against each
 /// other rather than being written twice.
 ///
-/// ---- What actually varies ----------------------------------------------
+/// ---- The five the design draws -----------------------------------------
 ///
-/// Home, Care and Profile are the app. Nutrition is the doctor's window onto
-/// the dietician↔patient conversations, and those exist when something can
-/// answer in them — which is two things, not one:
+/// Home, Patients, Messages, Reports, History. Every doctor sees all five;
+/// nothing here varies any more.
 ///
-///   the nutrition assistant, which is `AI_ASSISTANT`
-///   a dietician, which is a fact about the roster
-///
-/// Either is enough. Gating on the capability alone hid the tab from a practice
-/// that had hired somebody to work in it, and `/team` allows hiring a dietician
-/// at any practice type — so a diagnostic centre with one on the payroll had a
-/// nutrition stream it could not see. That is not a future case to handle when
-/// it arises; it is a combination the app already permits anybody to create.
+/// Nutrition used to be the fourth, shown only where somebody could answer in
+/// it. It is not a tab now, and neither is Profile — both are pages opened from
+/// elsewhere: the avatar on Home opens Profile, and Profile lists Nutrition.
+/// Dropping a tab must not drop the screen behind it, and this is where that
+/// was nearly done.
+
 const _home = 0;
 const _care = 1;
 const _messages = 2;
-const _nutrition = 3;
-const _profile = 4;
+const _reports = 3;
+const _history = 4;
 
-/// Specialties whose doctors see Nutrition only when somebody writes diet plans.
-///
-/// The nutrition stream is a diabetes clinic's daily work, and the assistant
-/// alone put the tab in front of every cardiologist and general physician. A
-/// heart or general clinic that employs a dietician still gets it.
-const _nutritionOnlyWithDietician = {'cardiology', 'general_physician'};
-
-List<int> visibleBranches(Capabilities caps) {
-  final nutrition =
-      _nutritionOnlyWithDietician.contains(caps.ui?.specialty)
-          ? caps.hasDietician
-          : caps.has(Cap.aiAssistant) || caps.hasDietician;
-  return <int>[
-    _home,
-    _care,
-    _messages,
-    if (nutrition) _nutrition,
-    _profile,
-  ];
-}
+List<int> visibleBranches(Capabilities caps) => const <int>[
+  _home,
+  _care,
+  _messages,
+  _reports,
+  _history,
+];
 
 /// Where a branch sits in the bar, or null when the bar is not showing it.
 ///

@@ -21,6 +21,7 @@ class Appointment {
     this.queueNumber,
     this.checkedInAt,
     this.calledAt,
+    this.completedAt,
   });
 
   final String id;
@@ -81,6 +82,10 @@ class Appointment {
   final DateTime? checkedInAt;
   final DateTime? calledAt;
 
+  /// When it ended. With [calledAt] it is how long the consultation took —
+  /// the only pair that can say so.
+  final DateTime? completedAt;
+
   bool get isCompleted => status == 'completed';
 
   /// The doctor is with this patient right now (called in or mid-consult).
@@ -136,6 +141,7 @@ class Appointment {
       queueNumber: (j['queueNumber'] as num?)?.toInt(),
       checkedInAt: DateTime.tryParse(j['checkedInAt']?.toString() ?? '')?.toLocal(),
       calledAt: DateTime.tryParse(j['calledAt']?.toString() ?? '')?.toLocal(),
+      completedAt: DateTime.tryParse(j['completedAt']?.toString() ?? '')?.toLocal(),
     );
   }
 }

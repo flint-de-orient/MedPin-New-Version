@@ -101,6 +101,10 @@ const appointmentSchema = new mongoose.Schema(
     // — a token number says the order people came in, not how long ago.
     checkedInAt: Date,
     calledAt: Date,
+    // When the consultation ended. The pair with calledAt is the only way to
+    // know how long a consultation took; without it the reports can count
+    // visits but never time them.
+    completedAt: Date,
 
     teleconsult: {
       roomId: String,

@@ -30,6 +30,9 @@ import '../../features/doctor_home/presentation/doctor_consult_screen.dart';
 import '../../features/doctor_home/presentation/doctor_patient_profile_screen.dart';
 import '../../features/doctor_home/presentation/doctor_patients_screen.dart';
 import '../../features/doctor_home/presentation/doctor_queue_screen.dart';
+import '../../features/doctor_home/presentation/doctor_report_register_screen.dart';
+import '../../features/doctor_home/presentation/doctor_history_screen.dart';
+import '../../features/doctor_home/presentation/doctor_reports_screen.dart';
 import '../../features/doctor_home/presentation/follow_ups_screen.dart';
 import '../../features/clinician/presentation/appointments_admin_screen.dart';
 import '../../features/clinician/presentation/clinic_edit_screen.dart';
@@ -384,6 +387,44 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       ),
       // Receptionist intake. Declared BEFORE the `:id` route so the static
       // `new` segment is matched as the form, not as a patient id.
+      // The two that left the navigation bar when Reports and History took
+      // their places. Pushed over the shell, so each opens as a full page with
+      // its own way back rather than as a tab with nothing selected.
+      GoRoute(
+        path: '/clinician/more',
+        builder: (context, state) => const ClinicianMoreScreen(),
+      ),
+      GoRoute(
+        path: '/clinician/nutrition',
+        builder: (context, state) => const NutritionInboxScreen(),
+      ),
+      // The three registers the MIS's figures were counted from. The window
+      // travels in the query so a register can be opened, read, and come back
+      // to the same month.
+      GoRoute(
+        path: '/clinician/reports/consultations',
+        builder: (context, state) => DoctorReportRegisterScreen(
+          kind: RegisterKind.consultations,
+          from: _day(state.uri.queryParameters['from']),
+          to: _day(state.uri.queryParameters['to']),
+        ),
+      ),
+      GoRoute(
+        path: '/clinician/reports/prescriptions',
+        builder: (context, state) => DoctorReportRegisterScreen(
+          kind: RegisterKind.prescriptions,
+          from: _day(state.uri.queryParameters['from']),
+          to: _day(state.uri.queryParameters['to']),
+        ),
+      ),
+      GoRoute(
+        path: '/clinician/reports/follow-ups',
+        builder: (context, state) => DoctorReportRegisterScreen(
+          kind: RegisterKind.followUps,
+          from: _day(state.uri.queryParameters['from']),
+          to: _day(state.uri.queryParameters['to']),
+        ),
+      ),
       // Whose test results — the same picker again, landing on the record's
       // own Test results tab.
       GoRoute(
@@ -791,16 +832,16 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/clinician/nutrition',
-                builder: (context, state) => const NutritionInboxScreen(),
+                path: '/clinician/reports',
+                builder: (context, state) => const DoctorReportsScreen(),
               ),
             ],
           ),
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/clinician/more',
-                builder: (context, state) => const ClinicianMoreScreen(),
+                path: '/clinician/history',
+                builder: (context, state) => const DoctorHistoryScreen(),
               ),
             ],
           ),
@@ -809,3 +850,11 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// A 'YYYY-MM-DD' from a route's query, or today when it is missing or wrong.
+DateTime _day(String? value) {
+  final parsed = DateTime.tryParse(value ?? '');
+  if (parsed != null) return DateTime(parsed.year, parsed.month, parsed.day);
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day);
+}

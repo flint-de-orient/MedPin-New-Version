@@ -33,6 +33,11 @@ class D {
 
   // ============================================================== spacing
 
+  /// The gap between one day's bar and the next, and the height a day with
+  /// nobody in it is still drawn at — a closed Sunday is a flat mark, not a
+  /// hole in the chart.
+  static const double hair = 2;
+
   static const double s1 = 4;
   static const double s2 = 8;
   static const double s3 = 12;
@@ -163,6 +168,10 @@ class D {
   static const Color brand = Color(0xFF003399);
   static const Color brandTint = Color(0xFFEBF1FB);
 
+  /// A bar on a chart: the brand at half strength, so the one bar that is
+  /// marked in full brand reads as the answer to "which day".
+  static const Color brandBar = Color(0xFF7F99CC);
+
   static const Color ground = Color(0xFFF7F9FC);
 
   /// The sunken track a segmented choice sits in, and a colleague's initials.
@@ -220,6 +229,9 @@ class D {
   static const double rBar = 28;
   static const double rBarItem = 22;
   static const double rChip = 6;
+
+  /// The top of a chart bar, barely rounded.
+  static const double rTick = 3;
   static const BorderRadius rPill = BorderRadius.all(Radius.circular(999));
 
   /// One light source. The cards barely lift; the brand card and the bar carry

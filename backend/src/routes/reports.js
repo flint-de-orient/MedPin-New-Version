@@ -10,6 +10,9 @@ import { PERMISSIONS } from '../models/Membership.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { DATE_RE } from '../utils/clinicTime.js';
 import { buildDailyReport, clinicToday } from '../services/dailyReport.js';
+import { buildConsultationSummary } from '../services/consultationSummary.js';
+import { Appointment } from '../models/Appointment.js';
+import { Prescription } from '../models/Prescription.js';
 import { buildDailyReportPdf } from '../services/dailyReportPdf.js';
 
 /**
@@ -136,6 +139,205 @@ router.get(
     );
     res.setHeader('Cache-Control', 'no-store');
     res.send(pdf);
+  }),
+);
+
+/**
+ * The consultation MIS over a range of days.
+ *
+ * Read-only and counted from this doctor's own rows at one practice. The window
+ * is theirs to choose; the comparison window is always the same number of days
+ * immediately before it, because "+12% vs August" has to mean something exact.
+ */
+router.get(
+  '/summary',
+  validate({
+    query: z.object({
+      from: z.string().regex(DATE_RE, 'Use YYYY-MM-DD'),
+      to: z.string().regex(DATE_RE, 'Use YYYY-MM-DD'),
+      clinicId: z.string().optional(),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    const { from, to, clinicId } = q(req);
+    if (from > to) throw badRequest('The range starts after it ends.');
+    if (to > clinicToday()) throw badRequest('That range has not finished yet.');
+
+    const practiceId = await practiceOf(req);
+    if (!practiceId) throw noPractice();
+
+    res.json(
+      await buildConsultationSummary({
+        doctorId: req.user._id,
+        practiceId,
+        clinicId: clinicId ?? null,
+        from,
+        to,
+      }),
+    );
+  }),
+);
+
+/**
+ * The consultation register: every visit in the window, newest first.
+ *
+ * The figures on the summary are counts of exactly these rows, so a doctor who
+ * does not believe a number can read what it was counted from.
+ */
+router.get(
+  '/consultations',
+  validate({
+    query: z.object({
+      from: z.string().regex(DATE_RE, 'Use YYYY-MM-DD'),
+      to: z.string().regex(DATE_RE, 'Use YYYY-MM-DD'),
+      clinicId: z.string().optional(),
+      limit: z.coerce.number().int().min(1).max(200).default(100),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    const { from, to, clinicId, limit } = q(req);
+    const practiceId = await practiceOf(req);
+    if (!practiceId) throw noPractice();
+
+    const rows = await Appointment.find({
+      doctor: req.user._id,
+      practice: practiceId,
+      ...(clinicId ? { clinic: clinicId } : {}),
+      status: 'completed',
+      scheduledFor: {
+        $gte: new Date(`${from}T00:00:00.000Z`),
+        $lte: new Date(`${to}T23:59:59.999Z`),
+      },
+    })
+      .select('patient scheduledFor reason clinic calledAt completedAt queueNumber')
+      .sort({ scheduledFor: -1 })
+      .limit(limit)
+      .populate('patient', 'name')
+      .populate('clinic', 'name')
+      .lean();
+
+    res.json({
+      items: rows.map((a) => ({
+        id: String(a._id),
+        patientId: a.patient?._id ? String(a.patient._id) : null,
+        patientName: a.patient?.name ?? 'Patient',
+        at: a.scheduledFor,
+        reason: a.reason ?? null,
+        clinicName: a.clinic?.name ?? null,
+        minutes:
+          a.calledAt && a.completedAt
+            ? Math.round((a.completedAt - a.calledAt) / 60000)
+            : null,
+      })),
+    });
+  }),
+);
+
+/** The prescription register: what was prescribed in the window. */
+router.get(
+  '/prescriptions',
+  validate({
+    query: z.object({
+      from: z.string().regex(DATE_RE, 'Use YYYY-MM-DD'),
+      to: z.string().regex(DATE_RE, 'Use YYYY-MM-DD'),
+      limit: z.coerce.number().int().min(1).max(200).default(100),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    const { from, to, limit } = q(req);
+    const practiceId = await practiceOf(req);
+    if (!practiceId) throw noPractice();
+
+    const rows = await Prescription.find({
+      doctor: req.user._id,
+      practice: practiceId,
+      issuedOn: {
+        $gte: new Date(`${from}T00:00:00.000Z`),
+        $lte: new Date(`${to}T23:59:59.999Z`),
+      },
+    })
+      .select('patient issuedOn diagnosis items labTestsAdvised followUpOn recordState')
+      .sort({ issuedOn: -1 })
+      .limit(limit)
+      .populate('patient', 'name')
+      .lean();
+
+    res.json({
+      items: rows.map((p) => ({
+        id: String(p._id),
+        patientId: p.patient?._id ? String(p.patient._id) : null,
+        patientName: p.patient?.name ?? 'Patient',
+        at: p.issuedOn,
+        diagnosis: p.diagnosis ?? [],
+        medicines: (p.items ?? []).length,
+        tests: (p.labTestsAdvised ?? []).length,
+        followUpOn: p.followUpOn ?? null,
+        // A voided or replaced prescription is still part of the register; it
+        // simply does not stand any more, and the register says so.
+        recordState: p.recordState ?? 'current',
+      })),
+    });
+  }),
+);
+
+/**
+ * Follow-up compliance: who was asked back in the window, and whether they came.
+ *
+ * "Came back" means a completed appointment at this practice on or after the
+ * date they were asked for. Nothing here infers intent — somebody who has not
+ * come back but whose date is still ahead of them is waiting, not missing.
+ */
+router.get(
+  '/follow-ups',
+  validate({
+    query: z.object({
+      from: z.string().regex(DATE_RE, 'Use YYYY-MM-DD'),
+      to: z.string().regex(DATE_RE, 'Use YYYY-MM-DD'),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    const { from, to } = q(req);
+    const practiceId = await practiceOf(req);
+    if (!practiceId) throw noPractice();
+
+    const asked = await Prescription.find({
+      doctor: req.user._id,
+      practice: practiceId,
+      followUpOn: {
+        $gte: new Date(`${from}T00:00:00.000Z`),
+        $lte: new Date(`${to}T23:59:59.999Z`),
+      },
+    })
+      .select('patient followUpOn')
+      .sort({ followUpOn: 1 })
+      .populate('patient', 'name')
+      .lean();
+
+    const today = new Date();
+    const items = [];
+    for (const row of asked) {
+      const came = await Appointment.countDocuments({
+        practice: practiceId,
+        patient: row.patient?._id ?? row.patient,
+        status: 'completed',
+        scheduledFor: { $gte: row.followUpOn },
+      });
+      items.push({
+        patientId: row.patient?._id ? String(row.patient._id) : null,
+        patientName: row.patient?.name ?? 'Patient',
+        dueOn: row.followUpOn,
+        came: came > 0,
+        // Still ahead of them: not a miss.
+        pending: came === 0 && row.followUpOn > today,
+      });
+    }
+
+    const due = items.filter((i) => !i.pending);
+    res.json({
+      items,
+      kept: due.filter((i) => i.came).length,
+      due: due.length,
+    });
   }),
 );
 

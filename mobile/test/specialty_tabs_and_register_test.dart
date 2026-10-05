@@ -69,22 +69,23 @@ class _Registrations implements ClinicianRepository {
 }
 
 void main() {
-  group('the Nutrition tab by specialty', () {
-    test('a cardiologist or general physician sees it only with a dietician at the practice', () {
-      for (final specialty in ['cardiology', 'general_physician']) {
-        expect(visibleBranches(_caps({Cap.aiAssistant}, specialty: specialty)), [0, 1, 2, 4], reason: specialty);
-        expect(visibleBranches(_caps({Cap.aiAssistant}, specialty: specialty, hasDietician: true)), [0, 1, 2, 3, 4],
-            reason: specialty);
+  group('the bar', () {
+    test('is the design’s five for every doctor, whatever the specialty', () {
+      // Nutrition was gated on somebody being able to answer in it and sat
+      // fourth in the bar. It is not a tab now — Profile lists it — so the
+      // specialty no longer changes what a doctor sees here.
+      for (final specialty in ['cardiology', 'general_physician', 'diabetology', null]) {
+        expect(
+          visibleBranches(_caps({Cap.aiAssistant}, specialty: specialty)),
+          [0, 1, 2, 3, 4],
+          reason: '\$specialty',
+        );
       }
+      expect(visibleBranches(_caps({})), [0, 1, 2, 3, 4]);
     });
 
-    test('diabetology, and a server that does not say, keep it as before', () {
-      expect(visibleBranches(_caps({Cap.aiAssistant}, specialty: 'diabetology')), [0, 1, 2, 3, 4]);
-      expect(visibleBranches(_caps({Cap.aiAssistant})), [0, 1, 2, 3, 4]);
-      expect(visibleBranches(_caps({})), [0, 1, 2, 4]);
-    });
-
-    test('the specialty is read from the server’s Home settings', () {
+    test('the specialty is still read from the server’s Home settings', () {
+      // It no longer moves a tab, but the rest of the app reads it.
       final ui = DashboardConfig.fromJson({'widgets': [], 'quickActions': [], 'specialty': 'cardiology'});
       expect(ui?.specialty, 'cardiology');
       expect(DashboardConfig.fromJson({'widgets': [], 'quickActions': []})?.specialty, isNull);

@@ -6,6 +6,7 @@ import '../../../shared/models/paged.dart';
 import '../../../shared/providers/core_providers.dart';
 import '../../chat/domain/chat_message.dart';
 import '../../medications/domain/medication.dart';
+import '../../doctor_home/domain/consultation_report.dart';
 import '../domain/appointment.dart';
 import '../domain/patient_registration.dart';
 import '../domain/chat_review.dart';
@@ -197,6 +198,90 @@ class ClinicianRepository {
     required String status,
   }) async {
     await _client.patchJson('/appointments/$appointmentId/status', body: {'status': status});
+  }
+
+  /// The consultation MIS over a window, with the same window before it to
+  /// compare against. [clinicId] narrows it to one room.
+  Future<ConsultationSummary> consultationSummary({
+    required DateTime from,
+    required DateTime to,
+    String? clinicId,
+  }) async {
+    final json = await _client.getJson(
+      '/doctor/reports/summary?from=${_day(from)}&to=${_day(to)}'
+      '${clinicId == null ? '' : '&clinicId=$clinicId'}',
+    );
+    return ConsultationSummary.fromJson(json);
+  }
+
+  /// Every consultation in the window — what the summary's figures counted.
+  Future<List<ConsultationRow>> consultationRegister({
+    required DateTime from,
+    required DateTime to,
+    String? clinicId,
+  }) async {
+    final json = await _client.getJson(
+      '/doctor/reports/consultations?from=${_day(from)}&to=${_day(to)}'
+      '${clinicId == null ? '' : '&clinicId=$clinicId'}',
+    );
+    return [
+      for (final r in (json['items'] as List? ?? const []))
+        if (r is Map<String, dynamic>) ConsultationRow.fromJson(r),
+    ];
+  }
+
+  /// Every prescription in the window.
+  Future<List<PrescriptionRow>> prescriptionRegister({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final json = await _client.getJson(
+      '/doctor/reports/prescriptions?from=${_day(from)}&to=${_day(to)}',
+    );
+    return [
+      for (final r in (json['items'] as List? ?? const []))
+        if (r is Map<String, dynamic>) PrescriptionRow.fromJson(r),
+    ];
+  }
+
+  /// Who was asked back in the window, and whether they came.
+  Future<FollowUpCompliance> followUpCompliance({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final json = await _client.getJson(
+      '/doctor/reports/follow-ups?from=${_day(from)}&to=${_day(to)}',
+    );
+    return FollowUpCompliance.fromJson(json);
+  }
+
+  static String _day(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Past appointments over a window, newest first.
+  ///
+  /// The same diary the rest of the app reads, asked for a range instead of a
+  /// day. [status] narrows it to one outcome; null is every outcome there is.
+  Future<List<Appointment>> appointmentHistory({
+    required DateTime from,
+    required DateTime to,
+    String? status,
+    int limit = 200,
+  }) async {
+    final json = await _client.getJson(
+      '/appointments',
+      query: {
+        'from': DateTime(from.year, from.month, from.day).toUtc().toIso8601String(),
+        'to': DateTime(to.year, to.month, to.day, 23, 59, 59, 999).toUtc().toIso8601String(),
+        'limit': limit,
+        if (status != null) 'status': status,
+      },
+    );
+    return (json['items'] as List? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(Appointment.fromJson)
+        .toList()
+      ..sort((a, b) => b.sortKey.compareTo(a.sortKey));
   }
 
   Future<List<Appointment>> appointmentsToday() async {

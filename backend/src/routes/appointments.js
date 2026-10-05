@@ -1333,7 +1333,11 @@ router.patch(
 
     const appt = await Appointment.findByIdAndUpdate(
       req.params.id,
-      { $set: req.body, ...(req.body.status === 'in_consultation' ? { calledAt: new Date() } : {}) },
+      {
+        $set: req.body,
+        ...(req.body.status === 'in_consultation' ? { calledAt: new Date() } : {}),
+        ...(req.body.status === 'completed' ? { completedAt: new Date() } : {}),
+      },
       { new: true },
     ).populate(POPULATE);
     if (!appt) throw notFound('Appointment not found');
@@ -1556,6 +1560,7 @@ function serialise(a) {
     // rather than a wait it cannot know.
     checkedInAt: a.checkedInAt ?? null,
     calledAt: a.calledAt ?? null,
+    completedAt: a.completedAt ?? null,
     isPriority: a.isPriority ?? false,
     teleconsult: a.teleconsult?.roomId
       ? { roomId: a.teleconsult.roomId, joinUrl: a.teleconsult.joinUrl ?? null }

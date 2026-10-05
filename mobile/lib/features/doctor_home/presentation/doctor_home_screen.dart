@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/doctor_tokens.dart';
 import '../../../shared/data/care_contact.dart';
 import '../../../shared/widgets/app_logo.dart';
+import '../../../core/update/version_gate.dart';
 import '../../../shared/widgets/user_avatar.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../clinician/domain/appointment.dart';
@@ -84,6 +85,10 @@ class _Header extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
+    // A newer build exists and has not been installed. Derived, never stored,
+    // so it cannot be dismissed into silence.
+    final updateAvailable =
+        ref.watch(versionStatusProvider).valueOrNull?.canUpdate ?? false;
 
     return Row(
       children: [
@@ -129,15 +134,36 @@ class _Header extends ConsumerWidget {
         SizedBox(width: D.s2),
         Semantics(
           button: true,
-          label: 'Profile',
+          label: updateAvailable ? 'Profile, an update is available' : 'Profile',
           child: InkWell(
             onTap: () => context.push('/clinician/more'),
             customBorder: const CircleBorder(),
-            child: UserAvatar(
-              name: user?.name ?? '',
-              avatarUrl: user?.avatarUrl,
-              accent: D.brand,
-              size: D.tap,
+            child: Stack(
+              children: [
+                UserAvatar(
+                  name: user?.name ?? '',
+                  avatarUrl: user?.avatarUrl,
+                  accent: D.brand,
+                  size: D.tap,
+                ),
+                // The update mark. It used to sit on the Profile tab; Profile
+                // is behind this avatar now, so the mark came with it — a
+                // dialog waved away with "later" has to stay findable.
+                if (updateAvailable)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      width: D.gapIcon,
+                      height: D.gapIcon,
+                      decoration: BoxDecoration(
+                        color: D.brand,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: D.card, width: D.hair),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),

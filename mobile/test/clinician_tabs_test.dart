@@ -5,13 +5,20 @@ import 'package:medpin/features/clinician/presentation/clinician_tabs.dart';
 
 /// The bar's indices and the router's branch indices are different numbers.
 ///
-/// `StatefulShellRoute.indexedStack` addresses branches by index and hiding one
-/// does not renumber the rest, so a three-item bar has to map its own 0,1,2 onto
-/// whichever branches those are. Getting it wrong means tapping Profile and
-/// landing on Nutrition — which reads as a routing bug for a day before anybody
-/// suspects arithmetic.
+/// `StatefulShellRoute.indexedStack` addresses branches by index, so the bar
+/// has to map its own positions onto whichever branches those are. Getting it
+/// wrong means tapping one tab and landing on another — which reads as a
+/// routing bug for a day before anybody suspects arithmetic.
 ///
 /// So the mapping is a pure function, and this is why it is one.
+///
+/// ---- What changed ----------------------------------------------------------
+///
+/// The bar is the design's five: Home, Patients, Messages, Reports, History.
+/// Nutrition was the fourth and was shown only where somebody could answer in
+/// it; Profile was the fifth. Neither is a tab now — Home's avatar opens
+/// Profile, and Profile lists Nutrition — so the gating this file used to pin
+/// is gone, and what it pins instead is that nothing varies.
 Capabilities _caps(
   Set<String> effective, {
   bool hasDietician = false,
@@ -30,100 +37,31 @@ Capabilities _caps(
 
 void main() {
   group('what the bar shows', () {
-    test('everything, when the practice has everything', () {
-      final visible = visibleBranches(_caps({Cap.aiAssistant}));
-      // Home, Patients, Messages, Nutrition, More.
-      expect(visible, [0, 1, 2, 3, 4]);
-    });
-
-    test('no Nutrition when nothing can answer in it', () {
-      final visible = visibleBranches(_caps({}));
-      // Home, Patients, Messages, More — Nutrition (3) left out.
-      expect(visible, [0, 1, 2, 4]);
-    });
-
-    // Two things can answer in a nutrition conversation and either is enough.
-    // Gating on the capability alone hid the tab from a practice that had hired
-    // somebody to work in it.
-    test('an assistant and no dietician shows it', () {
-      expect(visibleBranches(_caps({Cap.aiAssistant})), contains(3));
-    });
-
-    test('a dietician and no assistant shows it', () {
+    test('the same five, whatever the practice has', () {
+      // Home, Patients, Messages, Reports, History.
+      expect(visibleBranches(_caps({Cap.aiAssistant})), [0, 1, 2, 3, 4]);
+      expect(visibleBranches(_caps({})), [0, 1, 2, 3, 4]);
       expect(
         visibleBranches(_caps({}, hasDietician: true)),
-        contains(3),
+        [0, 1, 2, 3, 4],
+        reason: 'a dietician no longer adds a tab, because Nutrition is not one',
       );
-    });
-
-    test('neither hides it', () {
-      expect(visibleBranches(_caps({}, hasDietician: false)), isNot(contains(3)));
-    });
-
-    test('a diagnostic centre with a dietician shows it', () {
-      // The case that made this wrong. A diagnostic centre has no AI_ASSISTANT
-      // by type, and /team lets it hire a dietician anyway — so it had a
-      // nutrition stream with no way to look at it.
-      expect(
-        visibleBranches(
-          _caps({}, hasDietician: true, practiceType: 'diagnostic_centre'),
-        ),
-        contains(3),
-      );
-    });
-
-    test('and one without keeps it hidden', () {
-      expect(
-        visibleBranches(_caps({}, practiceType: 'diagnostic_centre')),
-        isNot(contains(3)),
-      );
-    });
-
-    test('Home, Care and Profile are never hidden', () {
-      // Whatever else goes, these three are the app. A bar that can empty
-      // itself is a bar somebody can be stranded in.
-      for (final caps in [_caps({}), _caps({Cap.aiAssistant})]) {
-        final visible = visibleBranches(caps);
-        expect(visible, containsAll(<int>[0, 1, 2, 4]));
-        expect(visible, isNotEmpty);
-      }
-    });
-
-    test('and the unknown default shows everything', () {
-      // Before the first answer arrives. Hiding a tab and putting it back a
-      // moment later is worse than showing one that turns out to be empty.
-      expect(visibleBranches(Capabilities.unknown), [0, 1, 2, 3, 4]);
     });
   });
 
-  group('the two directions agree', () {
-    test('every visible branch maps back to its own position', () {
-      for (final caps in [
-        _caps({}),
-        _caps({Cap.aiAssistant}),
-        _caps({}, hasDietician: true),
-      ]) {
-        final visible = visibleBranches(caps);
-        for (var i = 0; i < visible.length; i++) {
-          // Tapping bar item i goes to visible[i]; that branch must report
-          // itself as item i, or the selection lands somewhere else.
-          expect(barIndexFor(visible, visible[i]), i);
-        }
+  group('the bar position of a branch', () {
+    test('is where it sits in the list', () {
+      final visible = visibleBranches(_caps({Cap.aiAssistant}));
+      for (var branch = 0; branch < 5; branch++) {
+        expect(barIndexFor(visible, branch), branch);
       }
     });
 
-    test('a hidden branch has no position, rather than position zero', () {
-      // The failure this prevents: -1 range-checked into 0 by the bar, so
-      // somebody standing on Nutrition sees Home with Nutrition highlighted.
-      final visible = visibleBranches(_caps({}));
-      expect(barIndexFor(visible, 3), isNull, reason: 'Nutrition is branch 3');
-    });
-
-    test('More keeps its position when Nutrition goes', () {
-      // The whole reason for the mapping. Branch 4 is still branch 4; it is
-      // item 3 in a four-item bar and item 4 in a five-item one.
-      expect(barIndexFor(visibleBranches(_caps({})), 4), 3);
-      expect(barIndexFor(visibleBranches(_caps({Cap.aiAssistant})), 4), 4);
+    test('is null for a branch the bar is not showing', () {
+      // Nothing is hidden today, but the shell still has to answer this: a
+      // branch with no tab must read as "move them", not as the first item.
+      expect(barIndexFor(const [0, 1, 2], 4), isNull);
+      expect(barIndexFor(const [0, 1, 2, 3, 4], 9), isNull);
     });
   });
 }

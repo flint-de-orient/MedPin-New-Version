@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/update/version_gate.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/capabilities/capabilities.dart';
@@ -45,9 +44,6 @@ class ClinicianShell extends ConsumerWidget {
     // Whether a newer build exists. valueOrNull, so a check still in
     // flight or one that failed marks nothing — the same promise the rest
     // of the update path makes: what cannot be seen is not asserted.
-    final updateAvailable =
-        ref.watch(versionStatusProvider).valueOrNull?.canUpdate ?? false;
-
     final visible = visibleBranches(ref.watch(capabilitySetProvider));
     final current = barIndexFor(visible, navigationShell.currentIndex);
 
@@ -98,20 +94,16 @@ class ClinicianShell extends ConsumerWidget {
         badge: waiting,
       ),
       3 => const DoctorNavItem(
-        icon: Icons.restaurant_menu_outlined,
-        selectedIcon: Icons.restaurant_menu_rounded,
-        label: 'Nutrition',
+        icon: Icons.insert_chart_outlined_rounded,
+        selectedIcon: Icons.insert_chart_rounded,
+        label: 'Reports',
       ),
       4 => DoctorNavItem(
-        icon: Icons.person_outline_rounded,
-        selectedIcon: Icons.person_rounded,
-        label: 'More',
-        // Marked while a newer build exists, and unmarked the moment one is
-        // installed — derived, never stored, so it cannot be dismissed into
-        // silence. The dialog can be waved away with "later"; this is what
-        // keeps the offer findable afterwards, and Profile is where the detail
-        // waits.
-        showDot: updateAvailable,
+        icon: Icons.history_rounded,
+        selectedIcon: Icons.history_rounded,
+        label: 'History',
+        // The update mark moved with Profile: it is on Home's avatar now,
+        // which is how Profile is reached.
       ),
       _ => null,
     };

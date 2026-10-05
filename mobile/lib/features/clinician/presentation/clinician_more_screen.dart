@@ -389,7 +389,8 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
       // visible band of ground around the pill and nowhere else.
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        automaticallyImplyLeading: false,
+        // It was a tab and had nowhere to go back to. It is a page now, opened
+        // from Home's avatar, so the arrow is the way out.
         title: Text(
           'Profile',
           style: TextStyle(color: accent, fontWeight: FontWeight.w700),
@@ -598,6 +599,14 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 title: 'Clinical alerts',
                 subtitle: 'Readings and symptoms that need a look',
                 onTap: () => context.push('/clinician/alerts'),
+              ),
+              // Nutrition was the fourth tab until Reports took its place. The
+              // stream is still there and this is how it is reached.
+              ProfileRow(
+                icon: Icons.restaurant_menu_outlined,
+                title: 'Nutrition',
+                subtitle: 'The dietician’s conversations with your patients',
+                onTap: () => context.push('/clinician/nutrition'),
               ),
               // Home now shows the day and nothing else. These are the cards
               // that used to sit under it — kept here, whole, until the new
