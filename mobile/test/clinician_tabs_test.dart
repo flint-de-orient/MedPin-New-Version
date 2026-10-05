@@ -49,6 +49,17 @@ void main() {
     });
   });
 
+  group('whether Nutrition is offered at all', () {
+    // It was the rule that decided the fourth tab. Nutrition is a row in
+    // Profile now, and the rule came with it: a practice where nobody can
+    // answer in the stream is not offered it.
+    test('either the assistant or a dietician is enough', () {
+      expect(nutritionAnswerable(_caps({Cap.aiAssistant})), isTrue);
+      expect(nutritionAnswerable(_caps({}, hasDietician: true)), isTrue);
+      expect(nutritionAnswerable(_caps({})), isFalse);
+    });
+  });
+
   group('the bar position of a branch', () {
     test('is where it sits in the list', () {
       final visible = visibleBranches(_caps({Cap.aiAssistant}));

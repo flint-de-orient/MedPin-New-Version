@@ -28,6 +28,7 @@ import '../../../shared/providers/theme_provider.dart';
 import 'widgets/clinician_notification_sheet.dart';
 import '../../../shared/widgets/language_picker.dart';
 import '../../feedback/data/feedback_repository.dart';
+import 'clinician_tabs.dart';
 
 /// The roles the server lets read patient feedback — `DIRECT_PATIENT_ACCESS` in
 /// backend/src/middleware/auth.js. A practice manager and a dietician are not
@@ -601,13 +602,16 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 onTap: () => context.push('/clinician/alerts'),
               ),
               // Nutrition was the fourth tab until Reports took its place. The
-              // stream is still there and this is how it is reached.
-              ProfileRow(
-                icon: Icons.restaurant_menu_outlined,
-                title: 'Nutrition',
-                subtitle: 'The dietician’s conversations with your patients',
-                onTap: () => context.push('/clinician/nutrition'),
-              ),
+              // stream is still there and this is how it is reached — on the
+              // same condition the tab had: somebody has to be able to answer
+              // in it.
+              if (nutritionAnswerable(ref.watch(capabilitySetProvider)))
+                ProfileRow(
+                  icon: Icons.restaurant_menu_outlined,
+                  title: 'Nutrition',
+                  subtitle: 'The dietician’s conversations with your patients',
+                  onTap: () => context.push('/clinician/nutrition'),
+                ),
               // Home now shows the day and nothing else. These are the cards
               // that used to sit under it — kept here, whole, until the new
               // design has screens of its own for them.

@@ -173,7 +173,11 @@ class ProfileEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: D.s6),
+      // Its own side padding, not whatever the parent happens to give it. In a
+      // padded list it looked right; dropped straight into a screen body — as
+      // History does when the diary is empty — the sentence ran to both edges
+      // of the phone.
+      padding: EdgeInsets.symmetric(horizontal: D.s5, vertical: D.s6),
       child: Column(
         children: [
           if (icon != null) ...[

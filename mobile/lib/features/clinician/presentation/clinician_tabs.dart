@@ -39,6 +39,29 @@ List<int> visibleBranches(Capabilities caps) => const <int>[
   _history,
 ];
 
+/// Specialties whose doctors are offered Nutrition only when somebody at the
+/// practice actually writes diet plans.
+const _nutritionOnlyWithDietician = {'cardiology', 'general_physician'};
+
+/// Whether there is anybody to answer in the nutrition stream.
+///
+/// This was the rule that decided whether Nutrition was the fourth tab. It is
+/// not a tab any more — Profile lists it — but the question it asked is still
+/// the right one, so it decides whether Profile offers the row at all. Two
+/// things can answer there, not one:
+///
+///   the nutrition assistant, which is `AI_ASSISTANT`
+///   a dietician, which is a fact about the roster
+///
+/// Either is enough. Gating on the capability alone hid it from a practice that
+/// had hired somebody to work in it, and `/team` allows hiring a dietician at
+/// any practice type — so a diagnostic centre with one on the payroll had a
+/// stream it could not see.
+bool nutritionAnswerable(Capabilities caps) =>
+    _nutritionOnlyWithDietician.contains(caps.ui?.specialty)
+        ? caps.hasDietician
+        : caps.has(Cap.aiAssistant) || caps.hasDietician;
+
 /// Where a branch sits in the bar, or null when the bar is not showing it.
 ///
 /// Null is the case that matters: somebody standing on Nutrition when the
