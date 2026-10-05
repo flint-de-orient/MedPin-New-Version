@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../domain/clinician_models.dart';
+import '../../../shared/utils/csv.dart';
 
 /// Turns the clinic's records into a file the doctor can keep.
 ///
@@ -36,18 +37,11 @@ enum ExportDataset {
   final String detail;
 }
 
-/// One RFC 4180 field.
-///
-/// Quote when the value contains a comma, a quote or a newline, and double any
-/// quote inside. Skipping this is how a free-text note ends a row early and
-/// silently shifts every column after it.
-String _csvField(Object? v) {
-  final s = v?.toString() ?? '';
-  if (!s.contains(RegExp(r'[",\n\r]'))) return s;
-  return '"${s.replaceAll('"', '""')}"';
-}
-
-String _csvRow(List<Object?> cells) => cells.map(_csvField).join(',');
+/// The escaping moved to shared/utils/csv.dart when the Reports and History
+/// tabs started handing out tables of their own. One copy of it, because the
+/// way it goes wrong is silent: a note with a comma in it ends the row early
+/// and shifts every column after it.
+String _csvRow(List<Object?> cells) => csvRow(cells);
 
 String _iso(DateTime? d) => d?.toIso8601String() ?? '';
 
@@ -191,8 +185,8 @@ class ClinicExport {
 
     final header =
         '# MedPin export\n'
-        '# Generated,${_csvField(_iso(generatedAt))}\n'
-        '# Clinician,${_csvField(clinicianName)}\n'
+        '# Generated,${csvField(_iso(generatedAt))}\n'
+        '# Clinician,${csvField(clinicianName)}\n'
         '# Contains identifiable patient data — handle as clinical records\n';
 
     return '$header\n${blocks.join('\n\n')}\n';

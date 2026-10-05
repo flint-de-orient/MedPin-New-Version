@@ -197,5 +197,99 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('Only booked appointments appear here'), findsOneWidget);
+
+    // And it keeps its distance from the edges of the phone. The empty state
+    // carries its own side padding rather than taking the parent's, which it
+    // had none of here.
+    final text = tester.getRect(
+      find.textContaining('No appointments in the last 3 months'),
+    );
+    expect(text.left, greaterThanOrEqualTo(16));
+    expect(text.right, lessThanOrEqualTo(tester.view.physicalSize.width / 2 - 16));
+  });
+
+  group('the month a list crosses into', () {
+    test('is marked once, above its first day, and never while still running', () {
+      final marks = monthOpeners(
+        [DateTime(2026, 10, 1), DateTime(2026, 9, 30), DateTime(2026, 9, 29)],
+        now: DateTime(2026, 10, 5),
+      );
+      expect(
+        marks,
+        {DateTime(2026, 9, 30)},
+        reason: 'October is half finished; a card for it would be read as its total, '
+            'and September is summarised once rather than above every day in it',
+      );
+    });
+
+    test('counts only that month, and splits it by what became of each', () {
+      final rows = [
+        _appointment(name: 'A', status: 'completed', at: DateTime(2026, 9, 30, 9)),
+        _appointment(name: 'B', status: 'no_show', at: DateTime(2026, 9, 29, 9)),
+        _appointment(name: 'C', status: 'cancelled', at: DateTime(2026, 9, 28, 9)),
+        _appointment(name: 'D', status: 'confirmed', at: DateTime(2026, 9, 27, 9)),
+        _appointment(name: 'E', status: 'completed', at: DateTime(2026, 8, 31, 9)),
+      ];
+      final n = monthCounts(rows, DateTime(2026, 9));
+      expect(n.total, 4, reason: 'August is a different month, not a rounding error');
+      expect((n.completed, n.missed, n.cancelled, n.other), (1, 1, 1, 1));
+    });
+
+    test('a count is said in words a doctor would use', () {
+      expect(countLine(1), '1 appointment');
+      expect(countLine(13), '13 appointments');
+    });
+  });
+
+  testWidgets('a long day folds, and says how much it is hiding', (tester) async {
+    final day = DateTime.now().subtract(const Duration(days: 2));
+    final at = DateTime(day.year, day.month, day.day, 9);
+    final clinic = _Clinic(
+      rows: [
+        for (var i = 0; i < 8; i++)
+          _appointment(
+            name: 'Patient $i',
+            status: 'completed',
+            at: at.add(Duration(minutes: i * 10)),
+          ),
+      ],
+    );
+    await _pump(tester, clinic);
+
+    expect(find.text('Patient 0'), findsOneWidget);
+    expect(find.text('Patient 7'), findsNothing);
+    final more = find.textContaining('Show 3 more from');
+    expect(more, findsOneWidget);
+
+    await tester.tap(more);
+    await tester.pump();
+    expect(find.text('Patient 7'), findsOneWidget);
+  });
+
+  testWidgets('a month behind this one is summarised above its first day', (
+    tester,
+  ) async {
+    // Far enough back to be a finished month whichever day the suite runs on.
+    final now = DateTime.now();
+    final lastMonth = DateTime(now.year, now.month, 1).subtract(const Duration(days: 5));
+    final clinic = _Clinic(
+      rows: [
+        _appointment(name: 'Debasish', status: 'completed', at: lastMonth),
+        _appointment(
+          name: 'Ritam',
+          status: 'no_show',
+          at: lastMonth.subtract(const Duration(days: 1)),
+        ),
+      ],
+    );
+    await _pump(tester, clinic);
+
+    expect(find.text('Completed '), findsOneWidget);
+    expect(find.text('Missed '), findsOneWidget);
+    expect(
+      find.text('2 appointments'),
+      findsWidgets,
+      reason: 'the month card names what it counted',
+    );
   });
 }

@@ -4,8 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/doctor_tokens.dart';
+import '../../appointments/domain/clinic.dart';
+import '../../appointments/presentation/appointment_providers.dart';
 import '../domain/consultation_report.dart';
 import 'widgets/profile_parts.dart';
+import 'widgets/report_export.dart';
 import 'widgets/report_parts.dart';
 
 /// The consultation MIS (`Doctor-Reports`).
@@ -34,12 +37,21 @@ class _DoctorReportsScreenState extends ConsumerState<DoctorReportsScreen> {
   ReportRange _range = ReportRange.month;
   DateTimeRange? _custom;
 
-  ({DateTime from, DateTime to}) get _window => windowFor(_range, custom: _custom);
+  /// Null is every room the doctor works in, which is the default.
+  Clinic? _clinic;
+
+  /// Whether the day chart is read as bars or as the days themselves.
+  bool _asTable = false;
+
+  ReportWindow get _window {
+    final days = windowFor(_range, custom: _custom);
+    return (from: days.from, to: days.to, clinicId: _clinic?.id);
+  }
 
   @override
   Widget build(BuildContext context) {
     final window = _window;
-    final summary = ref.watch(consultationSummaryProvider((from: window.from, to: window.to)));
+    final summary = ref.watch(consultationSummaryProvider(window));
 
     return Scaffold(
       backgroundColor: D.ground,
@@ -50,6 +62,13 @@ class _DoctorReportsScreenState extends ConsumerState<DoctorReportsScreen> {
             _Header(
               range: _range,
               window: window,
+              onExport: summary.valueOrNull == null
+                  ? null
+                  : () => shareTable(
+                      context,
+                      filename: reportFilename(summary.value!),
+                      csv: reportCsv(summary.value!),
+                    ),
               onRange: (r) async {
                 if (r == ReportRange.custom) {
                   final picked = await showDateRangePicker(
@@ -67,6 +86,8 @@ class _DoctorReportsScreenState extends ConsumerState<DoctorReportsScreen> {
                 }
                 setState(() => _range = r);
               },
+              clinic: _clinic,
+              onClinic: (c) => setState(() => _clinic = c),
             ),
             Expanded(
               child: summary.when(
@@ -101,7 +122,25 @@ class _DoctorReportsScreenState extends ConsumerState<DoctorReportsScreen> {
                         SizedBox(height: D.s4),
                         ReportCard(
                           title: 'Consultations per day',
-                          child: DailyBars(days: report.perDay),
+                          action: TextButton(
+                            onPressed: () => setState(() => _asTable = !_asTable),
+                            style: TextButton.styleFrom(
+                              foregroundColor: D.brand,
+                              minimumSize: D.hug,
+                              padding: EdgeInsets.symmetric(horizontal: D.s2),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              _asTable ? 'Chart' : 'Table',
+                              style: D.dateLine.copyWith(
+                                color: D.brand,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          child: _asTable
+                              ? DailyTable(days: report.perDay)
+                              : DailyBars(days: report.perDay),
                         ),
                         SizedBox(height: D.s4),
                         if (report.byLocation.isNotEmpty) ...[
@@ -144,15 +183,32 @@ class _DoctorReportsScreenState extends ConsumerState<DoctorReportsScreen> {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.range, required this.window, required this.onRange});
+class _Header extends ConsumerWidget {
+  const _Header({
+    required this.range,
+    required this.window,
+    required this.onRange,
+    required this.onExport,
+    required this.clinic,
+    required this.onClinic,
+  });
 
   final ReportRange range;
-  final ({DateTime from, DateTime to}) window;
+  final ReportWindow window;
   final ValueChanged<ReportRange> onRange;
+  final Clinic? clinic;
+  final ValueChanged<Clinic?> onClinic;
+
+  /// Null until there are figures to hand over.
+  final VoidCallback? onExport;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // A doctor with one address is never asked which one. The row is the
+    // artboard's, and it only earns its place where there is a choice.
+    final clinics = ref.watch(clinicsProvider).valueOrNull ?? const <Clinic>[];
+    final rooms = [for (final c in clinics) if (c.isActive) c];
+
     return Container(
       padding: EdgeInsets.fromLTRB(D.s5, D.s4, D.s5, D.cardPad),
       decoration: const BoxDecoration(
@@ -162,9 +218,26 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Reports', style: D.greeting.copyWith(color: D.ink)),
-          SizedBox(height: D.s1 / 2),
-          Text('Your consultation MIS', style: D.body.copyWith(color: D.inkMuted)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Reports', style: D.greeting.copyWith(color: D.ink)),
+                    SizedBox(height: D.s1 / 2),
+                    Text(
+                      'Your consultation MIS',
+                      style: D.body.copyWith(color: D.inkMuted),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: D.s3),
+              ExportButton(label: 'Export', onPressed: onExport),
+            ],
+          ),
           SizedBox(height: D.cardPad),
           // The artboard's segmented control, in its sunken track.
           Container(
@@ -208,6 +281,65 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          if (rooms.length > 1) ...[
+            SizedBox(height: D.s3),
+            Row(
+              children: [
+                const Icon(Icons.tune_rounded, size: D.icon, color: D.inkMuted),
+                SizedBox(width: D.gapTight),
+                Text('Filters', style: D.dateLine.copyWith(color: D.inkMuted)),
+                SizedBox(width: D.s3),
+                // Expanded and right-aligned rather than a Spacer beside a
+                // Flexible: those two split the free space between them, and
+                // a long clinic name would ellipsise with blank room next to it.
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: PopupMenuButton<String?>(
+                      tooltip: 'Which location',
+                      initialValue: clinic?.id,
+                      onSelected: (id) => onClinic(
+                        id == null ? null : rooms.firstWhere((c) => c.id == id),
+                      ),
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(value: null, child: Text('All locations')),
+                        for (final c in rooms)
+                          PopupMenuItem(value: c.id, child: Text(c.name)),
+                      ],
+                      child: Container(
+                        constraints: BoxConstraints(
+                          minHeight: MediaQuery.textScalerOf(context).scale(D.tap - D.s2),
+                        ),
+                        padding: EdgeInsets.symmetric(horizontal: D.s3),
+                        decoration: BoxDecoration(
+                          borderRadius: D.rPill,
+                          border: Border.all(color: D.lineStrong),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                clinic?.name ?? 'All locations',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: D.dateLine.copyWith(color: D.ink),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.expand_more_rounded,
+                              size: D.icon,
+                              color: D.inkMuted,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -278,7 +410,7 @@ class _Kpis extends StatelessWidget {
 class _Registers extends StatelessWidget {
   const _Registers({required this.window});
 
-  final ({DateTime from, DateTime to}) window;
+  final ReportWindow window;
 
   @override
   Widget build(BuildContext context) {

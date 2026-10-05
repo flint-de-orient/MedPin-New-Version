@@ -40,11 +40,22 @@ extension ReportRangeText on ReportRange {
   };
 }
 
+/// The window a report is asked for: the dates, and which room, if one.
+///
+/// A doctor who consults at two addresses reads two different months, and the
+/// summary endpoint has always taken a clinic — this is the client finally
+/// asking for it.
+typedef ReportWindow = ({DateTime from, DateTime to, String? clinicId});
+
 final consultationSummaryProvider = FutureProvider.autoDispose
-    .family<ConsultationSummary, ({DateTime from, DateTime to})>(
+    .family<ConsultationSummary, ReportWindow>(
       (ref, window) => ref
           .watch(clinicianRepositoryProvider)
-          .consultationSummary(from: window.from, to: window.to),
+          .consultationSummary(
+            from: window.from,
+            to: window.to,
+            clinicId: window.clinicId,
+          ),
     );
 
 final consultationRegisterProvider = FutureProvider.autoDispose
@@ -122,10 +133,19 @@ class KpiCard extends StatelessWidget {
 
 /// A card on the reports tab.
 class ReportCard extends StatelessWidget {
-  const ReportCard({super.key, required this.title, this.note, required this.child});
+  const ReportCard({
+    super.key,
+    required this.title,
+    this.note,
+    this.action,
+    required this.child,
+  });
 
   final String title;
   final String? note;
+
+  /// The link the artboard puts opposite the title, where there is one.
+  final Widget? action;
   final Widget child;
 
   @override
@@ -147,6 +167,7 @@ class ReportCard extends StatelessWidget {
               Expanded(child: Text(title, style: D.subhead.copyWith(color: D.ink))),
               if (note != null)
                 Text(note!, style: D.statLabel.copyWith(color: D.inkFaint)),
+              if (action != null) action!,
             ],
           ),
           SizedBox(height: D.s4),
@@ -177,51 +198,112 @@ class DailyBars extends StatelessWidget {
     final peak = days.map((d) => d.count).fold(0, math.max);
     final busiest = peak == 0 ? null : days.firstWhere((d) => d.count == peak);
 
+    // The scale the bars are drawn against, and the only numbers on it. It
+    // starts at zero: a chart whose axis cannot reach the floor draws a day
+    // nobody came halfway up.
+    final top = peak == 0 ? 1 : peak;
+    final marks = [top, (top / 2).round(), 0];
+    const plot = D.tileMin + D.s5;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          height: D.tileMin + D.s5,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (final (i, d) in days.indexed) ...[
-                if (i != 0) SizedBox(width: D.hair),
-                Expanded(
-                  child: Semantics(
-                    label: '${DateFormat('d MMM').format(d.date)}: ${d.count}',
-                    child: Container(
-                      height: peak == 0
-                          ? D.hair
-                          : math.max(D.hair, (D.tileMin + D.s5) * d.count / peak),
-                      decoration: BoxDecoration(
-                        color: d.count == 0
-                            ? D.lineStrong
-                            : (d == busiest ? D.brand : D.brandBar),
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(D.rTick),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: plot,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  for (final (i, mark) in marks.indexed)
+                    Align(
+                      // -1 top, 0 middle, 1 bottom, then half the label's own
+                      // height back so it sits *on* its line at any text size.
+                      alignment: Alignment(1, -1 + i.toDouble()),
+                      child: FractionalTranslation(
+                        translation: Offset(0, (i - 1) * 0.5),
+                        child: Text(
+                          '$mark',
+                          style: D.caption.copyWith(color: D.inkFaint),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        SizedBox(height: D.s2),
-        Row(
-          children: [
-            Text(
-              DateFormat('d MMM').format(days.first.date),
-              style: D.caption.copyWith(color: D.inkFaint),
+                ],
+              ),
             ),
-            const Spacer(),
-            Text(
-              DateFormat('d MMM').format(days.last.date),
-              style: D.caption.copyWith(color: D.inkFaint),
+            SizedBox(width: D.s2),
+            Expanded(
+              child: SizedBox(
+                height: plot,
+                child: Stack(
+                  children: [
+                    // The lines those numbers name, so a bar is read against a
+                    // value and not against the bar beside it.
+                    for (final (i, _) in marks.indexed)
+                      Align(
+                        alignment: Alignment(0, -1 + i.toDouble()),
+                        child: i == marks.length - 1
+                            ? const ColoredBox(
+                                color: D.lineStrong,
+                                child: SizedBox(height: D.hair, width: double.infinity),
+                              )
+                            : const _Gridline(),
+                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        for (final (i, d) in days.indexed) ...[
+                          if (i != 0) SizedBox(width: D.hair),
+                          Expanded(
+                            child: Semantics(
+                              label: '${DateFormat('d MMM').format(d.date)}: ${d.count}',
+                              child: Container(
+                                height: math.max(D.hair, plot * d.count / top),
+                                decoration: BoxDecoration(
+                                  color: d.count == 0
+                                      ? D.lineStrong
+                                      : (d == busiest ? D.brand : D.brandBar),
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(D.rTick),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
+        ),
+        SizedBox(height: D.s2),
+        Padding(
+          // Clear of the axis gutter, so the first date sits under the first bar.
+          padding: EdgeInsets.only(left: D.s6),
+          child: Row(
+            children: [
+              Text(
+                DateFormat('d MMM').format(days.first.date),
+                style: D.caption.copyWith(color: D.inkFaint),
+              ),
+              if (days.length > 2) ...[
+                const Spacer(),
+                Text(
+                  DateFormat('d MMM').format(days[days.length ~/ 2].date),
+                  style: D.caption.copyWith(color: D.inkFaint),
+                ),
+              ],
+              const Spacer(),
+              Text(
+                DateFormat('d MMM').format(days.last.date),
+                style: D.caption.copyWith(color: D.inkFaint),
+              ),
+            ],
+          ),
         ),
         if (busiest != null) ...[
           SizedBox(height: D.s3),
@@ -231,6 +313,76 @@ class DailyBars extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// The same days as [DailyBars], read as numbers.
+///
+/// A chart answers "which day was busiest"; a doctor checking a figure against
+/// their own diary wants the days themselves, and reading them off a bar is
+/// guessing. The artboard's "Table" link is this.
+class DailyTable extends StatelessWidget {
+  const DailyTable({super.key, required this.days});
+
+  final List<DayCount> days;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (i, d) in days.indexed)
+          Padding(
+            padding: EdgeInsets.only(top: i == 0 ? 0 : D.s2),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    DateFormat('EEE, d MMM').format(d.date),
+                    style: D.statLabel.copyWith(
+                      color: d.count == 0 ? D.inkFaint : D.inkMuted,
+                    ),
+                  ),
+                ),
+                Text(
+                  // A day nobody came is a dash, not a nought in the same
+                  // weight as a working day's figure.
+                  d.count == 0 ? '—' : '${d.count}',
+                  style: D.subtitle.copyWith(
+                    color: d.count == 0 ? D.inkFaint : D.ink,
+                    fontWeight: d.count == 0 ? FontWeight.w500 : FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// One dashed gridline, drawn across whatever width it is given.
+class _Gridline extends StatelessWidget {
+  const _Gridline();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        const dash = D.s2;
+        final count = (c.maxWidth / (dash * 2)).floor().clamp(1, 120);
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            for (var i = 0; i < count; i++)
+              const ColoredBox(
+                color: D.line,
+                child: SizedBox(width: dash, height: D.hair),
+              ),
+          ],
+        );
+      },
     );
   }
 }

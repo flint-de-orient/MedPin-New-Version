@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:medpin/core/network/api_client.dart';
 import 'package:medpin/core/storage/secure_store.dart';
+import 'package:medpin/features/appointments/domain/clinic.dart';
+import 'package:medpin/features/appointments/presentation/appointment_providers.dart';
 import 'package:medpin/features/clinician/data/clinician_repository.dart';
 import 'package:medpin/features/doctor_home/domain/consultation_report.dart';
 import 'package:medpin/features/doctor_home/presentation/doctor_reports_screen.dart';
@@ -61,7 +63,11 @@ class _NoSession extends SecureStore {
   Future<String?> readAccessToken() async => null;
 }
 
-Future<void> _pump(WidgetTester tester, _Clinic clinic) async {
+Future<void> _pump(
+  WidgetTester tester,
+  _Clinic clinic, {
+  List<Clinic> clinics = const [],
+}) async {
   tester.view.physicalSize = const Size(900, 2600);
   tester.view.devicePixelRatio = 2;
   addTearDown(tester.view.reset);
@@ -72,6 +78,10 @@ Future<void> _pump(WidgetTester tester, _Clinic clinic) async {
         secureStoreProvider.overrideWithValue(_NoSession()),
         apiClientProvider.overrideWithValue(ApiClient(secureStore: _NoSession())),
         clinicianRepositoryProvider.overrideWithValue(clinic),
+        // The header asks which rooms there are before it offers to filter by
+        // one. Left to the real provider this is a network call whose timeout
+        // outlives the test.
+        clinicsProvider.overrideWith((ref) async => clinics),
       ],
       child: MaterialApp(
         locale: const Locale('en'),
@@ -228,5 +238,82 @@ void main() {
     expect(find.textContaining('No appointments in this window'), findsOneWidget);
     expect(find.textContaining('counted from the diary'), findsOneWidget);
     expect(find.text('0'), findsNothing);
+  });
+
+  group('the chart against its scale', () {
+    testWidgets('the axis names the peak and reaches zero', (tester) async {
+      await _pump(
+        tester,
+        _Clinic(
+          summary: _summary(
+            perDay: [
+              {'date': '2026-09-01', 'count': 10},
+              {'date': '2026-09-02', 'count': 14},
+              {'date': '2026-09-03', 'count': 0},
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('14'), findsWidgets, reason: 'the top of the scale');
+      expect(find.text('7'), findsOneWidget, reason: 'the middle of it');
+      expect(
+        find.text('0'),
+        findsOneWidget,
+        reason: 'a day nobody came must be drawn on the floor, not halfway up',
+      );
+    });
+
+    testWidgets('the days can be read as numbers instead of bars', (tester) async {
+      await _pump(
+        tester,
+        _Clinic(
+          summary: _summary(
+            // Timed, so the one dash on the screen is the day nobody came and
+            // not the average that could not be worked out.
+            averageMinutes: 11,
+            averageFrom: 250,
+            perDay: [
+              {'date': '2026-09-01', 'count': 10},
+              {'date': '2026-09-02', 'count': 0},
+            ],
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Table'));
+      await tester.pump();
+
+      expect(find.text('Tue, 1 Sep'), findsOneWidget);
+      expect(find.text('10'), findsOneWidget);
+      expect(find.text('—'), findsOneWidget, reason: 'a day nobody came is not a 0');
+    });
+  });
+
+  group('which location', () {
+    testWidgets('is not asked of a doctor with one room', (tester) async {
+      await _pump(
+        tester,
+        _Clinic(summary: _summary()),
+        clinics: [
+          Clinic.fromJson({'id': 'c1', 'name': 'Salt Lake', 'isActive': true}),
+        ],
+      );
+      expect(find.text('Filters'), findsNothing);
+      expect(find.text('All locations'), findsNothing);
+    });
+
+    testWidgets('is offered where there is a choice', (tester) async {
+      await _pump(
+        tester,
+        _Clinic(summary: _summary()),
+        clinics: [
+          Clinic.fromJson({'id': 'c1', 'name': 'Salt Lake', 'isActive': true}),
+          Clinic.fromJson({'id': 'c2', 'name': 'New Town', 'isActive': true}),
+        ],
+      );
+      expect(find.text('Filters'), findsOneWidget);
+      expect(find.text('All locations'), findsOneWidget);
+    });
   });
 }
