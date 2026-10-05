@@ -225,7 +225,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Nobody was seen in this window.'), findsOneWidget);
+    expect(find.textContaining('No appointments in this window'), findsOneWidget);
+    expect(find.textContaining('counted from the diary'), findsOneWidget);
     expect(find.text('0'), findsNothing);
   });
 }

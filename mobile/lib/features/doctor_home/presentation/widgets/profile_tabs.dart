@@ -670,7 +670,8 @@ class _PrescriptionsTabState extends ConsumerState<PrescriptionsTab> {
 
     return list.when(
       loading: () => const Center(child: CircularProgressIndicator(color: D.brand)),
-      error: (_, _) => ProfileFailed(
+      error: (e, _) => ProfileFailed(
+        error: e,
         onRetry: () => ref.invalidate(patientPrescriptionsProvider(widget.patientId)),
       ),
       data: (all) {
@@ -1133,7 +1134,8 @@ class TreatmentTab extends ConsumerWidget {
             padding: EdgeInsets.symmetric(vertical: D.s8),
             child: const Center(child: CircularProgressIndicator(color: D.brand)),
           ),
-          error: (_, _) => ProfileFailed(
+          error: (e, _) => ProfileFailed(
+        error: e,
             onRetry: () => ref.invalidate(patientMedicationsProvider(patientId)),
           ),
           data: (list) => _Medicines(medicines: list, perMed: patient.adherencePerMed),

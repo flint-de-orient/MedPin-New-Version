@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/doctor_tokens.dart';
+import '../../../../shared/widgets/error_view.dart';
 
 /// The pieces the four record tabs are built from: the card, the section
 /// heading, the chip, the row, the little chart.
@@ -188,9 +189,14 @@ class ProfileEmpty extends StatelessWidget {
 
 /// The record did not load — said once, with a way to ask again.
 class ProfileFailed extends StatelessWidget {
-  const ProfileFailed({super.key, required this.onRetry});
+  const ProfileFailed({super.key, required this.onRetry, this.error});
 
   final VoidCallback onRetry;
+
+  /// What went wrong, where it is known. "The record did not load" sends
+  /// somebody to ask why, and the answer — a route that is not on this server,
+  /// a session that has expired — is sitting in the exception being discarded.
+  final Object? error;
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +211,14 @@ class ProfileFailed extends StatelessWidget {
               textAlign: TextAlign.center,
               style: D.body.copyWith(color: D.inkMuted),
             ),
+            if (error != null) ...[
+              SizedBox(height: D.s2),
+              Text(
+                ErrorView.messageFor(context, error!),
+                textAlign: TextAlign.center,
+                style: D.statLabel.copyWith(color: D.inkFaint),
+              ),
+            ],
             SizedBox(height: D.s3),
             FilledButton(
               onPressed: onRetry,

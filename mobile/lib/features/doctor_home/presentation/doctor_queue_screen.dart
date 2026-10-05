@@ -157,7 +157,8 @@ class _DoctorQueueScreenState extends ConsumerState<DoctorQueueScreen> {
         top: false,
         child: today.when(
           loading: () => const Center(child: CircularProgressIndicator(color: D.brand)),
-          error: (_, _) => ProfileFailed(
+          error: (e, _) => ProfileFailed(
+        error: e,
             onRetry: () => ref.invalidate(appointmentsTodayProvider),
           ),
           data: (everywhere) {

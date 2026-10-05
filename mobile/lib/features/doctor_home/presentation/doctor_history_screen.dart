@@ -112,7 +112,8 @@ class _DoctorHistoryScreenState extends ConsumerState<DoctorHistoryScreen> {
             Expanded(
               child: rows.when(
                 loading: () => const Center(child: CircularProgressIndicator(color: D.brand)),
-                error: (_, _) => ProfileFailed(
+                error: (e, _) => ProfileFailed(
+        error: e,
                   onRetry: () => ref.invalidate(historyProvider),
                 ),
                 data: (all) {
@@ -120,7 +121,11 @@ class _DoctorHistoryScreenState extends ConsumerState<DoctorHistoryScreen> {
                   if (shown.isEmpty) {
                     return ProfileEmpty(
                       text: typed.isEmpty
-                          ? 'Nothing in the last ${_window.label}.'
+                          // Which is a fact about the diary, not a failure: a
+                          // consultation written straight from a record leaves
+                          // a prescription and no appointment behind it.
+                          ? 'No appointments in the last ${_window.label}. '
+                                'Only booked appointments appear here.'
                           : 'Nobody matching “$typed” in the last ${_window.label}.',
                       icon: Icons.history_rounded,
                     );

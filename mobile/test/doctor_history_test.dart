@@ -189,6 +189,13 @@ void main() {
 
   testWidgets('an empty window says which window it was', (tester) async {
     await _pump(tester, _Clinic());
-    expect(find.text('Nothing in the last 3 months.'), findsOneWidget);
+    // It says what it looked at, so an empty diary is not read as a broken
+    // screen: this clinic consults straight from the record, which leaves a
+    // prescription and no appointment behind it.
+    expect(
+      find.textContaining('No appointments in the last 3 months'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Only booked appointments appear here'), findsOneWidget);
   });
 }

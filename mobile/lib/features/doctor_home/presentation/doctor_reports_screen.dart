@@ -71,7 +71,8 @@ class _DoctorReportsScreenState extends ConsumerState<DoctorReportsScreen> {
             Expanded(
               child: summary.when(
                 loading: () => const Center(child: CircularProgressIndicator(color: D.brand)),
-                error: (_, _) => ProfileFailed(
+                error: (e, _) => ProfileFailed(
+        error: e,
                   onRetry: () => ref.invalidate(consultationSummaryProvider),
                 ),
                 data: (report) => RefreshIndicator(
@@ -87,8 +88,12 @@ class _DoctorReportsScreenState extends ConsumerState<DoctorReportsScreen> {
                         ),
                       ),
                       if (report.isEmpty)
-                        const ProfileEmpty(
-                          text: 'Nobody was seen in this window.',
+                        // Counted from booked appointments, so a clinic that
+                        // consults straight from the record has nothing here
+                        // and nothing wrong.
+                        ProfileEmpty(
+                          text: 'No appointments in this window. '
+                              'Consultations are counted from the diary.',
                           icon: Icons.insights_outlined,
                         )
                       else ...[

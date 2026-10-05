@@ -96,7 +96,8 @@ class _DoctorPatientProfileScreenState extends ConsumerState<DoctorPatientProfil
             Expanded(
               child: summary.when(
                 loading: () => const Center(child: CircularProgressIndicator(color: D.brand)),
-                error: (_, _) => ProfileFailed(
+                error: (e, _) => ProfileFailed(
+        error: e,
                   onRetry: () => ref.invalidate(patientSummaryProvider(widget.patientId)),
                 ),
                 data: (p) => TabBarView(
