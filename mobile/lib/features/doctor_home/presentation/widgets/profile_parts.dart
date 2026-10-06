@@ -163,6 +163,119 @@ class ProfileRow extends StatelessWidget {
   }
 }
 
+/// One card of rows, as every group on the profile screens is drawn.
+///
+/// Shared by the Profile tab and My profile, because the two sit one tap
+/// apart and a card that is 24dp on one and 16dp on the other reads as two
+/// different apps.
+class ProfileGroup extends StatelessWidget {
+  const ProfileGroup({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: D.s5),
+      decoration: BoxDecoration(
+        color: D.card,
+        borderRadius: BorderRadius.circular(D.rSection),
+        border: Border.all(color: D.line),
+        boxShadow: D.lift,
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
+/// A row that goes somewhere, with what it currently says on the right.
+///
+/// The label always describes the row and never the saved value: a row whose
+/// title turned into its own contents stopped describing itself the moment it
+/// was filled in. The state goes in [value] or [badge], which is where every
+/// other row on these screens puts it.
+class ProfileLink extends StatelessWidget {
+  const ProfileLink({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.value,
+    this.badge,
+    this.badgeGround,
+    this.badgeInk,
+    this.first = false,
+    this.onTap,
+  });
+
+  final String title;
+  final String? subtitle;
+
+  /// The current setting, in quiet type on the right.
+  final String? value;
+
+  /// A pill instead, where the state is something to act on.
+  final String? badge;
+  final Color? badgeGround;
+  final Color? badgeInk;
+
+  final bool first;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ProfileRow(
+      first: first,
+      onTap: onTap,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: D.body.copyWith(color: D.ink)),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: D.statLabel.copyWith(color: D.inkFaint),
+                  ),
+              ],
+            ),
+          ),
+          if (badge != null) ...[
+            SizedBox(width: D.s2),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.s1 / 2),
+              decoration: BoxDecoration(
+                color: badgeGround ?? D.track,
+                borderRadius: D.rPill,
+              ),
+              child: Text(
+                badge!,
+                style: D.caption.copyWith(
+                  color: badgeInk ?? D.inkMuted,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+          if (value != null) ...[
+            SizedBox(width: D.s2),
+            Text(value!, style: D.statLabel.copyWith(color: D.inkMuted)),
+          ],
+          if (onTap != null) ...[
+            SizedBox(width: D.s1),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: D.iconLg,
+              color: D.inkFaint,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// Nothing to show, said rather than left blank.
 class ProfileEmpty extends StatelessWidget {
   const ProfileEmpty({super.key, required this.text, this.icon});

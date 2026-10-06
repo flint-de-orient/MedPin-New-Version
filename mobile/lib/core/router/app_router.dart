@@ -28,6 +28,7 @@ import '../../features/doctor_home/presentation/doctor_appointments_screen.dart'
 import '../../features/doctor_home/presentation/doctor_my_profile_screen.dart';
 import '../../features/doctor_home/presentation/doctor_professional_screen.dart';
 import '../../features/doctor_home/presentation/doctor_services_screen.dart';
+import '../../features/doctor_home/presentation/doctor_signature_screen.dart';
 import '../../features/doctor_home/presentation/doctor_bulk_message_screen.dart';
 import '../../features/doctor_home/presentation/doctor_consult_pick_screen.dart';
 import '../../features/doctor_home/presentation/doctor_consult_screen.dart';
@@ -528,6 +529,13 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/clinician/more/services',
         builder: (context, state) => const DoctorServicesScreen(),
+      ),
+      // The signature's one home. It was a dialog inside the Profile tab, so
+      // My profile's row for it pointed at Practice — a screen with no
+      // signature control at all.
+      GoRoute(
+        path: '/clinician/more/signature',
+        builder: (context, state) => const DoctorSignatureScreen(),
       ),
       GoRoute(
         path: '/clinician/more/edit',

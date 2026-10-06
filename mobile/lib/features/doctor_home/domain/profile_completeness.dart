@@ -57,7 +57,7 @@ List<ProfileGap> whatIsMissing(AppUser? user, {required int rooms}) {
       const ProfileGap(
         label: 'Digital signature',
         cost: 'Every prescription goes out unsigned until this is uploaded.',
-        route: '/clinician/practice',
+        route: '/clinician/more/signature',
       ),
     );
   }

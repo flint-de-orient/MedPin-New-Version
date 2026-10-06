@@ -84,11 +84,11 @@ class DoctorMyProfileScreen extends ConsumerWidget {
                   warn: (user?.qualifications ?? '').trim().isEmpty,
                 ),
                 (
-                  title: 'Letterhead and signature',
+                  title: 'Digital signature',
                   sub: (user?.signatureUrl ?? '').isEmpty
                       ? 'No signature uploaded'
                       : 'Printed on every prescription',
-                  route: '/clinician/practice',
+                  route: '/clinician/more/signature',
                   warn: (user?.signatureUrl ?? '').isEmpty,
                 ),
               ],

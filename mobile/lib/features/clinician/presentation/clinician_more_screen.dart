@@ -3,32 +3,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../core/network/api_exception.dart';
 import '../../../core/capabilities/capabilities.dart';
 import '../../../core/router/area.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../core/update/app_section.dart';
+import '../../../core/network/api_exception.dart';
+import '../../../core/theme/doctor_tokens.dart';
+import '../../../core/update/build_info.dart';
+import '../../../core/update/version_gate.dart';
 import '../../../l10n/gen/app_localizations.dart';
+import '../../../shared/data/care_contact.dart';
 import '../../../shared/data/upload_repository.dart';
 import '../../../shared/providers/app_lock_provider.dart';
 import '../../../shared/providers/locale_provider.dart';
-import '../../../shared/widgets/fullscreen_photo.dart';
-import '../../../shared/widgets/user_avatar.dart';
-import '../../../shared/data/care_contact.dart';
 import '../../../shared/utils/phone_format.dart';
+import '../../../shared/widgets/fullscreen_photo.dart';
+import '../../../shared/widgets/language_picker.dart';
+import '../../../shared/widgets/user_avatar.dart';
+import '../../auth/presentation/auth_controller.dart';
+import '../../doctor_home/presentation/doctor_signature_screen.dart';
+import '../../doctor_home/presentation/widgets/profile_parts.dart';
+import '../../feedback/data/feedback_repository.dart';
 import '../data/practice_repository.dart';
 import '../domain/practice.dart';
-import '../../auth/presentation/auth_controller.dart';
-import '../../profile/presentation/widgets/profile_section.dart';
-import '../../profile/presentation/widgets/theme_selector.dart';
-import '../../../shared/widgets/authed_image.dart';
-import 'widgets/panel_ui.dart';
-import '../../../shared/providers/theme_provider.dart';
-import 'widgets/clinician_notification_sheet.dart';
-import '../../../shared/widgets/language_picker.dart';
-import '../../feedback/data/feedback_repository.dart';
 import 'clinician_tabs.dart';
+import 'widgets/clinician_notification_sheet.dart';
 
 /// The roles the server lets read patient feedback — `DIRECT_PATIENT_ACCESS` in
 /// backend/src/middleware/auth.js. A practice manager and a dietician are not
@@ -36,9 +33,23 @@ import 'clinician_tabs.dart';
 bool _readsPatientFeedback(String? role) =>
     const {'doctor', 'staff', 'doctor_assistant', 'lab_manager', 'lab_technician'}.contains(role);
 
-/// Full profile for doctor and staff — the clinician counterpart of the patient
-/// [ProfileScreen]: avatar, edit details, appearance, language, app lock, a
-/// shortcut to clinical alerts, and sign-out.
+/// The doctor's Profile (`Profile`), opened from the avatar on Home.
+///
+/// ---- Why this was rebuilt -------------------------------------------------
+///
+/// It kept the old panel's colours and spacing while everything around it moved
+/// to the design canvas, so the one screen a doctor reaches from every other
+/// screen was the one that looked like a different app. The rows were already
+/// the artboard's; the drawing was not, and content matching is not the design
+/// matching.
+///
+/// ---- What is here and what is one tap away --------------------------------
+///
+/// This is the account and the clinic's tools. The doctor *as a doctor* — the
+/// credentials that print on a prescription, the rooms, the diary, the people —
+/// is My profile, under Account. The diary is also listed here in its own
+/// group, because "where are my appointments" is the question this screen is
+/// most often opened to answer and it should not need two taps.
 class ClinicianMoreScreen extends ConsumerStatefulWidget {
   const ClinicianMoreScreen({super.key});
 
@@ -49,15 +60,381 @@ class ClinicianMoreScreen extends ConsumerStatefulWidget {
 
 class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
   bool _uploadingAvatar = false;
-  bool _uploadingSignature = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // What this practice has, so the tools list is what it can use rather
+    // than a menu with dead entries in it.
+    final caps = ref.watch(capabilitySetProvider);
+    final l10n = AppLocalizations.of(context);
+    final user = ref.watch(authControllerProvider).user;
+    final isDoctor = user?.role == 'doctor';
+    final currentLocale = ref.watch(localeControllerProvider);
+    final lockEnabled = ref.watch(appLockProvider).enabled;
+    // Their actual job. This said "Doctor" or "Clinic staff", which was true
+    // while there were two kinds of clinician and tells a laboratory
+    // technician the wrong thing about themselves now.
+    final roleLabel = roleLabels[user?.role ?? ''] ?? 'Clinic staff';
+    // The practice's own record, for the number its patients ring. Null while
+    // it loads and for an account with no practice, and the row is simply
+    // absent then — never somebody else's number standing in.
+    final practice = ref.watch(practiceOverviewProvider).valueOrNull;
+    final mayEditPractice = caps.can(Perm.manageStaff);
+    final unreadFeedback = ref.watch(feedbackUnreadProvider).valueOrNull ?? 0;
+
+    return Scaffold(
+      backgroundColor: D.ground,
+      appBar: AppBar(
+        backgroundColor: D.card,
+        surfaceTintColor: D.card,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        shape: const Border(bottom: BorderSide(color: D.line)),
+        toolbarHeight: MediaQuery.textScalerOf(context).scale(D.bar),
+        leading: IconButton(
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+          icon: const Icon(Icons.arrow_back_rounded, size: D.iconDisc),
+          color: D.ink,
+          onPressed: () => context.pop(),
+        ),
+        titleSpacing: 0,
+        title: Text('Profile', style: D.screenTitle.copyWith(color: D.ink)),
+        actions: [
+          // The same counted bell as the tabs. A bell that shows a number on
+          // Home and none here reads as "nothing waiting" on whichever screen
+          // the doctor happens to be looking at.
+          IconButton(
+            tooltip: 'Notifications',
+            icon: const Icon(Icons.notifications_none_rounded, size: D.iconDisc),
+            color: D.ink,
+            onPressed: () => showClinicianNotifications(context),
+          ),
+          SizedBox(width: D.s1),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(D.s4, D.s5, D.s4, D.s8),
+          children: [
+            _Identity(
+              name: user?.name ?? roleLabel,
+              phone: user?.phone ?? '',
+              avatarUrl: user?.avatarUrl,
+              role: roleLabel,
+              uploading: _uploadingAvatar,
+              onChangePhoto: _uploadingAvatar ? null : _changeAvatar,
+              onViewPhoto: user?.avatarUrl == null
+                  ? null
+                  : () => FullscreenPhoto.show(context, user!.avatarUrl),
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Account ------------------------------------------------
+            ProfileEyebrow(label: l10n.profileAccount.toUpperCase()),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                ProfileLink(
+                  first: true,
+                  title: l10n.profileEditProfile,
+                  onTap: () => context.push('/clinician/more/edit'),
+                ),
+                // Everything about being this clinic's doctor rather than
+                // about this account.
+                ProfileLink(
+                  title: 'My profile',
+                  subtitle: 'Credentials, locations and the people you work with',
+                  onTap: () => context.push('/clinician/more/profile'),
+                ),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- The diary ----------------------------------------------
+            //
+            // Its own group rather than a row buried in the tools. The design
+            // puts the day's work first on every other doctor screen, and
+            // this one was the exception.
+            if (isDoctor) ...[
+              const ProfileEyebrow(label: 'THE DIARY'),
+              SizedBox(height: D.s2),
+              ProfileGroup(
+                children: [
+                  ProfileLink(
+                    first: true,
+                    title: 'Appointments',
+                    subtitle: 'Who is coming, who is waiting for a time',
+                    onTap: () => context.push('/clinician/appointments'),
+                  ),
+                  ProfileLink(
+                    title: 'Patient queue',
+                    subtitle: 'Today’s waiting room, in the order you call it',
+                    onTap: () => context.push('/clinician/queue'),
+                  ),
+                  ProfileLink(
+                    title: 'Follow-ups',
+                    subtitle: 'Who you asked back, and who has not come',
+                    onTap: () => context.push('/clinician/follow-ups'),
+                  ),
+                ],
+              ),
+              SizedBox(height: D.s6),
+            ],
+
+            // ---- Language -----------------------------------------------
+            ProfileEyebrow(label: l10n.profileLanguage.toUpperCase()),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                ProfileRow(
+                  first: true,
+                  child: LanguagePicker(
+                    selected: currentLocale?.languageCode,
+                    onChanged: _changeLanguage,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Clinic tools -------------------------------------------
+            const ProfileEyebrow(label: 'CLINIC TOOLS'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                // Messages deliberately absent: it is a tab. A duplicate here
+                // pointed at the retired DirectMessage inbox, so the same word
+                // opened different data depending on where you tapped it.
+                ProfileLink(
+                  first: true,
+                  title: 'Practice',
+                  subtitle: 'Letterhead, locations and who works here',
+                  onTap: () => context.push('/clinician/practice'),
+                ),
+                // Readable by any doctor, not gated on MANAGE_STAFF. Knowing
+                // the clinic is on a trial that ends on the 14th is not
+                // privileged, and hiding it until somebody holds a billing
+                // permission is how a practice discovers its plan by being cut
+                // off. The buttons inside are gated; the screen is not.
+                if (isDoctor)
+                  ProfileLink(
+                    title: 'Plan and billing',
+                    subtitle: 'What you are on, and what you are using',
+                    onTap: () => context.push('/clinician/billing'),
+                  ),
+                // The doctor's own day. Not gated on a plan: a summary of the
+                // consultations somebody did is part of doing them.
+                if (isDoctor)
+                  ProfileLink(
+                    title: 'Daily report',
+                    subtitle: 'Who you saw, as a PDF to keep or share',
+                    onTap: () => context.push('/clinician/daily-report'),
+                  ),
+                ProfileLink(
+                  title: 'Clinical alerts',
+                  subtitle: 'Readings and symptoms that need a look',
+                  onTap: () => context.push('/clinician/alerts'),
+                ),
+                // Nutrition was the fourth tab until Reports took its place.
+                // The stream is still there and this is how it is reached — on
+                // the same condition the tab had: somebody has to be able to
+                // answer in it.
+                if (nutritionAnswerable(caps))
+                  ProfileLink(
+                    title: 'Nutrition',
+                    subtitle: 'The dietician’s conversations with your patients',
+                    onTap: () => context.push('/clinician/nutrition'),
+                  ),
+                // Home shows the day and nothing else. These are the cards
+                // that used to sit under it.
+                ProfileLink(
+                  title: 'Clinical cards',
+                  subtitle: 'Blood pressure, follow-ups, recent labs, chat summaries',
+                  onTap: () => context.push('/clinician/clinical-cards'),
+                ),
+                ProfileLink(
+                  title: 'People',
+                  subtitle: 'Doctors, front desk and dieticians',
+                  onTap: () => context.push('/clinician/team'),
+                ),
+                if (caps.has(Cap.reportExport))
+                  ProfileLink(
+                    title: 'Export data',
+                    subtitle: 'Patients, alerts and figures as CSV or JSON',
+                    onTap: () => context.push('/clinician/export'),
+                  ),
+                // Reviewing what the assistant said is a screen with nothing
+                // on it where there is no assistant.
+                if (caps.has(Cap.aiAssistant))
+                  ProfileLink(
+                    title: 'Chat review',
+                    subtitle: 'What the assistant has been telling patients',
+                    onTap: () => context.push('/clinician/chat-review'),
+                  ),
+                ProfileLink(
+                  title: 'Knowledge base',
+                  subtitle: 'Clinic answers the assistant draws on',
+                  onTap: () => context.push('/clinician/knowledge'),
+                ),
+                // Only for somebody the server lets read it: a role that opens
+                // patients directly, holding VIEW_PATIENT. A practice manager
+                // was shown the row and refused behind it.
+                if (caps.can(Perm.viewPatient) && _readsPatientFeedback(user?.role))
+                  ProfileLink(
+                    title: 'Patient feedback',
+                    subtitle: 'What patients registered here have written',
+                    badge: unreadFeedback == 0 ? null : '$unreadFeedback new',
+                    badgeGround: D.brandTint,
+                    badgeInk: D.brand,
+                    onTap: () => context.push('/clinician/feedback'),
+                  ),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Prescription letterhead (doctor only) ------------------
+            if (isDoctor) ...[
+              const ProfileEyebrow(label: 'PRESCRIPTION LETTERHEAD'),
+              SizedBox(height: D.s2),
+              ProfileGroup(
+                children: [
+                  ProfileLink(
+                    first: true,
+                    title: 'Professional details',
+                    // The label always says what the row is for; what is
+                    // currently set goes on the right. Putting the saved
+                    // qualifications in the subtitle meant the row described
+                    // itself on an empty profile and stopped describing itself
+                    // the moment it was filled in.
+                    subtitle: 'Qualifications, specialty and registration no.',
+                    badge: (user?.qualifications?.trim().isNotEmpty ?? false)
+                        ? null
+                        : 'Not set',
+                    badgeGround: D.pendingGround,
+                    badgeInk: D.pending,
+                    onTap: () => context.push('/clinician/more/professional'),
+                  ),
+                  ProfileLink(
+                    title: 'Digital signature',
+                    subtitle: 'Printed on every prescription',
+                    badge: (user?.signatureUrl ?? '').isEmpty ? 'Not set' : null,
+                    badgeGround: D.pendingGround,
+                    badgeInk: D.pending,
+                    onTap: () => context.push('/clinician/more/signature'),
+                  ),
+                ],
+              ),
+              SizedBox(height: D.s6),
+            ],
+
+            // ---- Security -----------------------------------------------
+            ProfileEyebrow(label: l10n.profileSecurity.toUpperCase()),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                ProfileRow(
+                  first: true,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.profileAppLock,
+                              style: D.body.copyWith(color: D.ink),
+                            ),
+                            Text(
+                              l10n.profileAppLockSub,
+                              style: D.statLabel.copyWith(color: D.inkFaint),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: D.s2),
+                      Switch(
+                        value: lockEnabled,
+                        onChanged: _toggleAppLock,
+                        activeThumbColor: D.onBrand,
+                        activeTrackColor: D.brand,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Clinic -------------------------------------------------
+            //
+            // The number patients ring belongs to the practice, set once for
+            // every location. Editable by whoever administers the practice;
+            // shown to everyone else, because a doctor asked "what number do
+            // patients call?" should be able to answer.
+            if (practice != null) ...[
+              ProfileEyebrow(label: l10n.profileClinic.toUpperCase()),
+              SizedBox(height: D.s2),
+              ProfileGroup(
+                children: [
+                  ProfileLink(
+                    first: true,
+                    title: 'Patient call number',
+                    subtitle: practice.emergencyPhone == null
+                        ? 'Not set — patients have no number to ring'
+                        : formatPhone(practice.emergencyPhone),
+                    onTap: mayEditPractice ? () => _editPracticePhone(practice) : null,
+                  ),
+                ],
+              ),
+              SizedBox(height: D.s6),
+            ],
+
+            // ---- About --------------------------------------------------
+            const ProfileEyebrow(label: 'ABOUT'),
+            SizedBox(height: D.s2),
+            ProfileGroup(children: [const _Version(first: true)]),
+            SizedBox(height: D.s6),
+
+            // ---- Log out ------------------------------------------------
+            ProfileGroup(
+              children: [
+                ProfileRow(
+                  first: true,
+                  onTap: _confirmLogout,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.logout_rounded, size: D.iconLg, color: D.danger),
+                      SizedBox(width: D.s3),
+                      Expanded(
+                        child: Text(
+                          l10n.profileLogout,
+                          style: D.body.copyWith(
+                            color: D.danger,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------- actions ----
 
   Future<void> _changeAvatar() async {
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final source = await _pickImageSource();
+    final source = await pickImageSource(context);
     if (source == null) return;
 
-    final XFile? file = await ImagePicker().pickImage(
+    final file = await ImagePicker().pickImage(
       source: source,
       maxWidth: 1024,
       maxHeight: 1024,
@@ -86,145 +463,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
     }
   }
 
-  /// Upload (or replace) the doctor's signature image. Embedded into every
-  /// prescription PDF the server generates.
-  Future<void> _changeSignature() async {
-    final messenger = ScaffoldMessenger.of(context);
-    final source = await _pickImageSource();
-    if (source == null) return;
-
-    final XFile? file = await ImagePicker().pickImage(
-      source: source,
-      maxWidth: 1200,
-      maxHeight: 600,
-      imageQuality: 90,
-    );
-    if (file == null) return;
-
-    setState(() => _uploadingSignature = true);
-    try {
-      final asset = await ref
-          .read(uploadRepositoryProvider)
-          .uploadImage(
-            path: file.path,
-            filename: file.name,
-            kind: UploadKind.signature,
-          );
-      final user = await ref
-          .read(authRepositoryProvider)
-          .updateMe(signatureAssetId: asset.id);
-      ref.read(authControllerProvider.notifier).replaceUser(user);
-      messenger.showSnackBar(const SnackBar(content: Text('Signature saved')));
-    } on ApiException {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not upload the signature')),
-      );
-    } finally {
-      if (mounted) setState(() => _uploadingSignature = false);
-    }
-  }
-
-  /// Edit the letterhead credentials printed at the top of every prescription.
-  Future<void> _editProfessionalDetails() async {
-    final user = ref.read(authControllerProvider).user;
-    final quals = TextEditingController(text: user?.qualifications ?? '');
-    final specialty = TextEditingController(text: user?.specialty ?? '');
-    final reg = TextEditingController(text: user?.registrationNo ?? '');
-    final messenger = ScaffoldMessenger.of(context);
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Professional details'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: quals,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: 'Qualifications',
-                      hintText: 'MBBS, MD',
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  TextField(
-                    controller: specialty,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: const InputDecoration(
-                      labelText: 'Specialty',
-                      hintText: 'Consultant Physician & Diabetologist',
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  TextField(
-                    controller: reg,
-                    decoration: const InputDecoration(
-                      labelText: 'Registration no.',
-                      hintText: 'WBMC-XXXXX',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Save'),
-              ),
-            ],
-          ),
-    );
-    if (ok != true || !mounted) return;
-    try {
-      final updated = await ref
-          .read(authRepositoryProvider)
-          .updateMe(
-            qualifications: quals.text.trim(),
-            specialty: specialty.text.trim(),
-            registrationNo: reg.text.trim(),
-          );
-      ref.read(authControllerProvider.notifier).replaceUser(updated);
-      messenger.showSnackBar(const SnackBar(content: Text('Details saved')));
-    } on ApiException {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not save the details')),
-      );
-    }
-  }
-
-  Future<ImageSource?> _pickImageSource() {
-    final l10n = AppLocalizations.of(context);
-    return showModalBottomSheet<ImageSource>(
-      context: context,
-      showDragHandle: true,
-      builder:
-          (ctx) => SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.photo_camera_outlined),
-                  title: Text(l10n.chatAttachCamera),
-                  onTap: () => Navigator.pop(ctx, ImageSource.camera),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.photo_library_outlined),
-                  title: Text(l10n.chatAttachGallery),
-                  onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-                ),
-              ],
-            ),
-          ),
-    );
-  }
-
   Future<void> _changeLanguage(String code) async {
     await ref.read(localeControllerProvider.notifier).setLanguage(code);
     ref.read(authControllerProvider.notifier).updateLocalUserLanguage(code);
@@ -241,15 +479,11 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
     final controller = ref.read(appLockProvider.notifier);
     if (enable) {
       if (!await controller.canUse()) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(l10n.appLockUnavailable)),
-        );
+        messenger.showSnackBar(SnackBar(content: Text(l10n.appLockUnavailable)));
         return;
       }
       if (!await controller.enable(l10n.appLockPrompt)) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(l10n.appLockUnavailable)),
-        );
+        messenger.showSnackBar(SnackBar(content: Text(l10n.appLockUnavailable)));
       }
     } else {
       await controller.disable();
@@ -257,26 +491,30 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
   }
 
   Future<void> _confirmLogout() async {
+    final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Log out?'),
-            content: const Text(
-              'You will need to log in again to access the clinic dashboard.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Log out'),
-              ),
-            ],
+      builder: (ctx) => AlertDialog(
+        backgroundColor: D.card,
+        title: Text('Log out?', style: D.subhead.copyWith(color: D.ink)),
+        content: Text(
+          'You will need to log in again to open the clinic dashboard.',
+          style: D.body.copyWith(color: D.inkMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Stay', style: D.bodyStrong.copyWith(color: D.inkMuted)),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              l10n.profileLogout,
+              style: D.bodyStrong.copyWith(color: D.danger),
+            ),
+          ),
+        ],
+      ),
     );
     if (ok == true) await ref.read(authControllerProvider.notifier).logout();
   }
@@ -288,621 +526,233 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
   /// the practice's, set once for all of its locations, and an empty field
   /// clears it rather than being ignored.
   Future<void> _editPracticePhone(PracticeOverview practice) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final scheme = Theme.of(context).colorScheme;
     final controller = TextEditingController(
-      text: formatPhone(practice.emergencyPhone),
+      text: practice.emergencyPhone ?? '',
     );
+    final messenger = ScaffoldMessenger.of(context);
 
-    final saved = await showDialog<String?>(
+    final save = await showDialog<bool>(
       context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Patient call number'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Patients of ${practice.name} ring this from the emergency '
-                  'card and their profile, and the assistant gives it in '
-                  'emergency advice. Leave it empty to remove it.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.4,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.phone,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone number',
-                    hintText: '+91 98300 00000',
-                  ),
-                ),
-              ],
+      builder: (ctx) => AlertDialog(
+        backgroundColor: D.card,
+        title: Text(
+          'Patient call number',
+          style: D.subhead.copyWith(color: D.ink),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'The number patients are given for this practice, at every '
+              'location. Leave it empty to remove it.',
+              style: D.statLabel.copyWith(color: D.inkMuted, height: 1.45),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-                child: const Text('Save'),
-              ),
-            ],
+            SizedBox(height: D.s4),
+            TextField(
+              key: const Key('practice-phone'),
+              controller: controller,
+              keyboardType: TextInputType.phone,
+              autofocus: true,
+              style: D.input.copyWith(color: D.ink),
+              decoration: const InputDecoration(hintText: '+91 33 4000 1234'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: D.bodyStrong.copyWith(color: D.inkMuted)),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Save', style: D.bodyStrong.copyWith(color: D.brand)),
+          ),
+        ],
+      ),
     );
-    if (saved == null || !mounted) return;
+    final typedNumber = controller.text.trim();
+    controller.dispose();
+    if (save != true) return;
 
     try {
+      final typed = typedNumber;
       await ref.read(practiceRepositoryProvider).update(practice.id, {
-        'emergencyPhone': saved.isEmpty ? null : saved,
+        // Empty clears it rather than being ignored.
+        'emergencyPhone': typed.isEmpty ? null : typed,
       });
       ref.invalidate(practiceOverviewProvider);
       ref.invalidate(careContactProvider);
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            saved.isEmpty
+            typed.isEmpty
                 ? 'Patient call number removed'
                 : 'Patient call number saved',
           ),
         ),
       );
     } on ApiException catch (e) {
-      // The server says why — "Enter a phone number your patients can ring"
-      // is more use than "please try again" for a number it will never take.
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
+}
+
+/// The disc, the name, and what this person is at this practice.
+class _Identity extends StatelessWidget {
+  const _Identity({
+    required this.name,
+    required this.phone,
+    required this.avatarUrl,
+    required this.role,
+    required this.uploading,
+    required this.onChangePhoto,
+    required this.onViewPhoto,
+  });
+
+  final String name;
+  final String phone;
+  final String? avatarUrl;
+  final String role;
+  final bool uploading;
+  final VoidCallback? onChangePhoto;
+  final VoidCallback? onViewPhoto;
 
   @override
   Widget build(BuildContext context) {
-    // What this practice has, so the tools list is what it can use rather
-    // than a menu with dead entries in it.
-    final caps = ref.watch(capabilitySetProvider);
     final l10n = AppLocalizations.of(context);
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? AppColors.primaryDark : AppColors.primary;
 
-    final user = ref.watch(authControllerProvider).user;
-    final currentLocale = ref.watch(localeControllerProvider);
-    final lockEnabled = ref.watch(appLockProvider).enabled;
-    // Their actual job. This said "Doctor" or "Clinic staff", which was true
-    // while there were two kinds of clinician and tells a laboratory
-    // technician the wrong thing about themselves now.
-    final roleLabel = roleLabels[user?.role ?? ''] ?? 'Clinic staff';
-    // The practice's own record, for the number its patients ring. Null while
-    // it loads and for an account with no practice, and the row is simply
-    // absent then — never somebody else's number standing in.
-    final practice = ref.watch(practiceOverviewProvider).valueOrNull;
-    final mayEditPractice = caps.can(Perm.manageStaff);
-
-    return Scaffold(
-      // Transparent so the shell's ground runs unbroken behind this
-      // screen and the navigation bar alike. An opaque page here left a
-      // visible band of ground around the pill and nowhere else.
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        // It was a tab and had nowhere to go back to. It is a page now, opened
-        // from Home's avatar, so the arrow is the way out.
-        title: Text(
-          'Profile',
-          style: TextStyle(color: accent, fontWeight: FontWeight.w700),
-        ),
-        actions: [
-          // The same counted bell as the other three tabs. A bell that shows a
-          // number on Home and no number here reads as "nothing waiting" on
-          // whichever screen the doctor happens to be looking at.
-          PanelNotificationBell(
-            onTap: () => showClinicianNotifications(context),
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          AppSpacing.sm,
-          AppSpacing.md,
-          AppSpacing.xl,
-        ),
-        children: [
-          // ---- Header --------------------------------------------------
-          Column(
-            children: [
-              Semantics(
-                button: true,
-                label: l10n.profileChangePhoto,
-                child: GestureDetector(
-                  onTap: _uploadingAvatar ? null : _changeAvatar,
-                  onLongPress:
-                      user?.avatarUrl != null
-                          ? () => FullscreenPhoto.show(context, user!.avatarUrl)
-                          : null,
-                  child: Stack(
-                    children: [
-                      UserAvatar(
-                        name: user?.name ?? '',
-                        avatarUrl: user?.avatarUrl,
-                        accent: accent,
-                        size: 96,
-                      ),
-                      if (_uploadingAvatar)
-                        Positioned.fill(
-                          child: ClipOval(
-                            child: ColoredBox(
-                              color: Colors.black.withValues(alpha: 0.45),
-                              child: const Center(
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 26,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.6,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
+    return Row(
+      children: [
+        Semantics(
+          button: true,
+          label: l10n.profileChangePhoto,
+          child: GestureDetector(
+            onTap: onChangePhoto,
+            onLongPress: onViewPhoto,
+            child: Stack(
+              children: [
+                UserAvatar(
+                  name: name,
+                  avatarUrl: avatarUrl,
+                  accent: D.brand,
+                  size: D.discLg,
+                ),
+                if (uploading)
+                  Positioned.fill(
+                    child: ClipOval(
+                      child: ColoredBox(
+                        color: D.scrim,
+                        child: const Center(
+                          child: SizedBox(
+                            width: D.icon,
+                            height: D.icon,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
                             ),
                           ),
                         ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: accent,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: scheme.surface,
-                              width: 2.5,
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.photo_camera_rounded,
-                            size: 15,
-                            color: Colors.white,
-                          ),
-                        ),
                       ),
-                    ],
+                    ),
+                  ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: EdgeInsets.all(D.s1 / 2),
+                    decoration: const BoxDecoration(
+                      color: D.brand,
+                      shape: BoxShape.circle,
+                      border: Border.fromBorderSide(
+                        BorderSide(color: D.ground, width: 2),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.photo_camera_rounded,
+                      size: D.iconSm,
+                      color: D.onBrand,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                user?.name ?? roleLabel,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 0),
-              Text(
-                user?.phone ?? '',
-                style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: AppSpacing.sm),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(width: D.s4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name, style: D.opening.copyWith(color: D.ink)),
+              if (phone.isNotEmpty)
+                Text(phone, style: D.statLabel.copyWith(color: D.inkMuted)),
+              SizedBox(height: D.s1),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(20),
+                padding: EdgeInsets.symmetric(horizontal: D.s3, vertical: D.s1 / 2),
+                decoration: const BoxDecoration(
+                  color: D.brandTint,
+                  borderRadius: D.rPill,
                 ),
                 child: Text(
-                  roleLabel,
-                  style: TextStyle(
-                    fontSize: 14,
+                  role,
+                  style: D.caption.copyWith(
+                    color: D.brand,
                     fontWeight: FontWeight.w700,
-                    color: accent,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.xl),
+        ),
+      ],
+    );
+  }
+}
 
-          // ---- Account -------------------------------------------------
-          ProfileSection(
-            label: l10n.profileAccount,
-            children: [
-              ProfileRow(
-                icon: Icons.person_outline_rounded,
-                title: l10n.profileEditProfile,
-                onTap: () => context.push('/clinician/more/edit'),
-              ),
-              // Everything about being this clinic's doctor rather than about
-              // this account: the credentials that print on a prescription,
-              // the rooms, the diary, the people.
-              ProfileRow(
-                icon: Icons.badge_outlined,
-                title: 'My profile',
-                subtitle: 'Credentials, locations, diary and the people you work with',
-                showDivider: false,
-                onTap: () => context.push('/clinician/more/profile'),
-              ),
-            ],
-          ),
+/// The version, and whether a newer one exists.
+///
+/// Its own row rather than the shared [AppSection], which draws itself in the
+/// old panel's card and would have put one grey box inside a white one.
+class _Version extends ConsumerWidget {
+  const _Version({required this.first});
 
-          // ---- Appearance ----------------------------------------------
-          // Hidden while kDarkThemeEnabled is false: a control that
-          // changes nothing is worse than no control.
-          if (kDarkThemeEnabled)
-            ProfileSection(
-              label: l10n.profileAppearance,
-              children: const [
-                Padding(
-                  padding: EdgeInsets.all(AppSpacing.md),
-                  child: ThemeSelector(),
-                ),
-              ],
-            ),
+  final bool first;
 
-          // ---- Language ------------------------------------------------
-          // In a card, like every other group on this screen. Loose chips
-          // floating on the background read as a strip of content that had
-          // escaped its section rather than as a setting.
-          ProfileSection(
-            label: l10n.profileLanguage,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: LanguagePicker(
-                  selected: currentLocale?.languageCode,
-                  onChanged: _changeLanguage,
-                ),
-              ),
-            ],
-          ),
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(versionStatusProvider).valueOrNull;
+    final canUpdate = status?.canUpdate ?? false;
 
-          // ---- Clinic tools --------------------------------------------
-          ProfileSection(
-            label: 'Clinic tools',
-            children: [
-              // Messages deliberately absent: it is the first tab. A duplicate
-              // here pointed at the retired DirectMessage inbox, so the same
-              // word opened different data depending on where you tapped it.
-              // Every row carries a subtitle or none of them do. Three
-              // explained and three bare made the bare ones look like
-              // afterthoughts, and left the reader guessing which of "Chat
-              // review" and "Patient feedback" held the thing they wanted.
-              ProfileRow(
-                icon: Icons.local_hospital_outlined,
-                title: 'Practice',
-                subtitle: 'Letterhead, locations and who works here',
-                onTap: () => context.push('/clinician/practice'),
+    return ProfileRow(
+      first: first,
+      child: Row(
+        children: [
+          Expanded(child: Text('App version', style: D.body.copyWith(color: D.ink))),
+          if (canUpdate)
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.s1 / 2),
+              decoration: const BoxDecoration(
+                color: D.pendingGround,
+                borderRadius: D.rPill,
               ),
-              // Readable by any doctor, not gated on MANAGE_STAFF. Knowing the
-              // clinic is on a trial that ends on the 14th is not privileged,
-              // and hiding it until somebody holds a billing permission is how
-              // a practice discovers its plan by being cut off. The buttons
-              // inside are gated; the screen is not.
-              if (user?.role == 'doctor')
-                ProfileRow(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'Plan and billing',
-                  subtitle: 'What you are on, and what you are using',
-                  onTap: () => context.push('/clinician/billing'),
-                ),
-              // The doctor's own day. Not gated on a plan: a summary of the
-              // consultations somebody did is part of doing them.
-              if (user?.role == 'doctor')
-                ProfileRow(
-                  icon: Icons.summarize_outlined,
-                  title: 'Daily report',
-                  subtitle: 'Who you saw, as a PDF to keep or share',
-                  onTap: () => context.push('/clinician/daily-report'),
-                ),
-              ProfileRow(
-                icon: Icons.notification_important_outlined,
-                title: 'Clinical alerts',
-                subtitle: 'Readings and symptoms that need a look',
-                onTap: () => context.push('/clinician/alerts'),
-              ),
-              // Nutrition was the fourth tab until Reports took its place. The
-              // stream is still there and this is how it is reached — on the
-              // same condition the tab had: somebody has to be able to answer
-              // in it.
-              if (nutritionAnswerable(ref.watch(capabilitySetProvider)))
-                ProfileRow(
-                  icon: Icons.restaurant_menu_outlined,
-                  title: 'Nutrition',
-                  subtitle: 'The dietician’s conversations with your patients',
-                  onTap: () => context.push('/clinician/nutrition'),
-                ),
-              // Home now shows the day and nothing else. These are the cards
-              // that used to sit under it — kept here, whole, until the new
-              // design has screens of its own for them.
-              ProfileRow(
-                icon: Icons.insights_outlined,
-                title: 'Clinical cards',
-                subtitle: 'Blood pressure, follow-ups, recent labs, chat summaries',
-                onTap: () => context.push('/clinician/clinical-cards'),
-              ),
-              ProfileRow(
-                // Was Clinic care's fork-and-spoon, which survived the rename
-                // and put the Nutrition tab's glyph on a list of colleagues.
-                icon: Icons.groups_outlined,
-                title: 'People',
-                subtitle: 'Doctors, front desk and dieticians',
-                onTap: () => context.push('/clinician/team'),
-              ),
-              if (caps.has(Cap.reportExport))
-                ProfileRow(
-                  icon: Icons.ios_share_rounded,
-                  title: 'Export data',
-                  subtitle: 'Patients, alerts and figures as CSV or JSON',
-                  onTap: () => context.push('/clinician/export'),
-                ),
-              // Reviewing what the assistant said is a screen with nothing on
-              // it where there is no assistant.
-              if (caps.has(Cap.aiAssistant))
-                ProfileRow(
-                  icon: Icons.reviews_outlined,
-                  title: 'Chat review',
-                  subtitle: 'What the assistant has been telling patients',
-                  onTap: () => context.push('/clinician/chat-review'),
-                ),
-              ProfileRow(
-                icon: Icons.menu_book_outlined,
-                title: 'Knowledge base',
-                subtitle: 'Clinic answers the assistant draws on',
-                // The last row when patient feedback is not this person's.
-                showDivider: caps.can(Perm.viewPatient) && _readsPatientFeedback(user?.role),
-                onTap: () => context.push('/clinician/knowledge'),
-              ),
-              // Only for somebody the server lets read it: a role that opens
-              // patients directly, holding VIEW_PATIENT. A practice manager was
-              // shown the row and refused behind it. The count is this
-              // person's own unread, of what they may see.
-              if (caps.can(Perm.viewPatient) && _readsPatientFeedback(user?.role))
-                ProfileRow(
-                  icon: Icons.rate_review_outlined,
-                  title: 'Patient feedback',
-                  subtitle: 'What patients registered here have written',
-                  value: switch (ref.watch(feedbackUnreadProvider).valueOrNull ?? 0) {
-                    0 => null,
-                    final n => '$n new',
-                  },
-                  showDivider: false,
-                  onTap: () => context.push('/clinician/feedback'),
-                ),
-            ],
-          ),
-
-          // ---- Prescription letterhead (doctor only) -------------------
-          if (user?.role == 'doctor')
-            ProfileSection(
-              label: 'Prescription letterhead',
-              children: [
-                ProfileRow(
-                  icon: Icons.badge_outlined,
-                  title: 'Professional details',
-                  // Always says what the row is for; what is currently set
-                  // goes in `value`, on the right, where every other row on
-                  // this screen puts its current state. Putting the saved
-                  // qualifications in the subtitle slot meant the row
-                  // described itself on an empty profile and stopped
-                  // describing itself the moment it was filled in.
-                  subtitle: 'Qualifications, specialty & registration no.',
-                  value:
-                      (user?.qualifications?.isNotEmpty ?? false)
-                          ? 'Set'
-                          : 'Not set',
-                  onTap: _editProfessionalDetails,
-                ),
-                ProfileRow(
-                  icon: Icons.draw_outlined,
-                  title: 'Digital signature',
-                  subtitle: 'Printed on every prescription',
-                  value:
-                      _uploadingSignature
-                          ? 'Uploading…'
-                          : (user?.signatureUrl != null ? 'Set' : 'Not set'),
-                  showDivider: user?.signatureUrl != null,
-                  onTap: _uploadingSignature ? null : _changeSignature,
-                ),
-                // The signature as it will actually print. "Set" told the
-                // doctor a file existed, not whether it was the right one, the
-                // right way up, or legible — and the first place they would
-                // otherwise find out is a prescription already sent.
-                if (user?.signatureUrl != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.md,
-                      AppSpacing.sm,
-                      AppSpacing.md,
-                      AppSpacing.md,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'PREVIEW',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 16,
-                            horizontal: 20,
-                          ),
-                          decoration: BoxDecoration(
-                            // White, always — the signature is cut out on
-                            // transparency and prints onto white paper, so
-                            // previewing it on a themed surface would show the
-                            // doctor something the prescription never looks
-                            // like. In dark mode especially, near-black ink on
-                            // a dark card would look like nothing at all.
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: scheme.outlineVariant.withValues(
-                                alpha: 0.7,
-                              ),
-                            ),
-                          ),
-                          // Sized to the card, not to a thumbnail. A signature
-                          // is checked by reading it — whether it is the right
-                          // one, the right way up, legible — and none of that
-                          // is possible at 56px.
-                          child: SizedBox(
-                            width: double.infinity,
-                            height: 110,
-                            child: AuthedImage(
-                              path: user!.signatureUrl!,
-                              width: double.infinity,
-                              height: 110,
-                              radius: 0,
-                              fit: BoxFit.contain,
-                              // No plate behind it. The signature is cut out on
-                              // transparency, so anything but white here would
-                              // show through the ink and stop it reading as a
-                              // signature on paper.
-                              background: Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'The paper background is removed automatically, so this prints as ink on the prescription.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.35,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-
-          // ---- Security ------------------------------------------------
-          _label(l10n.profileSecurity, scheme),
-          Container(
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-              border: Border.all(color: scheme.outlineVariant),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: SwitchListTile.adaptive(
-              value: lockEnabled,
-              onChanged: _toggleAppLock,
-              activeThumbColor: accent,
-              secondary: Icon(Icons.lock_outline_rounded, color: accent),
-              title: Text(
-                l10n.profileAppLock,
-                style: const TextStyle(fontSize: 16),
-              ),
-              subtitle: Text(
-                l10n.profileAppLockSub,
-                style: const TextStyle(fontSize: 14),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: 4,
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          // ---- Clinic --------------------------------------------------
-          //
-          // The number patients ring belongs to the practice, set once for
-          // every location. Editable by whoever administers the practice;
-          // shown to everyone else, because a doctor asked "what number do
-          // patients call?" should be able to answer.
-          if (practice != null)
-            ProfileSection(
-              label: l10n.profileClinic,
-              children: [
-                ProfileRow(
-                  icon: Icons.phone_outlined,
-                  title: 'Patient call number',
-                  subtitle:
-                      practice.emergencyPhone == null
-                          ? 'Not set — patients have no number to ring'
-                          : formatPhone(practice.emergencyPhone),
-                  showDivider: false,
-                  onTap:
-                      mayEditPractice
-                          ? () => _editPracticePhone(practice)
-                          : null,
-                ),
-              ],
-            ),
-
-          // ---- App -----------------------------------------------------
-          //
-          // The version once, and whether a newer one exists: the same
-          // section on every profile. Above sign-out and below everything
-          // else, where somebody goes looking for it. See AppSection.
-          const AppSection(),
-
-          // ---- Logout --------------------------------------------------
-          // The only control on this screen that ends the session, so it is
-          // an outlined danger button rather than one more row of the group
-          // above it.
-          SizedBox(
-            width: double.infinity,
-            height: AppSpacing.minTapTarget + 8,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.danger,
-                side: BorderSide(
-                  color: AppColors.dangerOn(context),
-                  width: 1.5,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
-                ),
-              ),
-              onPressed: _confirmLogout,
-              icon: const Icon(Icons.logout_rounded, size: 22),
-              label: Text(
-                l10n.profileLogout,
-                style: const TextStyle(
-                  fontSize: 16,
+              child: Text(
+                'Update available',
+                style: D.caption.copyWith(
+                  color: D.pending,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-            ),
+            )
+          else
+            const Icon(Icons.check_rounded, size: D.icon, color: D.done),
+          SizedBox(width: D.gapTight),
+          Text(
+            'v${BuildInfo.current.version}',
+            style: D.statLabel.copyWith(color: D.inkMuted),
           ),
         ],
       ),
     );
   }
-
-  Widget _label(String text, ColorScheme scheme) => Padding(
-    padding: const EdgeInsets.only(left: 4, bottom: AppSpacing.sm),
-    child: Text(
-      text.toUpperCase(),
-      style: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.8,
-        color: scheme.onSurfaceVariant,
-      ),
-    ),
-  );
 }
-
