@@ -77,11 +77,19 @@ class TeamSelect extends StatelessWidget {
     required this.options,
     required this.onChanged,
     this.emptyLabel,
+    this.enabled = true,
   });
 
   final String? value;
   final List<({String id, String name})> options;
   final ValueChanged<String?> onChanged;
+
+  /// False draws it as what it is: a field this reader may not change.
+  ///
+  /// Not a handler that drops the change — a control that moves nothing when
+  /// tapped reads as broken, and somebody who has just failed to demote the
+  /// practice's head should be told why rather than left tapping.
+  final bool enabled;
 
   /// What "none chosen" reads as. Null leaves it out, for a field that must
   /// hold something.
@@ -95,9 +103,9 @@ class TeamSelect extends StatelessWidget {
       ),
       padding: EdgeInsets.symmetric(horizontal: D.s4),
       decoration: BoxDecoration(
-        color: D.card,
+        color: enabled ? D.card : D.track,
         borderRadius: BorderRadius.circular(D.rCard),
-        border: Border.all(color: D.lineStrong),
+        border: Border.all(color: enabled ? D.lineStrong : D.line),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String?>(
@@ -106,12 +114,12 @@ class TeamSelect extends StatelessWidget {
           // empty box, which is what the old form showed on a 360dp phone.
           isExpanded: true,
           value: value,
-          icon: const Icon(
+          icon: Icon(
             Icons.keyboard_arrow_down_rounded,
             size: D.iconLg,
-            color: D.inkMuted,
+            color: enabled ? D.inkMuted : D.inkFaint,
           ),
-          style: D.input.copyWith(color: D.ink),
+          style: D.input.copyWith(color: enabled ? D.ink : D.inkMuted),
           dropdownColor: D.card,
           borderRadius: BorderRadius.circular(D.rCard),
           items: [
@@ -134,7 +142,9 @@ class TeamSelect extends StatelessWidget {
                 ),
               ),
           ],
-          onChanged: onChanged,
+          // Null is what disables a dropdown. Material then greys the chosen
+          // item itself, which is why the style above does not have to.
+          onChanged: enabled ? onChanged : null,
         ),
       ),
     );
@@ -161,11 +171,15 @@ class TeamLocations extends StatelessWidget {
     required this.locations,
     required this.chosen,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final List<({String id, String name})> locations;
   final List<String> chosen;
   final ValueChanged<List<String>> onChanged;
+
+  /// False shows the list and takes no taps. See [TeamSelect.enabled].
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -173,9 +187,9 @@ class TeamLocations extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: D.card,
+        color: enabled ? D.card : D.track,
         borderRadius: BorderRadius.circular(D.rCard),
-        border: Border.all(color: D.lineStrong),
+        border: Border.all(color: enabled ? D.lineStrong : D.line),
       ),
       padding: EdgeInsets.symmetric(horizontal: D.s4),
       child: Column(
@@ -186,18 +200,20 @@ class TeamLocations extends StatelessWidget {
             first: true,
             // Already every one; ticking it again would do nothing, and a box
             // that does nothing when tapped reads as broken.
-            onTap: all ? null : () => onChanged(const []),
+            onTap: all || !enabled ? null : () => onChanged(const []),
           ),
           for (final l in locations)
             _Tick(
               label: l.name,
               on: chosen.contains(l.id),
               first: false,
-              onTap: () {
-                final next = [...chosen];
-                next.contains(l.id) ? next.remove(l.id) : next.add(l.id);
-                onChanged(next);
-              },
+              onTap: !enabled
+                  ? null
+                  : () {
+                      final next = [...chosen];
+                      next.contains(l.id) ? next.remove(l.id) : next.add(l.id);
+                      onChanged(next);
+                    },
             ),
         ],
       ),

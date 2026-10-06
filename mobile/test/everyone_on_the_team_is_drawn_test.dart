@@ -600,6 +600,16 @@ void main() {
 
       expect(find.text('This is the practice’s head'), findsOneWidget);
       expect(tester.widget<Switch>(find.byType(Switch)).onChanged, isNull);
+      // Drawn as what it is, rather than taking the tap and dropping it: a
+      // control that moves nothing when tapped reads as broken.
+      expect(
+        tester
+            .widget<DropdownButton<String?>>(
+              find.byType(DropdownButton<String?>).first,
+            )
+            .onChanged,
+        isNull,
+      );
       // Save is dead: there is nothing on this screen they may change.
       await tapOn(tester, 'Save');
       expect(team.updates, isEmpty);

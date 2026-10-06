@@ -266,7 +266,8 @@ class _Body extends StatelessWidget {
                     if (!teamRoles.contains(role))
                       (id: role, name: roleLabel(role)),
                   ],
-                  onChanged: locked ? (_) {} : (v) => onRole(v ?? role),
+                  enabled: !locked,
+                  onChanged: (v) => onRole(v ?? role),
                 ),
               ),
 
@@ -299,7 +300,8 @@ class _Body extends StatelessWidget {
                     value: departmentId,
                     options: roster.departments,
                     emptyLabel: 'Not set',
-                    onChanged: locked ? (_) {} : onDepartment,
+                    enabled: !locked,
+                    onChanged: onDepartment,
                   ),
                 ),
               ],
@@ -316,7 +318,8 @@ class _Body extends StatelessWidget {
                   child: TeamLocations(
                     locations: roster.locations,
                     chosen: locationIds,
-                    onChanged: locked ? (_) {} : onLocations,
+                    enabled: !locked,
+                    onChanged: onLocations,
                   ),
                 ),
               ],
