@@ -169,6 +169,68 @@ const userSchema = new mongoose.Schema(
     qualifications: { type: String, trim: true, maxlength: 120 },
     specialty: { type: String, trim: true, maxlength: 120 },
     registrationNo: { type: String, trim: true, maxlength: 60 },
+    /*
+     * The professional profile (`Profile-Professional`).
+     *
+     * ---- Why these are not one blob --------------------------------------
+     *
+     * `qualifications` is the string that prints on a prescription and stays
+     * exactly that: one line, typed, under the doctor's control. The fields
+     * below are the structured versions the design asks for, and they are
+     * separate because they are read differently — a patient searching for
+     * "Type 2 diabetes" matches `conditionsTreated`, not a sentence.
+     *
+     * ---- ABDM is an id, not a verification -------------------------------
+     *
+     * `hprId` is a number somebody typed. Nothing here calls the Healthcare
+     * Professionals Registry, so it is stored and shown as unverified. The
+     * design draws a "Verified" tick beside it; a tick with nothing behind it
+     * on a clinical credential is the kind of reassurance that gets somebody
+     * hurt, so there is none until an integration exists.
+     */
+    professionType: {
+      type: String,
+      enum: ['doctor', 'psychologist', 'physiotherapist', 'dietician', 'fitness_coach', 'other'],
+      default: null,
+    },
+    council: { type: String, trim: true, maxlength: 120, default: null },
+    registrationYear: { type: Number, min: 1900, max: 2100, default: null },
+    hprId: { type: String, trim: true, maxlength: 60, default: null },
+
+    /// Each degree on its own, for the rows the design draws. The printed
+    /// line stays `qualifications`: a doctor who wants "MBBS, MD (Medicine)"
+    /// on their prescription is not served by it being rebuilt from parts.
+    degrees: {
+      type: [
+        new mongoose.Schema(
+          {
+            name: { type: String, required: true, trim: true, maxlength: 120 },
+            institution: { type: String, trim: true, maxlength: 160 },
+            year: { type: Number, min: 1900, max: 2100 },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
+
+    /// Free text, not a fixed list: a specialty this platform has not heard of
+    /// is a doctor who cannot describe themselves.
+    specialisations: { type: [String], default: [] },
+
+    /// What patients search by.
+    conditionsTreated: { type: [String], default: [] },
+
+    practisingSince: { type: Number, min: 1900, max: 2100, default: null },
+    memberships: { type: [String], default: [] },
+
+    /// What a patient reads before booking.
+    bio: { type: String, trim: true, maxlength: 1200, default: null },
+
+    /// The languages this clinician consults in — ISO codes where they are
+    /// one of the app's three, free text otherwise.
+    languages: { type: [String], default: [] },
+
     signatureAssetId: { type: mongoose.Schema.Types.ObjectId, ref: 'MediaAsset' },
 
     /// When this phone last confirmed its medication alarms are armed.
@@ -225,9 +287,40 @@ userSchema.methods.toPublic = function toPublic() {
     // the app should read that as "none set" rather than as a blank line.
     address: this.address || null,
     altPhones: this.altPhones ?? [],
+    /*
+     * What this account has agreed to, and when.
+     *
+     * Theirs to read. It is the one part of the record that exists because
+     * the law says it must, and a consent nobody can see is a consent nobody
+     * can check — so the three dates go out with the account rather than
+     * living only in the database.
+     */
+    consent: {
+      termsAcceptedAt: this.consent?.termsAcceptedAt ?? null,
+      dataProcessingAcceptedAt: this.consent?.dataProcessingAcceptedAt ?? null,
+      aiDisclaimerAcceptedAt: this.consent?.aiDisclaimerAcceptedAt ?? null,
+    },
     avatarUrl: this.avatarAssetId ? `/api/v1/uploads/${this.avatarAssetId}/raw` : null,
     // Doctor letterhead fields; null for patients/staff who never set them.
     qualifications: this.qualifications ?? null,
+    // The structured profile. Arrays are always arrays — a client that has to
+    // test for null before mapping is a client that forgets once.
+    professionType: this.professionType ?? null,
+    council: this.council ?? null,
+    registrationYear: this.registrationYear ?? null,
+    // Said as unverified wherever it is shown; nothing here asks ABDM.
+    hprId: this.hprId ?? null,
+    degrees: (this.degrees ?? []).map((d) => ({
+      name: d.name,
+      institution: d.institution ?? null,
+      year: d.year ?? null,
+    })),
+    specialisations: this.specialisations ?? [],
+    conditionsTreated: this.conditionsTreated ?? [],
+    practisingSince: this.practisingSince ?? null,
+    memberships: this.memberships ?? [],
+    bio: this.bio ?? null,
+    languages: this.languages ?? [],
     specialty: this.specialty ?? null,
     registrationNo: this.registrationNo ?? null,
     signatureUrl: this.signatureAssetId ? `/api/v1/uploads/${this.signatureAssetId}/raw` : null,

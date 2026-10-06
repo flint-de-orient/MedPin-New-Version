@@ -14,6 +14,9 @@ class DoctorHours {
     this.specialty,
     required this.usesLocationHours,
     this.slotMinutes,
+    this.patientsPerSlot = 1,
+    this.walkInPlaces = 0,
+    this.breakMinutes = 0,
     this.weeklyHours = const [],
   });
 
@@ -24,6 +27,16 @@ class DoctorHours {
 
   /// The diary's slot length; null while the doctor keeps the location's.
   final int? slotMinutes;
+
+  /// The rest of how a sitting is cut up (`Profile-Schedule`).
+  ///
+  /// Above one, [patientsPerSlot] is deliberate double-booking — a clinic
+  /// that runs a queue rather than appointments. [walkInPlaces] are held back
+  /// from the published list. [breakMinutes] is added after each patient, so
+  /// a 15-minute slot with a 5-minute break starts one patient every 20.
+  final int patientsPerSlot;
+  final int walkInPlaces;
+  final int breakMinutes;
   final List<WeeklyHour> weeklyHours;
 
   /// Own hours with nothing in them: not at this location.

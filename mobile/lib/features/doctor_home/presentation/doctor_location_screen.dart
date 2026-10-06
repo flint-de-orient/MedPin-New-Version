@@ -10,7 +10,7 @@ import '../../appointments/domain/clinic.dart';
 import '../../appointments/domain/service.dart';
 import '../../appointments/presentation/appointment_providers.dart';
 import '../domain/weekly_schedule.dart';
-import 'widgets/not_on_file.dart';
+import 'widgets/live_fields.dart';
 import 'widgets/profile_parts.dart';
 
 /// One place this doctor consults, and what patients are told about it
@@ -25,13 +25,12 @@ import 'widgets/profile_parts.dart';
 /// practice's, with the one line that keeps it honest; charging different
 /// amounts at Salt Lake and New Town needs a field that does not exist yet.
 ///
-/// ---- What else the board asks for, drawn and inert ------------------------
+/// ---- The rest of the board, now that the columns exist --------------------
 ///
-/// A landmark, the location's type, which payments it takes, "collect fee at
-/// booking", an ABDM HFR link, and the facilities list. The record keeps none
-/// of them, so they are drawn as the design has them and marked "Not on file
-/// yet" — shown so the shape of the screen is visible, inert so nobody sets
-/// something that is not saved. See widgets/not_on_file.dart.
+/// Type, landmark, the payments this desk takes, whether a priced service has
+/// to be paid for at booking, the ABDM HFR id and the facilities list all save
+/// now. The HFR id is stored as typed and never shown as verified: nothing
+/// here asks the registry.
 class DoctorLocationScreen extends ConsumerStatefulWidget {
   const DoctorLocationScreen({super.key, required this.clinicId});
 
@@ -48,6 +47,13 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
   final _city = TextEditingController();
   final _phone = TextEditingController();
   final _mapUrl = TextEditingController();
+  final _landmark = TextEditingController();
+  final _hfr = TextEditingController();
+
+  String _kind = 'clinic';
+  List<String> _facilities = const [];
+  List<String> _payments = const [];
+  bool _collectAtBooking = false;
 
   bool _loaded = false;
   bool _dirty = false;
@@ -55,7 +61,14 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
   String? _failed;
 
   List<TextEditingController> get _fields =>
-      [_name, _address, _city, _phone, _mapUrl];
+      [_name, _address, _city, _phone, _mapUrl, _landmark, _hfr];
+
+  /// A change made by a chip or a switch, which has no controller to listen
+  /// to. Wrapped so every one of them marks the screen dirty the same way.
+  void _change(VoidCallback apply) => setState(() {
+    apply();
+    _dirty = true;
+  });
 
   @override
   void initState() {
@@ -84,7 +97,15 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
       _city.text = clinic.city ?? '';
       _phone.text = clinic.phone ?? '';
       _mapUrl.text = clinic.mapUrl ?? '';
-      setState(() => _loaded = true);
+      _landmark.text = clinic.landmark ?? '';
+      _hfr.text = clinic.hfrId ?? '';
+      setState(() {
+        _kind = clinic.kind;
+        _facilities = [...clinic.facilities];
+        _payments = [...clinic.paymentMethods];
+        _collectAtBooking = clinic.collectFeeAtBooking;
+        _loaded = true;
+      });
     });
   }
 
@@ -177,14 +198,18 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                           controller: _name,
                           fieldKey: const Key('loc-name'),
                         ),
-                        const PendingChoice(
+                        ChoiceField(
                           label: 'Type',
-                          options: [
-                            'Clinic',
-                            'Hospital',
-                            'Diagnostic centre',
-                            'Home visit',
-                          ],
+                          options: const {
+                            'clinic': 'Clinic',
+                            'hospital': 'Hospital',
+                            'diagnostic_centre': 'Diagnostic centre',
+                            'home_visit': 'Home visit',
+                          },
+                          value: _kind,
+                          // Never cleared: every location is some kind of
+                          // place, and 'clinic' is the one it falls back to.
+                          onChanged: (v) => _change(() => _kind = v ?? 'clinic'),
                         ),
                         _Field(
                           label: 'Address',
@@ -199,7 +224,13 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                           controller: _city,
                           fieldKey: const Key('loc-city'),
                         ),
-                        const PendingField(label: 'Landmark'),
+                        TextFieldRow(
+                          label: 'Landmark',
+                          hint: 'Opposite Tank 9, near City Centre',
+                          controller: _landmark,
+                          fieldKey: const Key('loc-landmark'),
+                          caps: TextCapitalization.sentences,
+                        ),
                         _Field(
                           label: 'Phone for patients',
                           hint: '+91 33 4000 1234',
@@ -244,15 +275,16 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                     const ProfileEyebrow(label: 'PAYMENTS'),
                     SizedBox(height: D.s2),
                     ProfileGroup(
-                      children: const [
-                        PendingChoice(
-                          first: true,
-                          label: 'What this location takes',
-                          options: ['UPI', 'Cash', 'Card', 'Net banking'],
+                      children: [
+                        _Payments(
+                          values: _payments,
+                          onChanged: (v) => _change(() => _payments = v),
                         ),
-                        PendingSwitch(
+                        SwitchField(
                           title: 'Collect fee at booking',
                           sub: 'Patients pay online when they book a slot',
+                          value: _collectAtBooking,
+                          onChanged: (v) => _change(() => _collectAtBooking = v),
                         ),
                       ],
                     ),
@@ -262,9 +294,8 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                       child: Text(
                         // The nearest thing that does work, named, so the row
                         // above does not read as the only way money moves.
-                        'A service with a fee on it is already paid online when '
-                        'a patient books it. The switch above would make that '
-                        'the rule for this location.',
+                        'A service with a fee on it can be paid online when a '
+                        'patient books it. With this on, it has to be.',
                         style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
                       ),
                     ),
@@ -273,11 +304,13 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                     const ProfileEyebrow(label: 'ABDM'),
                     SizedBox(height: D.s2),
                     ProfileGroup(
-                      children: const [
-                        PendingRow(
+                      children: [
+                        TextFieldRow(
                           first: true,
-                          title: 'HFR ID',
-                          subtitle: 'Health Facility Registry',
+                          label: 'HFR ID',
+                          hint: 'Health Facility Registry',
+                          controller: _hfr,
+                          fieldKey: const Key('loc-hfr'),
                         ),
                       ],
                     ),
@@ -285,8 +318,9 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                     Padding(
                       padding: EdgeInsets.only(left: D.s1),
                       child: Text(
-                        'Linking this location\u2019s HFR ID would make records '
-                        'created here recognised across ABDM.',
+                        'Saved as typed. Nothing here checks it against the '
+                        'registry, so it is a record of the id and not a '
+                        'verification.',
                         style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
                       ),
                     ),
@@ -295,17 +329,19 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                     const ProfileEyebrow(label: 'FACILITIES'),
                     SizedBox(height: D.s2),
                     ProfileGroup(
-                      children: const [
-                        PendingChoice(
+                      children: [
+                        TagField(
                           first: true,
                           label: 'What patients will find here',
-                          options: [
+                          values: _facilities,
+                          suggestions: const [
                             'Wheelchair access',
                             'Parking',
                             'Lab sample collection',
                             'Pharmacy',
                             'Lift',
                           ],
+                          onChanged: (v) => _change(() => _facilities = v),
                         ),
                       ],
                     ),
@@ -332,12 +368,6 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                       SizedBox(height: D.s5),
                     ],
 
-                    const PendingNote(
-                      what: 'the kind of place this is, its landmark, which '
-                          'payments it takes, collecting the fee at booking, '
-                          'the ABDM link and the facilities list',
-                    ),
-                    SizedBox(height: D.s5),
 
                     TextButton(
                       onPressed: _saving ? null : () => _stopPractising(clinic),
@@ -386,6 +416,13 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
         'city': _city.text.trim(),
         'phone': _phone.text.trim(),
         'mapUrl': _mapUrl.text.trim(),
+        'kind': _kind,
+        // Null, not an empty string: an empty landmark is one nobody set.
+        'landmark': _landmark.text.trim().isEmpty ? null : _landmark.text.trim(),
+        'hfrId': _hfr.text.trim().isEmpty ? null : _hfr.text.trim(),
+        'facilities': _facilities,
+        'paymentMethods': _payments,
+        'collectFeeAtBooking': _collectAtBooking,
       });
       ref.invalidate(clinicsProvider);
       if (!mounted) return;
@@ -446,6 +483,105 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
         _failed = ErrorView.messageFor(context, e);
       });
     }
+  }
+}
+
+/// What the desk takes, in the words a patient would use.
+///
+/// Stored as codes so a report can group them; shown as words, because
+/// "net_banking" is not something anybody says.
+class _Payments extends StatelessWidget {
+  const _Payments({required this.values, required this.onChanged});
+
+  final List<String> values;
+  final ValueChanged<List<String>> onChanged;
+
+  static const _labels = {
+    'upi': 'UPI',
+    'cash': 'Cash',
+    'card': 'Card',
+    'net_banking': 'Net banking',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return ProfileRow(
+      first: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'What this location takes',
+            style: D.statLabel.copyWith(color: D.inkMuted),
+          ),
+          SizedBox(height: D.s2),
+          Wrap(
+            spacing: D.s2,
+            runSpacing: D.s2,
+            children: [
+              for (final entry in _labels.entries)
+                _PaymentChip(
+                  label: entry.value,
+                  on: values.contains(entry.key),
+                  onTap: () => onChanged(
+                    values.contains(entry.key)
+                        ? [for (final v in values) if (v != entry.key) v]
+                        : [...values, entry.key],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentChip extends StatelessWidget {
+  const _PaymentChip({
+    required this.label,
+    required this.on,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool on;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      selected: on,
+      button: true,
+      child: Material(
+        color: on ? D.brandTint : D.card,
+        borderRadius: D.rPill,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: D.rPill,
+          child: Container(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.textScalerOf(context).scale(D.tap - D.s2),
+            ),
+            padding: EdgeInsets.symmetric(horizontal: D.s3),
+            decoration: BoxDecoration(
+              borderRadius: D.rPill,
+              border: Border.all(
+                color: on ? D.brand : D.lineStrong,
+                width: on ? 1.5 : 1,
+              ),
+            ),
+            child: Align(
+              widthFactor: 1,
+              child: Text(
+                label,
+                style: D.dateLine.copyWith(color: on ? D.brand : D.inkMuted),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

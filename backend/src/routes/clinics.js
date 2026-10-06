@@ -65,6 +65,18 @@ const clinicBody = z.object({
   logoLightAssetId: z.string().optional(),
   logoDarkAssetId: z.string().optional(),
   logoNeedsDarkChip: z.boolean().optional(),
+  // What kind of place it is and what a patient will find there. Nullable
+  // so a landmark typed by mistake can be cleared.
+  kind: z.enum(['clinic', 'hospital', 'diagnostic_centre', 'home_visit']).optional(),
+  landmark: z.string().max(200).nullish(),
+  // Stored, never verified — see models/Clinic.js.
+  hfrId: z.string().max(60).nullish(),
+  facilities: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+  paymentMethods: z
+    .array(z.enum(['upi', 'cash', 'card', 'net_banking']))
+    .max(4)
+    .optional(),
+  collectFeeAtBooking: z.boolean().optional(),
   slotMinutes: z.number().int().min(5).max(120).default(15),
   weeklyHours: z.array(weeklyHourShape).max(50).default([]),
   overrides: z.array(overrideShape).max(120).default([]),
@@ -319,6 +331,11 @@ router.get(
  */
 const diaryBody = z.object({
   slotMinutes: z.number().int().min(5).max(120),
+  // How the rest of the sitting is cut up. Left out, each keeps what it had,
+  // so an older app saving hours does not silently reset them to one.
+  patientsPerSlot: z.number().int().min(1).max(10).optional(),
+  walkInPlaces: z.number().int().min(0).max(50).optional(),
+  breakMinutes: z.number().int().min(0).max(60).optional(),
   weeklyHours: z.array(weeklyHourShape).max(50),
   // Left out, a diary keeps the one-off closures it already has.
   overrides: z.array(overrideShape).max(120).optional(),
@@ -395,7 +412,18 @@ router.put(
     const doctor = await practiceDoctor(req, clinic);
 
     const { slotMinutes, weeklyHours, overrides } = req.body;
-    const set = { slotMinutes, weeklyHours, isActive: true, ...(overrides ? { overrides } : {}) };
+    const set = {
+      slotMinutes,
+      weeklyHours,
+      isActive: true,
+      ...(overrides ? { overrides } : {}),
+      // Only what was sent. A key absent from the body is a setting the
+      // caller is not touching, not one they are clearing.
+      ...['patientsPerSlot', 'walkInPlaces', 'breakMinutes'].reduce(
+        (into, key) => (req.body[key] === undefined ? into : { ...into, [key]: req.body[key] }),
+        {},
+      ),
+    };
 
     /*
      * One diary per doctor per location, and the unique index says so. Two saves

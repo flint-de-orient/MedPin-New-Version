@@ -10,6 +10,10 @@ import '../../appointments/domain/doctor_hours.dart';
 import '../../appointments/presentation/appointment_providers.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../domain/weekly_schedule.dart';
+import '../../clinician/data/practice_repository.dart';
+import '../../clinician/domain/practice.dart';
+
+import 'widgets/live_fields.dart';
 import 'widgets/not_on_file.dart';
 import 'widgets/profile_parts.dart';
 
@@ -23,19 +27,18 @@ import 'widgets/profile_parts.dart';
 /// diaries, not one with a note. The chips across the top are the locations
 /// this practice has, and everything below them belongs to the chosen one.
 ///
-/// ---- The board's other controls, drawn and inert ---------------------------
+/// ---- Two scopes on one screen --------------------------------------------
 ///
-/// Patients per slot, walk-in places kept free, a break between patients, an
-/// online-booking switch, how far ahead patients may book and a cancellation
-/// window. The server stores `slotMinutes` and the weekly windows and nothing
-/// else of those, so each is drawn where the design puts it and marked "Not on
-/// file yet" — visible, and impossible to set. A live stepper for "walk-in
-/// places" would move a number no booking has ever read.
+/// The hours and the slot rules are this doctor's at this location. The
+/// booking rules below them are the practice's — one set, wherever the doctor
+/// is sitting, because a patient who may cancel two hours before at Salt Lake
+/// and not at New Town is a patient who rings the desk to ask which. The
+/// screen says which is which rather than letting a doctor believe they have
+/// closed booking at one room.
 ///
 /// Video is a location on the board, with its own chip and its own hours. It
 /// is not one here: a teleconsult has no `Clinic` row, so there is nowhere for
-/// video hours to live. The chip is drawn inert for the same reason as the
-/// rest.
+/// video hours to live. That chip stays inert.
 class DoctorScheduleScreen extends ConsumerStatefulWidget {
   const DoctorScheduleScreen({super.key, this.clinicId});
 
@@ -54,6 +57,14 @@ class _DoctorScheduleScreenState extends ConsumerState<DoctorScheduleScreen> {
   /// edit is never applied to a diary that has not loaded.
   List<WeeklyHour>? _hours;
   int _slotMinutes = 15;
+  int _patientsPerSlot = 1;
+  int _walkInPlaces = 0;
+  int _breakMinutes = 0;
+
+  /// The practice's, edited here because the board puts them here. Null until
+  /// the practice has been read.
+  PracticeRules? _rules;
+
   bool _dirty = false;
   bool _saving = false;
   String? _failed;
@@ -153,11 +164,22 @@ class _DoctorScheduleScreenState extends ConsumerState<DoctorScheduleScreen> {
                   }),
                   hours: _hours,
                   slotMinutes: _slotMinutes,
+                  patientsPerSlot: _patientsPerSlot,
+                  walkInPlaces: _walkInPlaces,
+                  breakMinutes: _breakMinutes,
+                  rules: _rules,
                   failed: _failed,
                   onLoaded: _adopt,
+                  onRules: _adoptRules,
                   onChanged: (hours, slot) => setState(() {
                     _hours = hours;
                     _slotMinutes = slot;
+                    _dirty = true;
+                  }),
+                  onSlotRule: (patients, walkIns, gap) => setState(() {
+                    _patientsPerSlot = patients;
+                    _walkInPlaces = walkIns;
+                    _breakMinutes = gap;
                     _dirty = true;
                   }),
                 ),
@@ -174,7 +196,20 @@ class _DoctorScheduleScreenState extends ConsumerState<DoctorScheduleScreen> {
       setState(() {
         _hours = [...hours.weeklyHours];
         _slotMinutes = hours.slotMinutes ?? 15;
+        _patientsPerSlot = hours.patientsPerSlot;
+        _walkInPlaces = hours.walkInPlaces;
+        _breakMinutes = hours.breakMinutes;
       });
+    });
+  }
+
+  /// The practice's rules, taken once. After the frame that read them, for the
+  /// same reason as the hours.
+  void _adoptRules(PracticeRules rules) {
+    if (_rules != null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _rules != null) return;
+      setState(() => _rules = rules);
     });
   }
 
@@ -195,8 +230,12 @@ class _DoctorScheduleScreenState extends ConsumerState<DoctorScheduleScreen> {
             doctorId,
             slotMinutes: _slotMinutes,
             weeklyHours: hours,
+            patientsPerSlot: _patientsPerSlot,
+            walkInPlaces: _walkInPlaces,
+            breakMinutes: _breakMinutes,
           );
       ref.invalidate(locationHoursProvider(clinicId));
+
       if (!mounted) return;
       setState(() {
         _saving = false;
@@ -235,9 +274,15 @@ class _Editor extends ConsumerWidget {
     required this.onPickRoom,
     required this.hours,
     required this.slotMinutes,
+    required this.patientsPerSlot,
+    required this.walkInPlaces,
+    required this.breakMinutes,
+    required this.rules,
     required this.failed,
     required this.onLoaded,
+    required this.onRules,
     required this.onChanged,
+    required this.onSlotRule,
   });
 
   final List<Clinic> rooms;
@@ -245,9 +290,22 @@ class _Editor extends ConsumerWidget {
   final ValueChanged<String> onPickRoom;
   final List<WeeklyHour>? hours;
   final int slotMinutes;
+  final int patientsPerSlot;
+  final int walkInPlaces;
+  final int breakMinutes;
+
+  /// The practice's booking rules, or null while they load.
+  final PracticeRules? rules;
+
   final String? failed;
   final ValueChanged<DoctorHours> onLoaded;
+  final ValueChanged<PracticeRules> onRules;
   final void Function(List<WeeklyHour>, int) onChanged;
+
+  /// patients per slot, walk-in places, break — all three, so the screen's
+  /// state moves in one step rather than three rebuilds.
+  final void Function(int, int, int) onSlotRule;
+
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -263,7 +321,10 @@ class _Editor extends ConsumerWidget {
       data: (location) {
         final mine = location.doctors.where((d) => d.doctorId == doctorId).firstOrNull;
         if (mine != null) onLoaded(mine);
+        final practice = ref.watch(practiceOverviewProvider).valueOrNull;
+        if (practice != null) onRules(practice.rules);
         final week = hours;
+        final everyMinutes = slotMinutes + breakMinutes;
 
         return ListView(
           padding: EdgeInsets.fromLTRB(D.s4, D.s4, D.s4, D.s8),
@@ -386,30 +447,53 @@ class _Editor extends ConsumerWidget {
                           : () => onChanged(week, slotMinutes + 5),
                     ),
                   ),
-                  const PendingStepper(
+                  StepperField(
                     title: 'Patients per slot',
                     sub: 'More than 1 lets you double-book',
+                    value: patientsPerSlot,
+                    min: 1,
+                    max: 10,
+                    onChanged: (v) =>
+                        onSlotRule(v ?? 1, walkInPlaces, breakMinutes),
                   ),
-                  const PendingStepper(
+                  StepperField(
                     title: 'Walk-in places',
                     sub: 'Kept free each session',
+                    value: walkInPlaces,
+                    min: 0,
+                    max: 50,
+                    onChanged: (v) =>
+                        onSlotRule(patientsPerSlot, v ?? 0, breakMinutes),
                   ),
-                  const PendingStepper(
+                  StepperField(
                     title: 'Break between patients',
                     sub: 'For notes and hand-wash',
+                    value: breakMinutes,
+                    min: 0,
+                    max: 60,
+                    step: 5,
+                    unit: ' min',
+                    onChanged: (v) =>
+                        onSlotRule(patientsPerSlot, walkInPlaces, v ?? 0),
                   ),
                 ],
               ),
               SizedBox(height: D.s6),
 
+              // A patient starts every slot plus the break after the last
+              // one, so a 15-minute slot with a 5-minute break is one every
+              // 20. The preview has to be cut the same way the server cuts it
+              // or it is a picture of a different day.
               if (hoursOn(week, nextOpenDay(week) ?? 1).isNotEmpty) ...[
                 ProfileEyebrow(
                   label: 'SLOT PREVIEW · ${dayName(nextOpenDay(week)!).toUpperCase()}',
                 ),
                 SizedBox(height: D.s2),
                 _Preview(
-                  times: previewSlots(week, nextOpenDay(week)!, slotMinutes),
-                  total: countSlots(week, nextOpenDay(week)!, slotMinutes),
+                  times: previewSlots(week, nextOpenDay(week)!, everyMinutes),
+                  total: countSlots(week, nextOpenDay(week)!, everyMinutes),
+                  perSlot: patientsPerSlot,
+                  walkIns: walkInPlaces,
                 ),
                 SizedBox(height: D.s6),
               ],
@@ -417,31 +501,57 @@ class _Editor extends ConsumerWidget {
 
             const ProfileEyebrow(label: 'BOOKING RULES'),
             SizedBox(height: D.s2),
-            ProfileGroup(
-              children: const [
-                PendingSwitch(
-                  first: true,
-                  title: 'Online booking',
-                  sub: 'Patients book from the MedPin app',
-                ),
-                PendingStepper(
-                  title: 'Open booking',
-                  sub: 'How far ahead patients can book',
-                ),
-                PendingStepper(
-                  title: 'Cancel or reschedule',
-                  sub: 'Allowed until this long before',
-                ),
-              ],
-            ),
+            if (rules == null)
+              const ProfileGroup(
+                children: [
+                  ProfileRow(
+                    first: true,
+                    child: Center(
+                      child: SizedBox(
+                        width: D.icon,
+                        height: D.icon,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: D.brand,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else
+              // Shown, not edited. They are the practice's, and one setting
+              // with two editors is a setting that ends up disagreeing with
+              // itself — see doctor_care_rules_screen.dart.
+              ProfileGroup(
+                children: [
+                  ProfileLink(
+                    first: true,
+                    title: 'Online booking',
+                    value: rules!.onlineBooking ? 'Open' : 'Closed',
+                    onTap: () => context.push('/clinician/more/care'),
+                  ),
+                  ProfileLink(
+                    title: 'Open booking',
+                    value: rules!.windowLine,
+                    onTap: () => context.push('/clinician/more/care'),
+                  ),
+                  ProfileLink(
+                    title: 'Cancel or reschedule',
+                    value: rules!.cancelLine,
+                    onTap: () => context.push('/clinician/more/care'),
+                  ),
+                ],
+              ),
             SizedBox(height: D.s2),
             Padding(
               padding: EdgeInsets.only(left: D.s1),
               child: Text(
-                // What actually governs booking today, so the inert switch
-                // above does not read as the thing holding patients out.
-                'Patients can book any published slot today, and the desk can '
-                'move or cancel one at any time.',
+                // Said plainly: the three above are not this room's. A doctor
+                // who closes booking here has closed it everywhere.
+                'These three are the practice\u2019s and apply at every '
+                'location \u2014 tap one to change them. The hours and slots '
+                'above are yours, here.',
                 style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
               ),
             ),
@@ -472,11 +582,7 @@ class _Editor extends ConsumerWidget {
               SizedBox(height: D.s5),
             ],
 
-            const PendingNote(
-              what: 'video as a location of its own, patients per slot, '
-                  'walk-in places, the break between patients, and the three '
-                  'booking rules',
-            ),
+            const PendingNote(what: 'video as a location of its own'),
           ],
         );
       },
@@ -771,10 +877,20 @@ class _Round extends StatelessWidget {
 /// What the day's slots come out as, so the settings can be checked before
 /// a patient is the one who finds out.
 class _Preview extends StatelessWidget {
-  const _Preview({required this.times, required this.total});
+  const _Preview({
+    required this.times,
+    required this.total,
+    required this.perSlot,
+    required this.walkIns,
+  });
 
   final List<String> times;
   final int total;
+  final int perSlot;
+
+  /// Held back from the published list, off the end of the sitting: a doctor
+  /// who runs late loses the end of the session, not the morning.
+  final int walkIns;
 
   @override
   Widget build(BuildContext context) {
@@ -810,21 +926,13 @@ class _Preview extends StatelessWidget {
           ),
           SizedBox(height: D.s3),
           Text(
-            total > times.length
-                ? '$total slots that day, the first ${times.length} shown'
-                : '$total ${total == 1 ? 'slot' : 'slots'} that day',
+            slotPreviewLine(
+              slots: total,
+              shown: times.length,
+              perSlot: perSlot,
+              walkIns: walkIns,
+            ),
             style: D.statLabel.copyWith(color: D.inkMuted),
-          ),
-          SizedBox(height: D.s1),
-          Text(
-            // The board greys the walk-in places out of this preview — "12
-            // bookable online, 4 kept for walk-ins". Every one of these is
-            // bookable, because nothing reserves any of them, and showing a
-            // split that no booking honours would be the worst kind of
-            // reassurance.
-            'All of them are bookable online. Keeping some back for walk-ins '
-            'is not on file yet.',
-            style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
           ),
         ],
       ),

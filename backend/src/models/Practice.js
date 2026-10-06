@@ -429,6 +429,65 @@ const practiceSchema = new mongoose.Schema(
      * almost every practice, which is the point: the plan should be the answer
      * and this should be the exception somebody had to type.
      */
+    /*
+     * How patients may book, be reminded, and reach the clinic
+     * (`Doctor-MyProfile` → Patients and care).
+     *
+     * ---- Why the practice and not the location ---------------------------
+     *
+     * The design puts booking rules on the hub, which is the practice, and
+     * the cancellation window on the schedule screen, which is a location.
+     * They are the same rule: a patient who may cancel two hours before at
+     * Salt Lake and not at New Town is a patient who will ring the desk to
+     * ask which. One set, for the practice.
+     *
+     * Every default here is what the code already does, so a practice that
+     * never opens this screen behaves exactly as it does today.
+     */
+    booking: {
+      /// False closes online booking without touching the published hours,
+      /// which is what a practice wants when its desk takes over for a week.
+      online: { type: Boolean, default: true },
+      /// How far ahead a slot may be taken. Null is no limit, which is the
+      /// behaviour before this field existed.
+      windowDays: { type: Number, min: 1, max: 365, default: null },
+      /// How close to the appointment a patient may still call it off. Null
+      /// is any time, which is what cancel does today.
+      cancelCutoffHours: { type: Number, min: 0, max: 168, default: null },
+    },
+
+    /*
+     * When a patient is reminded that they were asked back.
+     *
+     * `daysBefore` is read by the reminder job; an empty `channels` means the
+     * reminder is in the app only, which is the one channel that always
+     * exists.
+     */
+    followUpReminder: {
+      daysBefore: { type: Number, min: 0, max: 30, default: 3 },
+      channels: {
+        type: [{ type: String, enum: ['app', 'whatsapp', 'sms'] }],
+        default: ['app'],
+      },
+    },
+
+    /*
+     * When patients may message the clinic.
+     *
+     * `always` is how it works today. The hours are for a practice that wants
+     * the thread quiet overnight — the message is still accepted and still
+     * delivered, and what changes is whether anybody is pushed about it at
+     * two in the morning.
+     */
+    patientMessaging: {
+      always: { type: Boolean, default: true },
+      from: { type: String, default: null }, // 'HH:mm'
+      to: { type: String, default: null },
+      /// Urgent messages ignore the hours. A patient who says they cannot
+      /// breathe is not waiting for nine o'clock.
+      urgentAlways: { type: Boolean, default: true },
+    },
+
     capabilities: { type: [String], default: [] },
 
     /// Free text for the operator. "Paying annually, invoice by email" is the
@@ -466,6 +525,27 @@ practiceSchema.methods.toPublic = function toPublic() {
     registrationNo: this.registrationNo ?? null,
     prescriptionPrefix: this.prescriptionPrefix ?? null,
     emergencyPhone: this.emergencyPhone ?? null,
+    // The rules a patient meets. Always whole objects, with the defaults
+    // already applied, so a screen never has to decide what a missing key
+    // means — and an older row that predates the fields reads as today's
+    // behaviour rather than as nothing.
+    booking: {
+      online: this.booking?.online ?? true,
+      windowDays: this.booking?.windowDays ?? null,
+      cancelCutoffHours: this.booking?.cancelCutoffHours ?? null,
+    },
+    followUpReminder: {
+      daysBefore: this.followUpReminder?.daysBefore ?? 3,
+      channels: this.followUpReminder?.channels?.length
+        ? this.followUpReminder.channels
+        : ['app'],
+    },
+    patientMessaging: {
+      always: this.patientMessaging?.always ?? true,
+      from: this.patientMessaging?.from ?? null,
+      to: this.patientMessaging?.to ?? null,
+      urgentAlways: this.patientMessaging?.urgentAlways ?? true,
+    },
     logoLightUrl: this.logoLightAssetId ? `/api/v1/uploads/${this.logoLightAssetId}/raw` : null,
     logoDarkUrl: this.logoDarkAssetId ? `/api/v1/uploads/${this.logoDarkAssetId}/raw` : null,
     logoNeedsDarkChip: Boolean(this.logoNeedsDarkChip),

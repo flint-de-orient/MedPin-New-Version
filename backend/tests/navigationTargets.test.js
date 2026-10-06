@@ -185,7 +185,14 @@ describe('no button goes nowhere', () => {
        */
       const resolved = raw
         .replace(/\$\{[^}]+\}/g, 'X')
-        .replace(/\$[A-Za-z_]+/g, 'X');
+        .replace(/\$[A-Za-z_]+/g, 'X')
+        // go_router matches the path; a query is read by the screen after it
+        // has been matched. This was not stripped, and the targets that carry
+        // one passed only by accident: `/clinician/patients/X?tab=tests` fits
+        // `/clinician/patients/:id` because `[^/]+` swallowed the query too.
+        // A target whose query follows a literal segment — `/x/y?a=b` — did
+        // not, so the rule was "a query is allowed if it lands in a parameter".
+        .split('?')[0];
       if (resolved.startsWith('X')) continue;
       if (patterns.some((re) => re.test(resolved))) continue;
       dead.push(raw);

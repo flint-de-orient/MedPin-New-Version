@@ -65,6 +65,134 @@ class PracticeLocation {
 
 /// The practice, its readiness, its places and its people.
 @immutable
+/// How patients may book, be reminded, and reach the clinic.
+///
+/// One set for the practice, not per location: a patient who may cancel two
+/// hours before at Salt Lake and not at New Town is a patient who will ring
+/// the desk to ask which.
+///
+/// Every default here is what the server already does, so a practice that has
+/// never opened the screen reads as today's behaviour rather than as nothing.
+class PracticeRules {
+  const PracticeRules({
+    this.onlineBooking = true,
+    this.bookingWindowDays,
+    this.cancelCutoffHours,
+    this.reminderDaysBefore = 3,
+    this.reminderChannels = const ['app'],
+    this.messagingAlways = true,
+    this.messagingFrom,
+    this.messagingTo,
+    this.urgentAlways = true,
+  });
+
+  /// False closes online booking without touching the published hours.
+  final bool onlineBooking;
+
+  /// How far ahead a slot may be taken. Null is no limit.
+  final int? bookingWindowDays;
+
+  /// How close to the appointment a patient may still call it off. Null is
+  /// any time, which is what cancel does today.
+  final int? cancelCutoffHours;
+
+  final int reminderDaysBefore;
+
+  /// 'app', 'whatsapp', 'sms'. The app is the one channel that always exists.
+  final List<String> reminderChannels;
+
+  final bool messagingAlways;
+
+  /// 'HH:mm', when [messagingAlways] is false.
+  final String? messagingFrom;
+  final String? messagingTo;
+
+  /// Urgent messages ignore the hours. A patient who says they cannot breathe
+  /// is not waiting for nine o'clock.
+  final bool urgentAlways;
+
+  /// "Any time", "7 days ahead".
+  String get windowLine =>
+      bookingWindowDays == null ? 'Any time' : '$bookingWindowDays days ahead';
+
+  /// "Any time", "4 hours before".
+  String get cancelLine => cancelCutoffHours == null
+      ? 'Any time'
+      : '$cancelCutoffHours ${cancelCutoffHours == 1 ? 'hour' : 'hours'} before';
+
+  /// "All day", "9:00 AM – 6:00 PM".
+  String get messagingLine =>
+      messagingAlways || messagingFrom == null || messagingTo == null
+      ? 'All day'
+      : '$messagingFrom – $messagingTo';
+
+  factory PracticeRules.fromJson(Map<String, dynamic> p) {
+    final booking = p['booking'] as Map<String, dynamic>? ?? const {};
+    final reminder = p['followUpReminder'] as Map<String, dynamic>? ?? const {};
+    final messaging = p['patientMessaging'] as Map<String, dynamic>? ?? const {};
+    return PracticeRules(
+      onlineBooking: booking['online'] != false,
+      bookingWindowDays: (booking['windowDays'] as num?)?.toInt(),
+      cancelCutoffHours: (booking['cancelCutoffHours'] as num?)?.toInt(),
+      reminderDaysBefore: (reminder['daysBefore'] as num?)?.toInt() ?? 3,
+      reminderChannels: [
+        for (final c in (reminder['channels'] as List? ?? const ['app']))
+          if (c != null) c.toString(),
+      ],
+      messagingAlways: messaging['always'] != false,
+      messagingFrom: messaging['from']?.toString(),
+      messagingTo: messaging['to']?.toString(),
+      urgentAlways: messaging['urgentAlways'] != false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'booking': {
+      'online': onlineBooking,
+      'windowDays': bookingWindowDays,
+      'cancelCutoffHours': cancelCutoffHours,
+    },
+    'followUpReminder': {
+      'daysBefore': reminderDaysBefore,
+      'channels': reminderChannels,
+    },
+    'patientMessaging': {
+      'always': messagingAlways,
+      'from': messagingFrom,
+      'to': messagingTo,
+      'urgentAlways': urgentAlways,
+    },
+  };
+
+  PracticeRules copyWith({
+    bool? onlineBooking,
+    int? Function()? bookingWindowDays,
+    int? Function()? cancelCutoffHours,
+    int? reminderDaysBefore,
+    List<String>? reminderChannels,
+    bool? messagingAlways,
+    String? Function()? messagingFrom,
+    String? Function()? messagingTo,
+    bool? urgentAlways,
+  }) => PracticeRules(
+    onlineBooking: onlineBooking ?? this.onlineBooking,
+    // A function, not a value: null has to mean "no limit" as well as "leave
+    // it alone", and a plain nullable cannot say both.
+    bookingWindowDays: bookingWindowDays == null
+        ? this.bookingWindowDays
+        : bookingWindowDays(),
+    cancelCutoffHours: cancelCutoffHours == null
+        ? this.cancelCutoffHours
+        : cancelCutoffHours(),
+    reminderDaysBefore: reminderDaysBefore ?? this.reminderDaysBefore,
+    reminderChannels: reminderChannels ?? this.reminderChannels,
+    messagingAlways: messagingAlways ?? this.messagingAlways,
+    messagingFrom: messagingFrom == null ? this.messagingFrom : messagingFrom(),
+    messagingTo: messagingTo == null ? this.messagingTo : messagingTo(),
+    urgentAlways: urgentAlways ?? this.urgentAlways,
+  );
+}
+
 class PracticeOverview {
   const PracticeOverview({
     required this.id,
@@ -81,6 +209,7 @@ class PracticeOverview {
     required this.doctors,
     required this.staff,
     required this.dieticians,
+    this.rules = const PracticeRules(),
   });
 
   final String id;
@@ -102,6 +231,9 @@ class PracticeOverview {
   final int doctors;
   final int staff;
   final int dieticians;
+
+  /// How patients may book, be reminded, and reach the clinic.
+  final PracticeRules rules;
 
   bool get isComplete => gaps.isEmpty;
 
@@ -137,6 +269,7 @@ class PracticeOverview {
       doctors: (people['doctors'] as num?)?.toInt() ?? 0,
       staff: (people['staff'] as num?)?.toInt() ?? 0,
       dieticians: (people['dieticians'] as num?)?.toInt() ?? 0,
+      rules: PracticeRules.fromJson(p),
     );
   }
 }

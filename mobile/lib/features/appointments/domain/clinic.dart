@@ -1,3 +1,9 @@
+/// A list of strings from a server that may not have the field at all.
+List<String> _strings(dynamic value) => [
+  for (final v in (value as List? ?? const []))
+    if (v != null && v.toString().trim().isNotEmpty) v.toString(),
+];
+
 /// A recurring weekly availability window, e.g. Monday 10:00–14:00.
 class WeeklyHour {
   const WeeklyHour({
@@ -88,6 +94,12 @@ class Clinic {
     this.overrides = const [],
     this.isActive = true,
     this.sortIndex = 0,
+    this.kind = 'clinic',
+    this.landmark,
+    this.hfrId,
+    this.facilities = const [],
+    this.paymentMethods = const [],
+    this.collectFeeAtBooking = false,
     this.managedByYou,
   });
 
@@ -136,6 +148,22 @@ class Clinic {
   final List<ClinicOverride> overrides;
   final bool isActive;
   final int sortIndex;
+
+  /// What kind of place it is (`Profile-Location`).
+  final String kind;
+  final String? landmark;
+
+  /// The ABDM Health Facility Registry id. Stored, never verified.
+  final String? hfrId;
+
+  final List<String> facilities;
+
+  /// What this location takes at the desk — 'upi', 'cash', 'card',
+  /// 'net_banking'. Not what the app collects: that is a service with a fee.
+  final List<String> paymentMethods;
+
+  /// Whether booking a priced service here has to be paid for up front.
+  final bool collectFeeAtBooking;
 
   /// Whether the reader runs this location: may book, confirm, move and edit
   /// here. The server says so for staff and leaves it out for a patient, so
@@ -189,6 +217,12 @@ class Clinic {
         const [],
     isActive: j['isActive'] != false,
     sortIndex: (j['sortIndex'] as num?)?.toInt() ?? 0,
+    kind: j['kind']?.toString() ?? 'clinic',
+    landmark: j['landmark']?.toString(),
+    hfrId: j['hfrId']?.toString(),
+    facilities: _strings(j['facilities']),
+    paymentMethods: _strings(j['paymentMethods']),
+    collectFeeAtBooking: j['collectFeeAtBooking'] == true,
     managedByYou: j['managedByYou'] is bool ? j['managedByYou'] as bool : null,
   );
 }

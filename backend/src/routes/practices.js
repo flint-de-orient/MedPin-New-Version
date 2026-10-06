@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireAuth, requireClinician, requireDoctor } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler, notFound } from '../middleware/errors.js';
+import { TIME_RE } from '../utils/clinicTime.js';
 import { audit } from '../middleware/audit.js';
 import { Practice, PRACTICE_STATUS, VERIFICATION } from '../models/Practice.js';
 import { Clinic } from '../models/Clinic.js';
@@ -465,6 +466,35 @@ router.patch(
       logoNeedsDarkChip: z.boolean().optional(),
       // The number patients ring. Null or empty clears it.
       emergencyPhone: z.string().trim().max(40).nullable().optional(),
+
+      /*
+       * How patients may book, be reminded, and reach the clinic.
+       *
+       * Each is a whole object or absent: a partial `booking` would have to
+       * decide what a missing `windowDays` meant, and "no limit" and "do not
+       * change it" are different answers.
+       */
+      booking: z
+        .object({
+          online: z.boolean(),
+          windowDays: z.number().int().min(1).max(365).nullable(),
+          cancelCutoffHours: z.number().int().min(0).max(168).nullable(),
+        })
+        .optional(),
+      followUpReminder: z
+        .object({
+          daysBefore: z.number().int().min(0).max(30),
+          channels: z.array(z.enum(['app', 'whatsapp', 'sms'])).max(3),
+        })
+        .optional(),
+      patientMessaging: z
+        .object({
+          always: z.boolean(),
+          from: z.string().regex(TIME_RE, 'Use HH:mm').nullable(),
+          to: z.string().regex(TIME_RE, 'Use HH:mm').nullable(),
+          urgentAlways: z.boolean(),
+        })
+        .optional(),
     }),
   }),
   audit('update', 'Practice'),
@@ -500,6 +530,23 @@ router.patch(
         throw badRequest('Enter a phone number your patients can ring, including the area or country code.');
       }
       req.body.emergencyPhone = phone;
+    }
+
+    /*
+     * Hours that mean something, or none.
+     *
+     * "Patients may message between 09:00 and 09:00" is a window of nothing,
+     * and a thread that silently accepts no messages is a clinic its patients
+     * think has stopped answering.
+     */
+    const hours = req.body.patientMessaging;
+    if (hours && !hours.always) {
+      if (!hours.from || !hours.to) {
+        throw badRequest('Set the hours patients can message you, or leave it open all day.');
+      }
+      if (hours.from === hours.to) {
+        throw badRequest('The hours patients can message you have to be a real window.');
+      }
     }
 
     for (const [k, v] of Object.entries(req.body)) practice[k] = v;

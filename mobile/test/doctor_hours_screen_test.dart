@@ -61,6 +61,9 @@ class _FakeClinics implements ClinicRepository {
     String doctorId, {
     required int slotMinutes,
     required List<WeeklyHour> weeklyHours,
+    int? patientsPerSlot,
+    int? walkInPlaces,
+    int? breakMinutes,
   }) async {
     saved.add((doctorId: doctorId, slotMinutes: slotMinutes, weeklyHours: weeklyHours));
     return (
@@ -70,6 +73,9 @@ class _FakeClinics implements ClinicRepository {
         usesLocationHours: false,
         slotMinutes: slotMinutes,
         weeklyHours: weeklyHours,
+        patientsPerSlot: patientsPerSlot ?? 1,
+        walkInPlaces: walkInPlaces ?? 0,
+        breakMinutes: breakMinutes ?? 0,
       ),
       overlaps: const [HoursOverlap(locationName: 'Behala Clinic', dayOfWeek: 1, start: '10:00', end: '12:00')],
     );

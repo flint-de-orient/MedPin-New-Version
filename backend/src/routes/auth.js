@@ -722,6 +722,31 @@ router.patch(
       qualifications: z.string().trim().max(120).optional(),
       specialty: z.string().trim().max(120).optional(),
       registrationNo: z.string().trim().max(60).optional(),
+      // The structured professional profile. Nullable, because clearing a
+      // field somebody filled in by mistake is a thing they must be able to
+      // do — `.optional()` alone only lets them leave it alone.
+      professionType: z
+        .enum(['doctor', 'psychologist', 'physiotherapist', 'dietician', 'fitness_coach', 'other'])
+        .nullish(),
+      council: z.string().trim().max(120).nullish(),
+      registrationYear: z.number().int().min(1900).max(2100).nullish(),
+      hprId: z.string().trim().max(60).nullish(),
+      degrees: z
+        .array(
+          z.object({
+            name: z.string().trim().min(1).max(120),
+            institution: z.string().trim().max(160).nullish(),
+            year: z.number().int().min(1900).max(2100).nullish(),
+          }),
+        )
+        .max(20)
+        .optional(),
+      specialisations: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+      conditionsTreated: z.array(z.string().trim().min(1).max(80)).max(40).optional(),
+      practisingSince: z.number().int().min(1900).max(2100).nullish(),
+      memberships: z.array(z.string().trim().min(1).max(120)).max(30).optional(),
+      bio: z.string().trim().max(1200).nullish(),
+      languages: z.array(z.string().trim().min(1).max(40)).max(10).optional(),
       signatureAssetId: z.string().optional(),
     }),
   }),

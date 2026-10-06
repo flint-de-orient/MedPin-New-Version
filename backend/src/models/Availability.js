@@ -64,6 +64,28 @@ const availabilitySchema = new mongoose.Schema(
     /// general clinic takes 10, in the same room on different days.
     slotMinutes: { type: Number, default: 15, min: 5, max: 120 },
 
+    /*
+     * The rest of how a sitting is cut up (`Profile-Schedule`).
+     *
+     * ---- Why these live beside slotMinutes -------------------------------
+     *
+     * Because the slot list is built from them together, and because they are
+     * the doctor's at this location rather than the building's: a consultant
+     * seeing four patients an hour in the same room another doctor sees twelve
+     * in is the ordinary case.
+     *
+     * `patientsPerSlot` above one is deliberate double-booking — a clinic that
+     * runs a queue rather than appointments. `walkInPlaces` are held back from
+     * the published list, so the last of them is the first walk-in's: they are
+     * taken off the END of each sitting, not the start, because a doctor who
+     * runs late loses the end of the session and not the morning.
+     * `breakMinutes` is added after each patient, so a 15-minute slot with a
+     * 5-minute break starts one patient every 20.
+     */
+    patientsPerSlot: { type: Number, default: 1, min: 1, max: 10 },
+    walkInPlaces: { type: Number, default: 0, min: 0, max: 50 },
+    breakMinutes: { type: Number, default: 0, min: 0, max: 60 },
+
     weeklyHours: { type: [weeklyHoursSchema], default: [] },
     overrides: { type: [overrideSchema], default: [] },
 

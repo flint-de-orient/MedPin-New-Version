@@ -183,6 +183,39 @@ String summaryLine(List<WeeklyHour> week, int slotMinutes) {
   return best;
 }
 
+/// "16 slots · 12 bookable online, 4 kept for walk-ins".
+///
+/// The board's caption, and the reason the preview exists: a doctor setting
+/// walk-in places is asking how many of the day's slots patients can take.
+/// Walk-ins come off the end of the sitting rather than the start — a doctor
+/// who runs late loses the end of the session, not the morning — so the
+/// bookable ones are the first of them.
+///
+/// `perSlot` above one multiplies the people, not the times: two patients per
+/// slot on sixteen slots is thirty-two bookings against sixteen clock times,
+/// and saying "16 slots" alone would halve what the clinic thinks it holds.
+String slotPreviewLine({
+  required int slots,
+  required int shown,
+  required int perSlot,
+  required int walkIns,
+}) {
+  if (slots == 0) return 'Nothing published that day.';
+
+  final places = slots * perSlot;
+  final held = walkIns.clamp(0, places);
+  final online = places - held;
+
+  final head = perSlot > 1
+      ? '$slots ${slots == 1 ? 'slot' : 'slots'} · $places places at $perSlot a slot'
+      : '$slots ${slots == 1 ? 'slot' : 'slots'}';
+  final tail = held == 0
+      ? 'all bookable online'
+      : '$online bookable online, $held kept for walk-ins';
+  final cut = shown < slots ? ' · first $shown shown' : '';
+  return '$head · $tail$cut';
+}
+
 /// "Mon – Sat", "Thu, Sat", "Mon – Wed, Fri".
 ///
 /// Runs are collapsed because that is how a clinic says its hours, and a list

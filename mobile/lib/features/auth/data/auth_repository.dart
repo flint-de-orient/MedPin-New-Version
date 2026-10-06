@@ -237,6 +237,13 @@ class AuthRepository {
     String? specialty,
     String? registrationNo,
     String? signatureAssetId,
+    /// The structured professional profile.
+    ///
+    /// A `Map` rather than two dozen named arguments: these are saved as a
+    /// group from one screen, and a signature that long is a signature nobody
+    /// reads before adding the twenty-fifth. The keys are checked by the
+    /// server's schema, which is the only place that can check them.
+    Map<String, dynamic>? professional,
   }) async {
     final json = await _client.patchJson(
       '/auth/me',
@@ -252,6 +259,9 @@ class AuthRepository {
         if (specialty != null) 'specialty': specialty,
         if (registrationNo != null) 'registrationNo': registrationNo,
         if (signatureAssetId != null) 'signatureAssetId': signatureAssetId,
+        // Spread last so an explicit null in it — clearing a council somebody
+        // typed by mistake — survives.
+        ...?professional,
       },
     );
     return AppUser.fromJson(json['user'] as Map<String, dynamic>);

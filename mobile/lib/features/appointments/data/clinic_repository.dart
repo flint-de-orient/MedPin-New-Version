@@ -74,12 +74,20 @@ class ClinicRepository {
     String doctorId, {
     required int slotMinutes,
     required List<WeeklyHour> weeklyHours,
+    /// Left out, each keeps what it had. A key absent from the body is a
+    /// setting the caller is not touching, not one they are clearing.
+    int? patientsPerSlot,
+    int? walkInPlaces,
+    int? breakMinutes,
   }) async {
     final json = await _client.putJson(
       '/clinics/$clinicId/availability/$doctorId',
       body: {
         'slotMinutes': slotMinutes,
         'weeklyHours': weeklyHours.map((w) => w.toJson()).toList(),
+        if (patientsPerSlot != null) 'patientsPerSlot': patientsPerSlot,
+        if (walkInPlaces != null) 'walkInPlaces': walkInPlaces,
+        if (breakMinutes != null) 'breakMinutes': breakMinutes,
       },
     );
     return (

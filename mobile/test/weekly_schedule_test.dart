@@ -207,4 +207,50 @@ void main() {
       expect(nextFreeToday(const [], now: DateTime(2026, 10, 6)), isNull);
     });
   });
+
+  group('the line under the slot preview', () {
+    test('names the split the walk-in places make', () {
+      expect(
+        slotPreviewLine(slots: 16, shown: 16, perSlot: 1, walkIns: 4),
+        '16 slots · 12 bookable online, 4 kept for walk-ins',
+      );
+    });
+
+    test('with none held back it says so rather than printing "0 kept"', () {
+      expect(
+        slotPreviewLine(slots: 16, shown: 16, perSlot: 1, walkIns: 0),
+        '16 slots · all bookable online',
+      );
+    });
+
+    test('two to a slot is twice the people, not twice the times', () {
+      // Saying "16 slots" alone would halve what the clinic thinks it holds.
+      expect(
+        slotPreviewLine(slots: 16, shown: 8, perSlot: 2, walkIns: 4),
+        '16 slots · 32 places at 2 a slot · 28 bookable online, '
+        '4 kept for walk-ins · first 8 shown',
+      );
+    });
+
+    test('holding back more than the day has leaves nothing bookable, not a negative', () {
+      expect(
+        slotPreviewLine(slots: 4, shown: 4, perSlot: 1, walkIns: 50),
+        '4 slots · 0 bookable online, 4 kept for walk-ins',
+      );
+    });
+
+    test('a day with nothing published says that instead of counting nothing', () {
+      expect(
+        slotPreviewLine(slots: 0, shown: 0, perSlot: 1, walkIns: 0),
+        'Nothing published that day.',
+      );
+    });
+
+    test('one slot is a slot', () {
+      expect(
+        slotPreviewLine(slots: 1, shown: 1, perSlot: 1, walkIns: 0),
+        '1 slot · all bookable online',
+      );
+    });
+  });
 }

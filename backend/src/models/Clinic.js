@@ -111,6 +111,41 @@ const clinicSchema = new mongoose.Schema(
     // half-run backfill leaves a working clinic rather than a blank letterhead.
     practice: { type: mongoose.Schema.Types.ObjectId, ref: 'Practice', default: null, index: true },
 
+    /*
+     * What kind of place it is, and what a patient will find there
+     * (`Profile-Location`).
+     *
+     * `hfrId` is the ABDM Health Facility Registry number, stored and not
+     * verified, for the same reason as the doctor's HPR id on User.
+     */
+    kind: {
+      type: String,
+      enum: ['clinic', 'hospital', 'diagnostic_centre', 'home_visit'],
+      default: 'clinic',
+    },
+    landmark: { type: String, trim: true, maxlength: 200, default: null },
+    hfrId: { type: String, trim: true, maxlength: 60, default: null },
+
+    /// Wheelchair access, parking, a lab collection point. Free text so a
+    /// clinic can name what it has rather than pick from our guesses.
+    facilities: { type: [String], default: [] },
+
+    /// What this location takes at the desk. Not what the app collects —
+    /// that is a service with a fee on it — but what a patient should bring.
+    paymentMethods: {
+      type: [{ type: String, enum: ['upi', 'cash', 'card', 'net_banking'] }],
+      default: [],
+    },
+
+    /*
+     * Whether booking a priced service here must be paid for up front.
+     *
+     * False means the fee is recorded as owed and settled at the desk, which
+     * is what every clinic on this platform does today. True is the stricter
+     * rule the design offers, and the booking route reads it.
+     */
+    collectFeeAtBooking: { type: Boolean, default: false },
+
     slotMinutes: { type: Number, default: 15, min: 5, max: 120 },
     weeklyHours: { type: [weeklyHoursSchema], default: [] },
     overrides: { type: [overrideSchema], default: [] },
@@ -137,6 +172,13 @@ clinicSchema.methods.toPublic = function toPublic() {
     logoLightUrl: this.logoLightAssetId ? `/api/v1/uploads/${this.logoLightAssetId}/raw` : null,
     logoDarkUrl: this.logoDarkAssetId ? `/api/v1/uploads/${this.logoDarkAssetId}/raw` : null,
     logoNeedsDarkChip: Boolean(this.logoNeedsDarkChip),
+    kind: this.kind ?? 'clinic',
+    landmark: this.landmark ?? null,
+    // Stored, never verified. See the note on the field.
+    hfrId: this.hfrId ?? null,
+    facilities: this.facilities ?? [],
+    paymentMethods: this.paymentMethods ?? [],
+    collectFeeAtBooking: Boolean(this.collectFeeAtBooking),
     slotMinutes: this.slotMinutes,
     weeklyHours: (this.weeklyHours ?? [])
       .map((w) => ({ dayOfWeek: w.dayOfWeek, start: w.start, end: w.end }))
