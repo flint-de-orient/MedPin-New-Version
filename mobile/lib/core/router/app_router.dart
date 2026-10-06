@@ -27,7 +27,10 @@ import '../../features/doctor_home/presentation/doctor_add_patient_screen.dart';
 import '../../features/doctor_home/presentation/doctor_appointments_screen.dart';
 import '../../features/doctor_home/presentation/doctor_professional_screen.dart';
 import '../../features/doctor_home/presentation/doctor_services_screen.dart';
+import '../../features/doctor_home/presentation/doctor_about_screen.dart';
+import '../../features/doctor_home/presentation/doctor_care_rules_screen.dart';
 import '../../features/doctor_home/presentation/doctor_leave_screen.dart';
+import '../../features/doctor_home/presentation/doctor_privacy_screen.dart';
 import '../../features/doctor_home/presentation/doctor_location_screen.dart';
 import '../../features/doctor_home/presentation/doctor_locations_screen.dart';
 import '../../features/doctor_home/presentation/doctor_schedule_screen.dart';
@@ -46,6 +49,8 @@ import '../../features/clinician/presentation/appointments_admin_screen.dart';
 import '../../features/clinician/presentation/clinic_edit_screen.dart';
 import '../../features/clinician/presentation/clinics_screen.dart';
 import '../../features/clinician/presentation/departments_screen.dart';
+import '../../features/clinician/presentation/team_add_screen.dart';
+import '../../features/clinician/presentation/team_member_screen.dart';
 import '../../features/clinician/presentation/team_screen.dart';
 import '../../features/clinician/presentation/chat_review_detail_screen.dart';
 import '../../features/clinician/presentation/chat_review_screen.dart';
@@ -334,6 +339,18 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         path: '/clinician/team',
         builder: (context, state) => const TeamScreen(),
       ),
+      // Before `:id`, or `add` matches it and the member screen opens looking
+      // for somebody whose membership id is the word "add".
+      GoRoute(
+        path: '/clinician/team/add',
+        builder: (context, state) => const TeamAddScreen(),
+      ),
+      GoRoute(
+        path: '/clinician/team/:id',
+        builder: (context, state) => TeamMemberScreen(
+          membershipId: state.pathParameters['id'] ?? '',
+        ),
+      ),
       GoRoute(
         path: '/clinician/staff',
         redirect: (context, state) => '/clinician/team',
@@ -539,6 +556,31 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/clinician/more/locations',
         builder: (context, state) => const DoctorLocationsScreen(),
+      ),
+      // How patients book, are reminded, and reach the clinic. The practice's,
+      // so there is one editor and the schedule screen only shows them.
+      GoRoute(
+        path: '/clinician/more/care',
+        builder: (context, state) => const DoctorCareRulesScreen(),
+      ),
+      // What a patient reads before booking, and the languages they will be
+      // answered in. Two rows of the board, one screen: both are what a
+      // patient sees and both save in the same call.
+      GoRoute(
+        path: '/clinician/more/about',
+        builder: (context, state) => const DoctorAboutScreen(),
+      ),
+      // Which pushes this handset shows. The doctor's own, kept on the phone.
+      GoRoute(
+        path: '/clinician/more/notifications',
+        builder: (context, state) => const DoctorNotificationsScreen(),
+      ),
+      // What is held about this account and what it agreed to. Read-only —
+      // see the note at the top of the screen for why nothing on it is a
+      // switch.
+      GoRoute(
+        path: '/clinician/more/privacy',
+        builder: (context, state) => const DoctorPrivacyScreen(),
       ),
       // Days the clinic is shut. The field has existed all along — see the
       // note at the top of doctor_leave_screen.dart.

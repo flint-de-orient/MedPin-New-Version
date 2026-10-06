@@ -159,6 +159,13 @@ router.get(
           location: r.location
             ? { id: String(r.location), name: locName.get(String(r.location)) ?? null }
             : null,
+          /*
+           * The locations this person may run, which is a different field from
+           * `location` above and the only one of the two that is a wall —
+           * see models/Membership.js. Empty means every location of the
+           * practice, and the People screen says so in those words.
+           */
+          locationIds: (r.locations ?? []).map(String),
           // The resolved grant, not the stored one. An empty array on the row
           // means "the role's preset applies", and sending the empty array
           // would make every screen re-derive that.
@@ -201,9 +208,40 @@ router.get(
         staff: practice?.limits?.staff ?? null,
         used: active.length,
       },
+
+      /*
+       * What the plan is called, for the sentence over the list: "7 of 8
+       * people on the Clinic plan". Null for a practice on no plan — the
+       * founding clinic is one — and the screen then counts without naming
+       * anything, rather than inventing a tier.
+       */
+      plan: practice?.plan ?? null,
     });
   }),
 );
+
+/**
+ * The practice's own clinics among [ids], as ObjectIds, in the order given.
+ *
+ * Each one is checked against the practice rather than taken on trust: a
+ * clinic id from another practice would otherwise narrow somebody to a
+ * building their employer does not own, which `worksAt()` would then honour.
+ * An unknown id is a refusal, not a silent drop — a half-saved list is worse
+ * than a rejected one.
+ */
+async function locationsIn(practiceId, ids) {
+  const wanted = [...new Set((ids ?? []).map(String))];
+  if (!wanted.length) return [];
+  const rows = await Clinic.find({
+    _id: { $in: wanted },
+    ...(practiceId ? { practice: practiceId } : {}),
+  })
+    .select('_id')
+    .lean();
+  if (rows.length !== wanted.length) throw notFound('Location not found');
+  const byId = new Map(rows.map((r) => [String(r._id), r._id]));
+  return wanted.map((id) => byId.get(id));
+}
 
 /** The refusal for a change made against a version of somebody's job that no longer stands. */
 function memberChanged() {
@@ -308,6 +346,11 @@ router.post(
       password: z.unknown().optional(),
       departmentId: z.string().optional(),
       locationId: z.string().optional(),
+      /*
+       * The locations they may run. Omitted or empty is every location, which
+       * is what every row written before this field existed holds.
+       */
+      locationIds: z.array(z.string()).max(50).optional(),
       qualifications: z.string().trim().max(120).optional(),
       registrationNo: z.string().trim().max(60).optional(),
     }),
@@ -374,6 +417,13 @@ router.post(
     // Both optional, and both checked against this practice. An id from
     // somewhere else would file the person under another practice's
     // department, which is the shape of leak this codebase keeps finding.
+    /*
+     * The locations they may run, resolved before anything is written so an
+     * id from another practice refuses the hire rather than half-making it.
+     * Undefined means the app sent no list, which is every location.
+     */
+    const narrowedTo = b.locationIds === undefined ? [] : await locationsIn(practiceId, b.locationIds);
+
     const [department, location] = await Promise.all([
       b.departmentId
         ? Department.findOne({
@@ -431,6 +481,7 @@ router.post(
         addedBy: req.user._id,
         department: department?._id ?? null,
         location: location?._id ?? null,
+        locations: narrowedTo,
       });
       req.auditResourceId = existing._id;
       await dieticianArrived(practiceId, joined.role);
@@ -484,6 +535,7 @@ router.post(
         addedBy: req.user._id,
         department: department?._id ?? null,
         location: location?._id ?? null,
+        locations: narrowedTo,
       });
     } catch (err) {
       // The account without the membership is the exact bug this route exists
@@ -542,6 +594,8 @@ router.patch(
       role: z.enum(HIREABLE).optional(),
       departmentId: z.string().nullable().optional(),
       locationId: z.string().nullable().optional(),
+      /// Empty narrows them to nothing at all, so it is read as every one.
+      locationIds: z.array(z.string()).max(50).optional(),
       status: z.enum([MEMBERSHIP_STATUS.ACTIVE, MEMBERSHIP_STATUS.SUSPENDED]).optional(),
       // The `version` the People screen was showing. Optional: older builds
       // send none, and are still protected from a change made at the same
@@ -618,6 +672,18 @@ router.patch(
         if (!c) throw notFound('Location not found');
         membership.location = c._id;
       }
+    }
+
+    if (req.body.locationIds !== undefined) {
+      membership.locations = await locationsIn(practiceId, req.body.locationIds);
+      /*
+       * The denormalised "which building" kept in step with the wall. It is a
+       * default view and nothing reads it as a restriction, but a list that
+       * showed Salt Lake for somebody narrowed to New Town would be two
+       * answers to one question.
+       */
+      membership.location = membership.locations.length === 1 ? membership.locations[0] : null;
+      req.auditMeta = { ...req.auditMeta, locations: membership.locations.map(String) };
     }
 
     /*

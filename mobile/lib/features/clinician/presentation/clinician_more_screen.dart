@@ -26,15 +26,13 @@ import '../../doctor_home/presentation/doctor_signature_screen.dart';
 import '../../doctor_home/presentation/widgets/not_on_file.dart';
 import '../../doctor_home/presentation/widgets/profile_header.dart';
 import '../../doctor_home/presentation/widgets/profile_parts.dart';
-import '../../feedback/data/feedback_repository.dart';
 import '../data/practice_repository.dart';
 import '../domain/practice.dart';
 import '../../doctor_home/presentation/widgets/profile_actions.dart';
+import '../domain/team_member.dart';
+import 'clinician_providers.dart';
 import 'widgets/clinician_notification_sheet.dart';
 
-/// The roles the server lets read patient feedback — `DIRECT_PATIENT_ACCESS` in
-/// backend/src/middleware/auth.js. A practice manager and a dietician are not
-/// among them.
 /// "MBBS, MD · WBMC 64213", or null while there is nothing to print.
 ///
 /// Null rather than an empty string: a row with a blank second line is taller
@@ -48,9 +46,6 @@ String? credentialsLine(AppUser? user) {
   ];
   return parts.isEmpty ? null : parts.join(' · ');
 }
-
-bool _readsPatientFeedback(String? role) =>
-    const {'doctor', 'staff', 'doctor_assistant', 'lab_manager', 'lab_technician'}.contains(role);
 
 /// The doctor's Profile (`Profile`), opened from the avatar on Home.
 ///
@@ -104,8 +99,11 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
     // absent then — never somebody else's number standing in.
     final practice = ref.watch(practiceOverviewProvider).valueOrNull;
     final mayEditPractice = caps.can(Perm.manageStaff);
-    final unreadFeedback = ref.watch(feedbackUnreadProvider).valueOrNull ?? 0;
     final clinics = ref.watch(clinicsProvider).valueOrNull ?? const <Clinic>[];
+    // Read for the two counts in the Team section. The board puts a figure on
+    // each row — "2 people", "and 4 more" — and a row that promised a count
+    // and showed none was the commonest thing to notice about this screen.
+    final roster = ref.watch(teamProvider).valueOrNull;
     final rooms = [for (final c in clinics) if (c.isActive) c];
     final missing = whatIsMissing(user, rooms: rooms.length);
 
@@ -196,17 +194,26 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                   badgeInk: D.pending,
                   onTap: () => context.push('/clinician/more/professional'),
                 ),
-                const PendingRow(
+                ProfileLink(
                   title: 'ABDM · HPR ID',
                   subtitle: 'Ayushman Bharat Digital Mission',
+                  // It lives with the rest of the registration, which is
+                  // where somebody filling one in already is.
+                  value: (user?.hprId ?? '').isEmpty ? 'Not set' : null,
+                  onTap: () => context.push('/clinician/more/professional'),
                 ),
-                const PendingRow(
+                ProfileLink(
                   title: 'About and photo',
                   subtitle: 'Bio patients read before booking',
+                  onTap: () => context.push('/clinician/more/about'),
                 ),
-                const PendingRow(
+                ProfileLink(
                   title: 'Languages',
                   subtitle: 'The languages you consult in',
+                  value: (user?.languages.isEmpty ?? true)
+                      ? null
+                      : '${user!.languages.length}',
+                  onTap: () => context.push('/clinician/more/about'),
                 ),
               ],
             ),
@@ -281,18 +288,21 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
             SizedBox(height: D.s2),
             ProfileGroup(
               children: [
-                const PendingRow(
+                ProfileLink(
                   first: true,
                   title: 'Booking rules',
-                  subtitle: 'How far ahead, cancellations, walk-ins',
+                  subtitle: 'How far ahead, and when they may cancel',
+                  onTap: () => context.push('/clinician/more/care'),
                 ),
-                const PendingRow(
+                ProfileLink(
                   title: 'Follow-up reminders',
                   subtitle: 'When a patient is reminded to come back',
+                  onTap: () => context.push('/clinician/more/care'),
                 ),
-                const PendingRow(
+                ProfileLink(
                   title: 'Chat and urgent messages',
                   subtitle: 'When patients can message you',
+                  onTap: () => context.push('/clinician/more/care'),
                 ),
                 ProfileLink(
                   title: 'Prescription letterhead and signature',
@@ -313,17 +323,21 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
             SizedBox(height: D.s2),
             ProfileGroup(
               children: [
+                // Two rows into one list, as the board draws them: somebody
+                // looking for the desk and somebody looking for a colleague
+                // ask different questions of the same screen. Each carries
+                // its own half of the count, so neither claims the other's.
                 ProfileLink(
                   first: true,
                   title: 'Staff and assistants',
                   subtitle: 'Who can register patients and run the diary',
-                  onTap: () => context.push('/clinician/staff'),
+                  value: _headcount(roster, clinical: false),
+                  onTap: () => context.push('/clinician/team'),
                 ),
-                // The `Profile` board's "People" and the hub's "Colleagues you
-                // work with" are the same screen. One row.
                 ProfileLink(
                   title: 'Colleagues you work with',
                   subtitle: 'Doctors, dieticians and the rest of the practice',
+                  value: _headcount(roster, clinical: true),
                   onTap: () => context.push('/clinician/team'),
                 ),
               ],
@@ -331,59 +345,34 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
             SizedBox(height: D.s6),
 
             // ---- Clinic tools --------------------------------------------
-            const ProfileEyebrow(label: 'CLINIC TOOLS'),
-            SizedBox(height: D.s2),
-            ProfileGroup(
-              children: [
-                ProfileLink(
-                  first: true,
-                  title: 'Practice',
-                  onTap: () => context.push('/clinician/practice'),
-                ),
-                // Readable by any doctor, not gated on MANAGE_STAFF. Knowing
-                // the clinic is on a trial that ends on the 14th is not
-                // privileged, and hiding it until somebody holds a billing
-                // permission is how a practice discovers its plan by being cut
-                // off. The buttons inside are gated; the screen is not.
-                if (isDoctor)
+            //
+            // One row. The other seven — Practice, Daily report, Clinical
+            // alerts, Export data, Chat review, Knowledge base, Patient
+            // feedback — are how you run the clinic, not who you are, and the
+            // canvas gives them rows of their own (Clinic operations, AI
+            // assistant & feedback, Team billing & reports). They are
+            // unreachable until those are built, which is the cost of taking
+            // them off a screen they did not belong on.
+            //
+            // Plan and billing stays, and is readable by any doctor rather
+            // than gated on MANAGE_STAFF: knowing the clinic is on a trial
+            // that ends on the 14th is not privileged, and hiding it until
+            // somebody holds a billing permission is how a practice discovers
+            // its plan by being cut off. The buttons inside are gated.
+            if (isDoctor) ...[
+              const ProfileEyebrow(label: 'CLINIC TOOLS'),
+              SizedBox(height: D.s2),
+              ProfileGroup(
+                children: [
                   ProfileLink(
+                    first: true,
                     title: 'Plan and billing',
                     onTap: () => context.push('/clinician/billing'),
                   ),
-                if (isDoctor)
-                  ProfileLink(
-                    title: 'Daily report',
-                    onTap: () => context.push('/clinician/daily-report'),
-                  ),
-                ProfileLink(
-                  title: 'Clinical alerts',
-                  onTap: () => context.push('/clinician/alerts'),
-                ),
-                if (caps.has(Cap.reportExport))
-                  ProfileLink(
-                    title: 'Export data',
-                    onTap: () => context.push('/clinician/export'),
-                  ),
-                if (caps.has(Cap.aiAssistant))
-                  ProfileLink(
-                    title: 'Chat review',
-                    onTap: () => context.push('/clinician/chat-review'),
-                  ),
-                ProfileLink(
-                  title: 'Knowledge base',
-                  onTap: () => context.push('/clinician/knowledge'),
-                ),
-                if (caps.can(Perm.viewPatient) && _readsPatientFeedback(user?.role))
-                  ProfileLink(
-                    title: 'Patient feedback',
-                    badge: unreadFeedback == 0 ? null : '$unreadFeedback new',
-                    badgeGround: D.brandTint,
-                    badgeInk: D.brand,
-                    onTap: () => context.push('/clinician/feedback'),
-                  ),
-              ],
-            ),
-            SizedBox(height: D.s6),
+                ],
+              ),
+              SizedBox(height: D.s6),
+            ],
 
             // ---- Security -----------------------------------------------
             ProfileEyebrow(label: l10n.profileSecurity.toUpperCase()),
@@ -452,12 +441,19 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
             SizedBox(height: D.s2),
             ProfileGroup(
               children: [
-                const PendingRow(first: true, title: 'Notifications'),
+                ProfileLink(
+                  first: true,
+                  title: 'Notifications',
+                  onTap: () => context.push('/clinician/more/notifications'),
+                ),
                 const PendingRow(
                   title: 'Payouts and bank account',
                   subtitle: 'Where online fees are settled',
                 ),
-                const PendingRow(title: 'Privacy and data'),
+                ProfileLink(
+                  title: 'Privacy and data',
+                  onTap: () => context.push('/clinician/more/privacy'),
+                ),
                 ProfileLink(
                   title: 'App language',
                   value: languageName(currentLocale?.languageCode),
@@ -474,12 +470,11 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
             ProfileGroup(children: [const _Version(first: true)]),
             SizedBox(height: D.s6),
 
-            const PendingNote(
-              what: 'the ABDM link, your bio and photo, the languages you '
-                  'consult in, booking rules, follow-up reminder timing, when '
-                  'patients may message you, payouts, notifications, privacy '
-                  'and help',
-            ),
+            // Two rows, and each is waiting on a decision rather than on
+            // code: nobody has said which account online fees settle into,
+            // and this build has no support contact to put behind a Help row.
+            // An address invented here would bounce.
+            const PendingNote(what: 'payouts and help'),
             SizedBox(height: D.s6),
 
             // ---- Log out ------------------------------------------------
@@ -693,4 +688,22 @@ class _Version extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// How many of the practice's people each Team row is about.
+///
+/// Split the way the two rows are: the clinicians a doctor works beside, and
+/// the staff who run the desk and the laboratory. Null while the roster is
+/// loading, so the row shows nothing rather than a confident "0 people" that
+/// turns into eleven a second later.
+///
+/// Counts only people who can sign in. Somebody suspended is still on the
+/// list and still has a row there — they are not somebody you have.
+String? _headcount(TeamRoster? roster, {required bool clinical}) {
+  if (roster == null) return null;
+  const clinicians = {'doctor', 'dietician'};
+  final n = roster.items
+      .where((m) => m.isActive && clinicians.contains(m.role) == clinical)
+      .length;
+  return n == 1 ? '1 person' : '$n people';
 }

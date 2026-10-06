@@ -280,6 +280,10 @@ class D {
   static const double disc = 48;
   static const double discLg = 52;
 
+  /// A person's initials beside their name in a list. Smaller than [disc]
+  /// because it sits inside a 56dp row rather than being the row.
+  static const double discSm = 40;
+
   /// The profile's own disc. Larger than [discLg] because it is the subject of
   /// the screen rather than a row's avatar.
   static const double discXl = 72;

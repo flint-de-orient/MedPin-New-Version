@@ -21,8 +21,10 @@ class TeamMember {
     required this.status,
     required this.permissions,
     required this.usingPreset,
+    required this.locationIds,
     this.department,
     this.location,
+    this.startedOn,
     this.version,
   });
 
@@ -63,6 +65,17 @@ class TeamMember {
   final ({String id, String? name})? department;
   final ({String id, String? name})? location;
 
+  /// The locations they may run, by id.
+  ///
+  /// Empty means every location of the practice, and the screen says those
+  /// words rather than leaving the row blank. It is a different field from
+  /// [location], which is only which building to show first — this one is the
+  /// wall, and the only one worth editing.
+  final List<String> locationIds;
+
+  /// When this job started. Shown as "Joined Mar 2026" on their own screen.
+  final DateTime? startedOn;
+
   /// Which version of this row the screen is showing. Sent back with a change,
   /// so a change made against a row somebody else has since changed is refused
   /// rather than silently undoing theirs. Null from a server that predates it.
@@ -92,6 +105,11 @@ class TeamMember {
       usingPreset: json['usingPreset'] == true,
       department: ref(json['department']),
       location: ref(json['location']),
+      locationIds: ((json['locationIds'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      startedOn: DateTime.tryParse(json['startedOn']?.toString() ?? '')?.toLocal(),
       version: (json['version'] as num?)?.toInt(),
     );
   }
@@ -106,6 +124,7 @@ class TeamRoster {
     required this.locations,
     required this.staffCap,
     required this.staffUsed,
+    this.plan,
   });
 
   final List<TeamMember> items;
@@ -125,7 +144,30 @@ class TeamRoster {
   final int? staffCap;
   final int staffUsed;
 
+  /// What the plan is called, or null for a practice on none.
+  ///
+  /// Only ever used to name the plan in the sentence above the list. A null
+  /// counts the people without naming a tier, rather than guessing one.
+  final String? plan;
+
   bool get atCap => staffCap != null && staffUsed >= staffCap!;
+
+  /// A location's name from its id, for the rows and the pickers.
+  String? locationName(String id) =>
+      locations.where((l) => l.id == id).map((l) => l.name).firstOrNull;
+
+  /// Where somebody works, in the words the board uses.
+  ///
+  /// Empty is "All locations" — the server reads an empty list as every one,
+  /// and a blank row would read as nowhere. A list the practice has since
+  /// closed a clinic out of counts what is left rather than naming a building
+  /// that is gone.
+  String whereLabel(TeamMember m) {
+    final named = m.locationIds.map(locationName).whereType<String>().toList();
+    if (named.isEmpty) return 'All locations';
+    if (named.length == 1) return named.first;
+    return '${named.length} locations';
+  }
 
   static const empty = TeamRoster(
     items: [],
@@ -156,6 +198,7 @@ class TeamRoster {
       locations: refs(json['locations']),
       staffCap: (limits?['staff'] as num?)?.toInt(),
       staffUsed: (limits?['used'] as num?)?.toInt() ?? 0,
+      plan: (json['plan']?.toString().isEmpty ?? true) ? null : json['plan'].toString(),
     );
   }
 }

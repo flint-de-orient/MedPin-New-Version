@@ -598,6 +598,10 @@ class ClinicianRepository {
     required String phoneToken,
     String? departmentId,
     String? locationId,
+    /// The locations they may run. Empty is every one of them, which is both
+    /// the server's reading and what every row written before the field
+    /// existed holds — so an empty list is sent as no list at all.
+    List<String> locationIds = const [],
     String? qualifications,
     String? registrationNo,
   }) async {
@@ -609,6 +613,7 @@ class ClinicianRepository {
         'phoneToken': phoneToken,
         if (departmentId != null) 'departmentId': departmentId,
         if (locationId != null) 'locationId': locationId,
+        if (locationIds.isNotEmpty) 'locationIds': locationIds,
         if (qualifications != null && qualifications.isNotEmpty)
           'qualifications': qualifications,
         if (registrationNo != null && registrationNo.isNotEmpty)
@@ -633,6 +638,9 @@ class ClinicianRepository {
     String? role,
     Object? departmentId = _unset,
     Object? locationId = _unset,
+    /// Null leaves the list alone; an empty list widens them to every
+    /// location, which is a change and is sent as one.
+    List<String>? locationIds,
     String? status,
     int? version,
   }) async {
@@ -642,6 +650,7 @@ class ClinicianRepository {
         if (role != null) 'role': role,
         if (!identical(departmentId, _unset)) 'departmentId': departmentId,
         if (!identical(locationId, _unset)) 'locationId': locationId,
+        if (locationIds != null) 'locationIds': locationIds,
         if (status != null) 'status': status,
         if (version != null) 'version': version,
       },

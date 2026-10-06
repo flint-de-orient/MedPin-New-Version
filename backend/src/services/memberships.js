@@ -52,6 +52,12 @@ export async function joinPractice({
   // stay optional — a solo clinic has neither to choose from.
   department = null,
   location = null,
+  /*
+   * The locations they may run, or null to leave whatever they had. Empty is
+   * every location of the practice — see models/Membership.js — so an empty
+   * array and null are different things here and both are honoured.
+   */
+  locations = null,
 }) {
   if (!user || !practice) throw badRequest('A membership needs a person and a practice');
 
@@ -71,6 +77,7 @@ export async function joinPractice({
     // silently clear the one they had.
     if (department !== null) existing.department = department;
     if (location !== null) existing.location = location;
+    if (locations !== null) existing.locations = locations;
     await existing.save();
     return existing;
   }
@@ -83,6 +90,7 @@ export async function joinPractice({
     permissions: grant,
     department,
     location,
+    locations: locations ?? [],
     status: MEMBERSHIP_STATUS.ACTIVE,
     startedOn: new Date(),
     endedOn: null,

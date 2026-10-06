@@ -46,16 +46,9 @@ const _profile = {
     'Prescription letterhead and signature',
   ],
   'TEAM': ['Staff and assistants', 'Colleagues you work with'],
-  'CLINIC TOOLS': [
-    'Practice',
-    'Plan and billing',
-    'Daily report',
-    'Clinical alerts',
-    'Export data',
-    'Chat review',
-    'Knowledge base',
-    'Patient feedback',
-  ],
+  // One row, by decision: the other seven are how you run the clinic, not
+  // who you are. See the comment on the group in the screen.
+  'CLINIC TOOLS': ['Plan and billing'],
   'SECURITY': ['App lock'],
   'CLINIC': ['Patient call number'],
   'ACCOUNT': [
