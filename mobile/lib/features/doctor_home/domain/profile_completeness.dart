@@ -67,7 +67,7 @@ List<ProfileGap> whatIsMissing(AppUser? user, {required int rooms}) {
         label: 'A location',
         cost: 'With no open location there are no hours to publish, so nobody '
             'can book a time.',
-        route: '/clinician/clinics',
+        route: '/clinician/more/locations',
       ),
     );
   }

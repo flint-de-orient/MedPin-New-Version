@@ -28,6 +28,9 @@ import '../../features/doctor_home/presentation/doctor_appointments_screen.dart'
 import '../../features/doctor_home/presentation/doctor_my_profile_screen.dart';
 import '../../features/doctor_home/presentation/doctor_professional_screen.dart';
 import '../../features/doctor_home/presentation/doctor_services_screen.dart';
+import '../../features/doctor_home/presentation/doctor_location_screen.dart';
+import '../../features/doctor_home/presentation/doctor_locations_screen.dart';
+import '../../features/doctor_home/presentation/doctor_schedule_screen.dart';
 import '../../features/doctor_home/presentation/doctor_signature_screen.dart';
 import '../../features/doctor_home/presentation/doctor_bulk_message_screen.dart';
 import '../../features/doctor_home/presentation/doctor_consult_pick_screen.dart';
@@ -536,6 +539,26 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/clinician/more/signature',
         builder: (context, state) => const DoctorSignatureScreen(),
+      ),
+      // The places this practice consults from. The list first, because the
+      // artboard's hub row goes straight to a location and a practice with
+      // three of them has to say which.
+      GoRoute(
+        path: '/clinician/more/locations',
+        builder: (context, state) => const DoctorLocationsScreen(),
+      ),
+      // Before '/locations/:id', so the literal segment is not swallowed by
+      // the parameter. Declared this way round on purpose.
+      GoRoute(
+        path: '/clinician/more/schedule',
+        builder: (context, state) => DoctorScheduleScreen(
+          clinicId: state.uri.queryParameters['clinicId'],
+        ),
+      ),
+      GoRoute(
+        path: '/clinician/more/locations/:id',
+        builder: (context, state) =>
+            DoctorLocationScreen(clinicId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/clinician/more/edit',

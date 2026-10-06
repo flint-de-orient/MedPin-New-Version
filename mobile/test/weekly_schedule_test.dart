@@ -1,0 +1,156 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:medpin/features/appointments/domain/clinic.dart';
+import 'package:medpin/features/doctor_home/domain/weekly_schedule.dart';
+
+/// A doctor's week at one location.
+///
+/// The slot arithmetic is the part that matters: a count wrong by one is a
+/// patient booked after the doctor has gone home, and the preview on this
+/// screen is the only place anybody checks it before a booking does.
+
+WeeklyHour at(int day, String start, String end) =>
+    WeeklyHour(dayOfWeek: day, start: start, end: end);
+
+void main() {
+  group('the week as a clinic reads it', () {
+    test('starts on Monday and ends on Sunday', () {
+      expect(weekOrder, [1, 2, 3, 4, 5, 6, 0]);
+    });
+
+    test('a day with nothing on it is Closed, said as a word', () {
+      expect(dayHoursLine(const [], 1), 'Closed');
+    });
+
+    test('two sittings are both shown, earliest first', () {
+      final week = [at(1, '16:00', '19:00'), at(1, '09:00', '13:00')];
+      expect(dayHoursLine(week, 1), '9:00 AM – 1:00 PM, 4:00 PM – 7:00 PM');
+    });
+
+    test('runs of days collapse the way a clinic says them', () {
+      expect(openDaysLine(const [1, 2, 3, 4, 5, 6]), 'Mon – Sat');
+      expect(openDaysLine(const [4, 6]), 'Thu, Sat');
+      expect(openDaysLine(const [1, 2, 3, 5]), 'Mon – Wed, Fri');
+      expect(
+        openDaysLine(const [6, 0]),
+        'Sat – Sun',
+        reason: 'the run is in reading order, not in the numbering: Saturday '
+            'is 6 and Sunday is 0, and a weekend clinic says "Sat – Sun"',
+      );
+      expect(
+        openDaysLine(const [0, 1]),
+        'Mon, Sun',
+        reason: 'Sunday and Monday are the two ends of the week, not a run — '
+            'the numbering would have made them one',
+      );
+      expect(openDaysLine(const []), 'Closed');
+    });
+  });
+
+  group('the slots a sitting publishes', () {
+    test('the last one ends on the hour, and there is no one after it', () {
+      final week = [at(1, '09:00', '13:00')];
+      final slots = slotsOn(week, 1, 15);
+      expect(slots.length, 16);
+      expect(slots.first, '9:00 AM');
+      expect(
+        slots.last,
+        '12:45 PM',
+        reason: 'a slot starting at 1:00 PM would run past the end of the '
+            'sitting — that is the booking made after the doctor has gone',
+      );
+    });
+
+    test('a slot that does not fit is not published', () {
+      // 9:00–9:50 at twenty minutes is two slots, not two and a half.
+      expect(countSlots([at(1, '09:00', '09:50')], 1, 20), 2);
+    });
+
+    test('both sittings of a split day count', () {
+      final week = [at(1, '09:00', '11:00'), at(1, '16:00', '18:00')];
+      expect(countSlots(week, 1, 30), 8);
+    });
+
+    test('a closed day publishes nothing', () {
+      expect(slotsOn([at(1, '09:00', '13:00')], 0, 15), isEmpty);
+    });
+
+    test('a nonsense slot length publishes nothing rather than looping', () {
+      expect(slotsOn([at(1, '09:00', '13:00')], 1, 0), isEmpty);
+    });
+
+    test('the preview shows the first few and the count says the rest', () {
+      final week = [at(1, '09:00', '13:00')];
+      expect(previewSlots(week, 1, 15).length, 8);
+      expect(countSlots(week, 1, 15), 16);
+    });
+  });
+
+  group('editing it', () {
+    test('a sitting that ends before it starts is refused', () {
+      expect(endsAfterStart(at(1, '13:00', '09:00')), isFalse);
+      expect(endsAfterStart(at(1, '09:00', '09:00')), isFalse);
+      expect(endsAfterStart(at(1, '09:00', '09:15')), isTrue);
+    });
+
+    test('replacing a day leaves every other day alone', () {
+      final week = [at(1, '09:00', '13:00'), at(2, '10:00', '12:00')];
+      final next = withDay(week, 1, [at(1, '08:00', '11:00')]);
+      expect(dayHoursLine(next, 1), '8:00 AM – 11:00 AM');
+      expect(dayHoursLine(next, 2), '10:00 AM – 12:00 PM');
+    });
+
+    test('clearing a day closes it', () {
+      final next = withDay([at(1, '09:00', '13:00')], 1, const []);
+      expect(dayHoursLine(next, 1), 'Closed');
+    });
+
+    test('copying across opens Monday to Saturday and leaves Sunday shut', () {
+      final next = copiedAcross([at(1, '09:00', '13:00')], 1);
+      for (final day in const [1, 2, 3, 4, 5, 6]) {
+        expect(dayHoursLine(next, day), '9:00 AM – 1:00 PM', reason: 'day $day');
+      }
+      expect(
+        dayHoursLine(next, 0),
+        'Closed',
+        reason: 'publishing slots on the one day nobody is there',
+      );
+    });
+
+    test('copying a split day copies both of its sittings', () {
+      final week = [at(1, '09:00', '11:00'), at(1, '16:00', '18:00')];
+      final next = copiedAcross(week, 1);
+      expect(hoursOn(next, 3).length, 2);
+    });
+  });
+
+  group('the summary under the week', () {
+    test('names the days, the slot length and the busiest day', () {
+      final week = [
+        for (final d in const [1, 2, 3, 4, 5]) at(d, '09:00', '13:00'),
+        at(6, '09:00', '11:30'),
+      ];
+      expect(summaryLine(week, 15), 'Mon – Sat · 15-min slots · up to 16 patients a day');
+    });
+
+    test('a week with nothing open says so instead of counting nothing', () {
+      expect(
+        summaryLine(const [], 15),
+        'Closed all week — nobody can book a time here.',
+      );
+    });
+  });
+
+  group('clock reading', () {
+    test('is what a clinic writes, not twenty-four hours', () {
+      expect(clock('09:00'), '9:00 AM');
+      expect(clock('13:05'), '1:05 PM');
+      expect(clock('00:30'), '12:30 AM');
+    });
+
+    test('survives a round trip through the picker', () {
+      expect(hhmm(fromHhmm('09:05')), '09:05');
+      expect(hhmm(fromHhmm('23:59')), '23:59');
+    });
+  });
+}

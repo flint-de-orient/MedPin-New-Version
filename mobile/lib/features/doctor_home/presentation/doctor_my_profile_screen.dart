@@ -127,13 +127,19 @@ class DoctorMyProfileScreen extends ConsumerWidget {
               rows: [
                 (
                   title: 'Locations',
-                  // Hours, slot length and day closures are all inside a
-                  // location, which is where the server keeps them.
                   sub: rooms.isEmpty
                       ? 'No open location yet'
-                      : '${rooms.length} ${rooms.length == 1 ? 'location' : 'locations'} · hours, slots and closures',
-                  route: '/clinician/clinics',
+                      : '${rooms.length} ${rooms.length == 1 ? 'location' : 'locations'} · address, map and contact',
+                  route: '/clinician/more/locations',
                   warn: rooms.isEmpty,
+                ),
+                (
+                  title: 'Schedules and slots',
+                  // Per location, because that is how the server keeps it and
+                  // how the week actually runs.
+                  sub: 'When you sit, and how long you give each patient',
+                  route: '/clinician/more/schedule',
+                  warn: false,
                 ),
                 (
                   title: 'Departments',
