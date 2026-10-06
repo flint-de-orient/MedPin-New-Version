@@ -5,25 +5,25 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/doctor_tokens.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../auth/presentation/auth_controller.dart';
+import 'widgets/not_on_file.dart';
 import 'widgets/profile_parts.dart';
 
 /// What the prescription says about the doctor (`Profile-Professional`).
 ///
-/// ---- Three fields, not thirteen ---------------------------------------------
+/// ---- Three fields work; the rest of the board is drawn and inert ----------
 ///
-/// The artboard asks for a great deal more: a profession type that reshapes the
-/// rest of the profile, a council and a registration year, an ABDM/HPR link,
-/// qualifications as rows with institution, year and a verified mark,
-/// specialisations and conditions treated as tags, and years in practice.
-/// `/auth/me` stores three strings — qualifications, specialty, registration
-/// number — and these three are the ones that print at the top of every
-/// prescription, which is what this screen is for.
+/// `/auth/me` keeps qualifications, specialty and a registration number, and
+/// those three print at the top of every prescription. The board asks for a
+/// great deal more — a profession type that reshapes the profile, a council
+/// and a registration year, an ABDM HPR link, each qualification as a row with
+/// its institution and a verified mark, specialisations, the conditions this
+/// doctor treats, and years in practice.
 ///
-/// The rest is not drawn as empty boxes. A "Verified" mark with nothing
-/// verifying it, or a council field that goes nowhere, is worse on a clinical
-/// document than an honest blank: it invites the doctor to believe the app
-/// checked something. What is missing is said once, at the foot, with the
-/// offer to add it.
+/// Those are drawn as the design has them and marked "Not on file yet". None
+/// of them shows a value, and none can be typed into: a greyed
+/// "MBBS, Calcutta Medical College" would be read as this doctor's own by the
+/// first person to glance at it, and a "Verified" tick with nothing verifying
+/// it has no business near a prescription at all.
 class DoctorProfessionalScreen extends ConsumerStatefulWidget {
   const DoctorProfessionalScreen({super.key});
 
@@ -117,52 +117,141 @@ class _DoctorProfessionalScreenState
         child: ListView(
           padding: EdgeInsets.fromLTRB(D.s4, D.s4, D.s4, D.s8),
           children: [
+            // ---- Your profession -------------------------------------
+            const ProfileEyebrow(label: 'YOUR PROFESSION'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                PendingChoice(
+                  first: true,
+                  label: 'Profession',
+                  note: 'The profile is tailored to it. A psychologist sets '
+                      'session length and therapy approaches; a physiotherapist '
+                      'can offer home visits.',
+                  options: const [
+                    'Doctor',
+                    'Psychologist',
+                    'Physiotherapist',
+                    'Dietician',
+                    'Fitness coach',
+                    'Other',
+                  ],
+                ),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Registration ----------------------------------------
+            const ProfileEyebrow(label: 'REGISTRATION'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                const PendingField(first: true, label: 'Council'),
+                _Field(
+                  label: 'Registration number',
+                  hint: 'WBMC 64213',
+                  controller: _registration,
+                  fieldKey: const Key('pd-registration'),
+                ),
+                const PendingField(label: 'Year'),
+              ],
+            ),
+            SizedBox(height: D.s2),
             Padding(
-              padding: EdgeInsets.only(left: D.s1, bottom: D.s4),
+              padding: EdgeInsets.only(left: D.s1),
               child: Text(
-                'These three lines print at the top of every prescription you '
-                'write, exactly as they are typed here.',
-                style: D.statLabel.copyWith(color: D.inkMuted, height: 1.45),
+                // Said once, here, where the artboard shows a tick.
+                'The design shows a "Verified" mark beside the number. Nothing '
+                'checks it against a council, so none is shown.',
+                style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
               ),
             ),
-            Container(
-              padding: EdgeInsets.all(D.s5),
-              decoration: BoxDecoration(
-                color: D.card,
-                borderRadius: BorderRadius.circular(D.rSection),
-                border: Border.all(color: D.line),
-                boxShadow: D.lift,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _Field(
-                    label: 'Qualifications',
-                    hint: 'MBBS, MD (Medicine)',
-                    controller: _quals,
-                    fieldKey: const Key('pd-qualifications'),
-                    caps: TextCapitalization.characters,
-                  ),
-                  SizedBox(height: D.s4),
-                  _Field(
-                    label: 'Specialty',
-                    hint: 'Consultant Physician & Diabetologist',
-                    controller: _specialty,
-                    fieldKey: const Key('pd-specialty'),
-                    caps: TextCapitalization.words,
-                  ),
-                  SizedBox(height: D.s4),
-                  _Field(
-                    label: 'Registration number',
-                    hint: 'WBMC 64213',
-                    controller: _registration,
-                    fieldKey: const Key('pd-registration'),
-                  ),
-                ],
+            SizedBox(height: D.s6),
+
+            // ---- ABDM ------------------------------------------------
+            const ProfileEyebrow(label: 'ABDM'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: const [
+                PendingRow(
+                  first: true,
+                  title: 'HPR ID',
+                  subtitle: 'Healthcare Professionals Registry',
+                ),
+              ],
+            ),
+            SizedBox(height: D.s2),
+            Padding(
+              padding: EdgeInsets.only(left: D.s1),
+              child: Text(
+                'Linking an HPR ID would verify this doctor through ABDM and '
+                'let records reach patients’ ABHA accounts, with consent.',
+                style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
               ),
             ),
+            SizedBox(height: D.s6),
+
+            // ---- Qualifications --------------------------------------
+            //
+            // The board lists these as rows with an institution, a year and a
+            // verified mark. One string is what is kept, so the string is the
+            // field that works and the structure is drawn beneath it.
+            const ProfileEyebrow(label: 'QUALIFICATIONS'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                _Field(
+                  first: true,
+                  label: 'As printed on your prescription',
+                  hint: 'MBBS, MD (Medicine)',
+                  controller: _quals,
+                  fieldKey: const Key('pd-qualifications'),
+                  caps: TextCapitalization.characters,
+                ),
+                const PendingRow(
+                  title: 'Each degree on its own',
+                  subtitle: 'Institution, year and proof',
+                ),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Specialty -------------------------------------------
+            const ProfileEyebrow(label: 'SPECIALTY'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                _Field(
+                  first: true,
+                  label: 'As printed on your prescription',
+                  hint: 'Consultant Physician & Diabetologist',
+                  controller: _specialty,
+                  fieldKey: const Key('pd-specialty'),
+                  caps: TextCapitalization.words,
+                ),
+                const PendingRow(
+                  title: 'Specialisations',
+                  subtitle: 'Each one on its own, for search',
+                ),
+                const PendingRow(
+                  title: 'Conditions you treat',
+                  subtitle: 'Patients find you when they search these',
+                ),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Experience ------------------------------------------
+            const ProfileEyebrow(label: 'EXPERIENCE'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: const [
+                PendingField(first: true, label: 'Practising since'),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
             if (_failed != null) ...[
-              SizedBox(height: D.s4),
               Container(
                 padding: EdgeInsets.all(D.s4),
                 decoration: BoxDecoration(
@@ -174,34 +263,13 @@ class _DoctorProfessionalScreenState
                   style: D.statLabel.copyWith(color: D.danger, height: 1.45),
                 ),
               ),
+              SizedBox(height: D.s5),
             ],
-            SizedBox(height: D.s5),
-            const ProfileEyebrow(label: 'Not on this screen'),
-            SizedBox(height: D.s2),
-            Container(
-              padding: EdgeInsets.all(D.s4),
-              decoration: BoxDecoration(
-                color: D.brandTint,
-                borderRadius: BorderRadius.circular(D.rCard),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info_outline_rounded, size: D.iconLg, color: D.brand),
-                  SizedBox(width: D.s3),
-                  Expanded(
-                    child: Text(
-                      'The design also asks for your council and registration '
-                      'year, an ABDM HPR link, each qualification with its '
-                      'institution and year, and the conditions you treat. '
-                      'Nothing in the app records any of those yet, and a '
-                      '“Verified” mark with nothing behind it does not belong on '
-                      'a prescription.',
-                      style: D.statLabel.copyWith(color: D.brand, height: 1.45),
-                    ),
-                  ),
-                ],
-              ),
+
+            const PendingNote(
+              what: 'your profession, council and registration year, the ABDM '
+                  'link, each degree on its own, your specialisations and the '
+                  'conditions you treat, and years in practice',
             ),
           ],
         ),
@@ -246,6 +314,7 @@ class _Field extends StatelessWidget {
     required this.hint,
     required this.controller,
     required this.fieldKey,
+    this.first = false,
     this.caps = TextCapitalization.none,
   });
 
@@ -253,37 +322,41 @@ class _Field extends StatelessWidget {
   final String hint;
   final TextEditingController controller;
   final Key fieldKey;
+  final bool first;
   final TextCapitalization caps;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(label, style: D.statLabel.copyWith(color: D.inkMuted)),
-        SizedBox(height: D.gapTight),
-        Container(
-          constraints: BoxConstraints(
-            minHeight: MediaQuery.textScalerOf(context).scale(D.inputH),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: D.s4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(D.rCard),
-            border: Border.all(color: D.lineStrong),
-          ),
-          alignment: Alignment.centerLeft,
-          child: TextField(
-            key: fieldKey,
-            controller: controller,
-            textCapitalization: caps,
-            style: D.input.copyWith(color: D.ink),
-            decoration: D.bareField(
-              hint: hint,
-              hintStyle: D.input.copyWith(color: D.inkFaint),
+    return ProfileRow(
+      first: first,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(label, style: D.statLabel.copyWith(color: D.inkMuted)),
+          SizedBox(height: D.gapTight),
+          Container(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.textScalerOf(context).scale(D.inputH),
+            ),
+            padding: EdgeInsets.symmetric(horizontal: D.s4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(D.rCard),
+              border: Border.all(color: D.lineStrong),
+            ),
+            alignment: Alignment.centerLeft,
+            child: TextField(
+              key: fieldKey,
+              controller: controller,
+              textCapitalization: caps,
+              style: D.input.copyWith(color: D.ink),
+              decoration: D.bareField(
+                hint: hint,
+                hintStyle: D.input.copyWith(color: D.inkFaint),
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

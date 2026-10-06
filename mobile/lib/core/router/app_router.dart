@@ -28,6 +28,7 @@ import '../../features/doctor_home/presentation/doctor_appointments_screen.dart'
 import '../../features/doctor_home/presentation/doctor_my_profile_screen.dart';
 import '../../features/doctor_home/presentation/doctor_professional_screen.dart';
 import '../../features/doctor_home/presentation/doctor_services_screen.dart';
+import '../../features/doctor_home/presentation/doctor_leave_screen.dart';
 import '../../features/doctor_home/presentation/doctor_location_screen.dart';
 import '../../features/doctor_home/presentation/doctor_locations_screen.dart';
 import '../../features/doctor_home/presentation/doctor_schedule_screen.dart';
@@ -546,6 +547,14 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/clinician/more/locations',
         builder: (context, state) => const DoctorLocationsScreen(),
+      ),
+      // Days the clinic is shut. The field has existed all along — see the
+      // note at the top of doctor_leave_screen.dart.
+      GoRoute(
+        path: '/clinician/more/leave',
+        builder: (context, state) => DoctorLeaveScreen(
+          clinicId: state.uri.queryParameters['clinicId'],
+        ),
       ),
       // Before '/locations/:id', so the literal segment is not swallowed by
       // the parameter. Declared this way round on purpose.

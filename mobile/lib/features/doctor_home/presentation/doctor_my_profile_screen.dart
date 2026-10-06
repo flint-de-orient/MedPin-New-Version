@@ -8,25 +8,26 @@ import '../../appointments/presentation/appointment_providers.dart';
 import '../../auth/domain/user.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../domain/profile_completeness.dart';
+import 'widgets/not_on_file.dart';
 import 'widgets/profile_parts.dart';
 
 /// Everything about being this clinic's doctor (`Doctor-MyProfile`).
 ///
-/// ---- What this is, and what the Profile tab is -----------------------------
+/// ---- This is the board, whole ---------------------------------------------
 ///
-/// The Profile tab is the account: language, app lock, log out, and the clinic
-/// tools. This is the doctor — the credentials that print on a prescription,
-/// the rooms they consult in, the diary, and the people they work with. The tab
-/// opens it from the identity block, as the artboard does.
+/// Six groups and twenty-one rows, in the board's own order and under its own
+/// headings. About half open something; the rest are settings the app has
+/// nowhere to keep yet, drawn inert and marked "Not on file yet" — shown so the
+/// shape of the profile is visible, inert so nobody sets something that is not
+/// saved. See widgets/not_on_file.dart.
 ///
-/// ---- Rows that go nowhere are not drawn -----------------------------------
+/// ---- The one figure that is not drawn --------------------------------------
 ///
-/// The artboard lists a dozen settings this system does not record: booking
-/// rules, follow-up reminder timing, when patients may message, leave and
-/// holidays as a thing of its own, payouts, a bio and languages for patient
-/// search. Each would be a row that opens a screen that cannot save. They are
-/// named once at the foot instead, so the doctor can see what is coming
-/// without being invited to tap it.
+/// "Profile 85% complete". A percentage needs an agreed whole, and there is
+/// none: the figure would fall every time a field was added, so a doctor who
+/// changed nothing would watch their profile get worse. The card is the
+/// board's and it counts the blanks instead — a number that means something
+/// and goes down as they are filled.
 class DoctorMyProfileScreen extends ConsumerWidget {
   const DoctorMyProfileScreen({super.key});
 
@@ -64,139 +65,167 @@ class DoctorMyProfileScreen extends ConsumerWidget {
             SizedBox(height: D.s5),
             if (missing.isNotEmpty) ...[
               _Unfinished(missing: missing),
-              SizedBox(height: D.s5),
+              SizedBox(height: D.s4),
             ],
+            const _PublicProfile(),
+            SizedBox(height: D.s4),
+            _Bookings(rooms: rooms),
+            SizedBox(height: D.s6),
 
-            const ProfileEyebrow(label: 'The prescription'),
+            // ---- About you ----------------------------------------------
+            const ProfileEyebrow(label: 'ABOUT YOU'),
             SizedBox(height: D.s2),
-            _Group(
-              rows: [
-                (
+            ProfileGroup(
+              children: [
+                ProfileLink(
+                  first: true,
                   title: 'Professional details',
-                  sub: user?.qualifications?.trim().isNotEmpty == true
-                      ? [
-                          user!.qualifications!.trim(),
-                          if ((user.registrationNo ?? '').trim().isNotEmpty)
-                            user.registrationNo!.trim(),
-                        ].join(' · ')
-                      : 'Printed at the top of every prescription',
-                  route: '/clinician/more/professional',
-                  warn: (user?.qualifications ?? '').trim().isEmpty,
+                  subtitle: 'Profession, qualifications, registration',
+                  badge: (user?.qualifications?.trim().isNotEmpty ?? false)
+                      ? null
+                      : 'Not set',
+                  badgeGround: D.pendingGround,
+                  badgeInk: D.pending,
+                  onTap: () => context.push('/clinician/more/professional'),
                 ),
-                (
-                  title: 'Digital signature',
-                  sub: (user?.signatureUrl ?? '').isEmpty
-                      ? 'No signature uploaded'
-                      : 'Printed on every prescription',
-                  route: '/clinician/more/signature',
-                  warn: (user?.signatureUrl ?? '').isEmpty,
+                const PendingRow(
+                  title: 'ABDM · HPR ID',
+                  subtitle: 'Ayushman Bharat Digital Mission',
                 ),
-              ],
-            ),
-            SizedBox(height: D.s5),
-
-            const ProfileEyebrow(label: 'The diary'),
-            SizedBox(height: D.s2),
-            _Group(
-              rows: [
-                (
-                  title: 'Appointments',
-                  sub: 'Who is coming, who is waiting for a time',
-                  route: '/clinician/appointments',
-                  warn: false,
+                const PendingRow(
+                  title: 'About and photo',
+                  subtitle: 'Bio patients read before booking',
                 ),
-                (
-                  title: 'Patient queue',
-                  sub: 'Today’s waiting room, in the order you call it',
-                  route: '/clinician/queue',
-                  warn: false,
-                ),
-                (
-                  title: 'Follow-ups',
-                  sub: 'Who you asked back, and who has not come',
-                  route: '/clinician/follow-ups',
-                  warn: false,
+                const PendingRow(
+                  title: 'Languages',
+                  subtitle: 'The languages you consult in',
                 ),
               ],
             ),
-            SizedBox(height: D.s5),
+            SizedBox(height: D.s6),
 
-            const ProfileEyebrow(label: 'Where you consult'),
+            // ---- Practice ------------------------------------------------
+            const ProfileEyebrow(label: 'PRACTICE'),
             SizedBox(height: D.s2),
-            _Group(
-              rows: [
-                (
+            ProfileGroup(
+              children: [
+                ProfileLink(
+                  first: true,
                   title: 'Locations',
-                  sub: rooms.isEmpty
-                      ? 'No open location yet'
-                      : '${rooms.length} ${rooms.length == 1 ? 'location' : 'locations'} · address, map and contact',
-                  route: '/clinician/more/locations',
-                  warn: rooms.isEmpty,
+                  subtitle: 'Map, address and contact',
+                  badge: rooms.isEmpty ? 'None' : '${rooms.length}',
+                  badgeGround: rooms.isEmpty ? D.pendingGround : D.brandTint,
+                  badgeInk: rooms.isEmpty ? D.pending : D.brand,
+                  onTap: () => context.push('/clinician/more/locations'),
                 ),
-                (
+                ProfileLink(
                   title: 'Schedules and slots',
-                  // Per location, because that is how the server keeps it and
-                  // how the week actually runs.
-                  sub: 'When you sit, and how long you give each patient',
-                  route: '/clinician/more/schedule',
-                  warn: false,
+                  subtitle: 'Hours and slot rules for each location',
+                  onTap: () => context.push('/clinician/more/schedule'),
                 ),
-                (
-                  title: 'Departments',
-                  sub: 'How the practice is divided up',
-                  route: '/clinician/departments',
-                  warn: false,
-                ),
-                (
+                ProfileLink(
                   title: 'Services and fees',
-                  sub: 'What a consultation costs, and what patients pay online',
-                  route: '/clinician/more/services',
-                  warn: false,
+                  subtitle: 'What a consultation costs',
+                  onTap: () => context.push('/clinician/more/services'),
+                ),
+                ProfileLink(
+                  title: 'Leave and holidays',
+                  subtitle: 'Days you are not seeing patients',
+                  onTap: () => context.push('/clinician/more/leave'),
+                ),
+                ProfileLink(
+                  title: 'Departments',
+                  subtitle: 'How the practice is divided up',
+                  onTap: () => context.push('/clinician/departments'),
                 ),
               ],
             ),
-            SizedBox(height: D.s5),
+            SizedBox(height: D.s6),
 
-            const ProfileEyebrow(label: 'Who you work with'),
+            // ---- Patients and care ---------------------------------------
+            const ProfileEyebrow(label: 'PATIENTS AND CARE'),
             SizedBox(height: D.s2),
-            _Group(
-              rows: [
-                (
-                  title: 'People',
-                  sub: 'Doctors, front desk and dieticians',
-                  route: '/clinician/team',
-                  warn: false,
+            ProfileGroup(
+              children: [
+                const PendingRow(
+                  first: true,
+                  title: 'Booking rules',
+                  subtitle: 'How far ahead, cancellations, walk-ins',
                 ),
-                (
-                  title: 'Front desk',
-                  sub: 'Who can register patients and run the diary',
-                  route: '/clinician/staff',
-                  warn: false,
+                const PendingRow(
+                  title: 'Follow-up reminders',
+                  subtitle: 'When a patient is reminded to come back',
+                ),
+                const PendingRow(
+                  title: 'Chat and urgent messages',
+                  subtitle: 'When patients can message you',
+                ),
+                ProfileLink(
+                  title: 'Prescription letterhead and signature',
+                  subtitle: 'Printed on every prescription',
+                  badge: (user?.signatureUrl ?? '').isEmpty
+                      ? 'Signature missing'
+                      : null,
+                  badgeGround: D.pendingGround,
+                  badgeInk: D.pending,
+                  onTap: () => context.push('/clinician/more/signature'),
                 ),
               ],
             ),
-            SizedBox(height: D.s5),
+            SizedBox(height: D.s6),
 
-            const ProfileEyebrow(label: 'The practice'),
+            // ---- Team ----------------------------------------------------
+            const ProfileEyebrow(label: 'TEAM'),
             SizedBox(height: D.s2),
-            _Group(
-              rows: [
-                (
-                  title: 'Practice',
-                  sub: 'Name, letterhead and who works here',
-                  route: '/clinician/practice',
-                  warn: false,
+            ProfileGroup(
+              children: [
+                ProfileLink(
+                  first: true,
+                  title: 'Staff and assistants',
+                  subtitle: 'Who can register patients and run the diary',
+                  onTap: () => context.push('/clinician/staff'),
                 ),
-                (
+                ProfileLink(
+                  title: 'Colleagues you work with',
+                  subtitle: 'Doctors, dieticians and the rest of the practice',
+                  onTap: () => context.push('/clinician/team'),
+                ),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Account -------------------------------------------------
+            const ProfileEyebrow(label: 'ACCOUNT'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                const PendingRow(first: true, title: 'Notifications'),
+                const PendingRow(
+                  title: 'Payouts and bank account',
+                  subtitle: 'Where online fees are settled',
+                ),
+                ProfileLink(
                   title: 'Plan and billing',
-                  sub: 'What you are on, and what you are using',
-                  route: '/clinician/billing',
-                  warn: false,
+                  subtitle: 'What you are on, and what you are using',
+                  onTap: () => context.push('/clinician/billing'),
                 ),
+                const PendingRow(title: 'Privacy and data'),
+                ProfileLink(
+                  title: 'Practice',
+                  subtitle: 'Name, letterhead and who works here',
+                  onTap: () => context.push('/clinician/practice'),
+                ),
+                const PendingRow(title: 'Help and support'),
               ],
             ),
-            SizedBox(height: D.s5),
-            const _NotYet(),
+            SizedBox(height: D.s6),
+
+            const PendingNote(
+              what: 'the ABDM link, your bio and photo, the languages you '
+                  'consult in, booking rules, follow-up reminder timing, when '
+                  'patients may message you, payouts, notifications, privacy '
+                  'and help',
+            ),
           ],
         ),
       ),
@@ -221,13 +250,13 @@ class _Identity extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: D.discLg,
-          height: D.discLg,
+          width: D.discXl,
+          height: D.discXl,
           alignment: Alignment.center,
           decoration: const BoxDecoration(color: D.brandTint, shape: BoxShape.circle),
           child: Text(
             initialsOf(name.isEmpty ? '?' : name),
-            style: D.opening.copyWith(color: D.brand),
+            style: D.greeting.copyWith(color: D.brand),
           ),
         ),
         SizedBox(width: D.s4),
@@ -237,7 +266,7 @@ class _Identity extends StatelessWidget {
             children: [
               Text(
                 name.isEmpty ? 'Your profile' : name,
-                style: D.opening.copyWith(color: D.ink),
+                style: D.greeting.copyWith(color: D.ink),
               ),
               if ((user?.specialty ?? '').trim().isNotEmpty)
                 Text(
@@ -246,8 +275,6 @@ class _Identity extends StatelessWidget {
                 ),
               if (line.isNotEmpty)
                 Text(line, style: D.caption.copyWith(color: D.inkFaint)),
-              if ((user?.phone ?? '').isNotEmpty)
-                Text(user!.phone, style: D.caption.copyWith(color: D.inkFaint)),
             ],
           ),
         ),
@@ -256,7 +283,7 @@ class _Identity extends StatelessWidget {
   }
 }
 
-/// What is not filled in, and what each gap actually costs.
+/// What is still blank, and what each blank costs.
 class _Unfinished extends StatelessWidget {
   const _Unfinished({required this.missing});
 
@@ -275,25 +302,14 @@ class _Unfinished extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Not finished yet',
-                  style: D.subhead.copyWith(color: D.ink),
-                ),
-              ),
-              Text(
-                '${missing.length} to go',
-                style: D.statLabel.copyWith(color: D.pending),
-              ),
-            ],
+          Text(
+            // The board's "Profile 85% complete". A count, not a percentage —
+            // see the note at the top of this file.
+            '${missing.length} ${missing.length == 1 ? 'thing' : 'things'} to finish',
+            style: D.subhead.copyWith(color: D.ink),
           ),
           SizedBox(height: D.s1 / 2),
           Text(
-            // Not a percentage: the figure a percentage implies — how complete
-            // the profile is out of some agreed whole — is not a thing this
-            // app knows. What it knows is which of these are blank.
             'Each of these shows up somewhere a patient or a prescription can '
             'see it.',
             style: D.statLabel.copyWith(color: D.inkMuted),
@@ -355,89 +371,125 @@ class _Unfinished extends StatelessWidget {
   }
 }
 
-/// One card of rows, each going somewhere.
-class _Group extends StatelessWidget {
-  const _Group({required this.rows});
-
-  final List<({String title, String sub, String route, bool warn})> rows;
+/// The board's two buttons under the identity.
+///
+/// Both need something that does not exist: there is no patient-facing doctor
+/// page to preview, and nothing to share a link to. Drawn as the board has
+/// them, off, with the reason under them rather than a tap that does nothing.
+class _PublicProfile extends StatelessWidget {
+  const _PublicProfile();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: D.s4),
-      decoration: BoxDecoration(
-        color: D.card,
-        borderRadius: BorderRadius.circular(D.rSection),
-        border: Border.all(color: D.line),
-        boxShadow: D.lift,
-      ),
-      child: Column(
-        children: [
-          for (final (i, r) in rows.indexed)
-            ProfileRow(
-              first: i == 0,
-              onTap: () => context.push(r.route),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          r.title,
-                          style: D.subtitle.copyWith(
-                            color: D.ink,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          r.sub,
-                          style: D.statLabel.copyWith(
-                            color: r.warn ? D.pending : D.inkFaint,
-                          ),
-                        ),
-                      ],
-                    ),
+    final height = MediaQuery.textScalerOf(context).scale(D.tap);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            for (final (i, label) in const [
+              'See as a patient',
+              'Share profile',
+            ].indexed) ...[
+              if (i != 0) SizedBox(width: D.s2),
+              Expanded(
+                child: Container(
+                  height: height,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(D.rCard),
+                    border: Border.all(color: D.line),
                   ),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    size: D.iconLg,
-                    color: D.inkFaint,
-                  ),
-                ],
+                  child: Text(label, style: D.dateLine.copyWith(color: D.inkFaint)),
+                ),
+              ),
+            ],
+          ],
+        ),
+        SizedBox(height: D.s2),
+        Row(
+          children: [
+            const NotOnFile(),
+            SizedBox(width: D.s2),
+            Expanded(
+              child: Text(
+                'There is no patient-facing page for a doctor yet, so there is '
+                'nothing to preview or share.',
+                style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
               ),
             ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-/// The artboard's settings that have nothing behind them, said once.
-class _NotYet extends StatelessWidget {
-  const _NotYet();
+/// "Taking bookings", and the way to take leave.
+///
+/// Both halves are real. Whether this doctor is taking bookings is whether an
+/// open location publishes hours — which is what a patient's booking screen
+/// actually reads — and the leave row opens the closures that stop them.
+class _Bookings extends StatelessWidget {
+  const _Bookings({required this.rooms});
+
+  final List<Clinic> rooms;
 
   @override
   Widget build(BuildContext context) {
+    // Published hours at an open location is what makes a slot exist. Without
+    // one, "taking bookings" would be a claim with nothing behind it.
+    final publishing = [for (final c in rooms) if (c.weeklyHours.isNotEmpty) c];
+    final on = publishing.isNotEmpty;
+
     return Container(
       padding: EdgeInsets.all(D.s4),
       decoration: BoxDecoration(
-        color: D.brandTint,
+        color: on ? D.doneGround : D.pendingGround,
         borderRadius: BorderRadius.circular(D.rCard),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline_rounded, size: D.iconLg, color: D.brand),
+          Icon(
+            on ? Icons.event_available_rounded : Icons.event_busy_rounded,
+            size: D.iconLg,
+            color: on ? D.done : D.pending,
+          ),
           SizedBox(width: D.s3),
           Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  on ? 'Taking bookings' : 'Not taking bookings',
+                  style: D.subtitle.copyWith(
+                    color: on ? D.done : D.pending,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  on
+                      ? '${publishing.length} of ${rooms.length} '
+                            '${rooms.length == 1 ? 'location' : 'locations'} '
+                            'publishing hours'
+                      : 'No published hours, so no slot exists to book',
+                  style: D.caption.copyWith(color: D.inkMuted, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: D.s2),
+          TextButton(
+            onPressed: () => context.push('/clinician/more/leave'),
+            style: TextButton.styleFrom(
+              foregroundColor: D.brand,
+              minimumSize: Size(0, MediaQuery.textScalerOf(context).scale(D.tap)),
+              padding: EdgeInsets.symmetric(horizontal: D.s2),
+            ),
             child: Text(
-              'Booking rules, follow-up reminder timing, when patients may '
-              'message you, leave and holidays, payouts and bank account, and a '
-              'bio and languages for patient search are all in the design and '
-              'none of them are recorded anywhere yet. They are left off rather '
-              'than drawn as settings that cannot save.',
-              style: D.statLabel.copyWith(color: D.brand, height: 1.45),
+              'Take leave',
+              style: D.dateLine.copyWith(color: D.brand, fontWeight: FontWeight.w600),
             ),
           ),
         ],

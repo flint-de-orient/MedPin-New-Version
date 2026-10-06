@@ -10,6 +10,7 @@ import '../../appointments/domain/clinic.dart';
 import '../../appointments/domain/service.dart';
 import '../../appointments/presentation/appointment_providers.dart';
 import '../domain/weekly_schedule.dart';
+import 'widgets/not_on_file.dart';
 import 'widgets/profile_parts.dart';
 
 /// One place this doctor consults, and what patients are told about it
@@ -24,12 +25,13 @@ import 'widgets/profile_parts.dart';
 /// practice's, with the one line that keeps it honest; charging different
 /// amounts at Salt Lake and New Town needs a field that does not exist yet.
 ///
-/// ---- What else the artboard asks for and the record has not ---------------
+/// ---- What else the board asks for, drawn and inert ------------------------
 ///
-/// A landmark, the location's type, accepted payment methods, "collect fee at
-/// booking", an ABDM HFR link, and the facilities list. Drawn as empty rows
-/// they would read as settings somebody had forgotten to fill in rather than
-/// as fields the app does not keep.
+/// A landmark, the location's type, which payments it takes, "collect fee at
+/// booking", an ABDM HFR link, and the facilities list. The record keeps none
+/// of them, so they are drawn as the design has them and marked "Not on file
+/// yet" — shown so the shape of the screen is visible, inert so nobody sets
+/// something that is not saved. See widgets/not_on_file.dart.
 class DoctorLocationScreen extends ConsumerStatefulWidget {
   const DoctorLocationScreen({super.key, required this.clinicId});
 
@@ -175,6 +177,15 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                           controller: _name,
                           fieldKey: const Key('loc-name'),
                         ),
+                        const PendingChoice(
+                          label: 'Type',
+                          options: [
+                            'Clinic',
+                            'Hospital',
+                            'Diagnostic centre',
+                            'Home visit',
+                          ],
+                        ),
                         _Field(
                           label: 'Address',
                           hint: 'DD-24, Sector 1',
@@ -188,6 +199,7 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                           controller: _city,
                           fieldKey: const Key('loc-city'),
                         ),
+                        const PendingField(label: 'Landmark'),
                         _Field(
                           label: 'Phone for patients',
                           hint: '+91 33 4000 1234',
@@ -234,6 +246,76 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                     const _Fees(),
                     SizedBox(height: D.s6),
 
+                    const ProfileEyebrow(label: 'PAYMENTS'),
+                    SizedBox(height: D.s2),
+                    ProfileGroup(
+                      children: const [
+                        PendingChoice(
+                          first: true,
+                          label: 'What this location takes',
+                          options: ['UPI', 'Cash', 'Card', 'Net banking'],
+                        ),
+                        PendingSwitch(
+                          title: 'Collect fee at booking',
+                          sub: 'Patients pay online when they book a slot',
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: D.s2),
+                    Padding(
+                      padding: EdgeInsets.only(left: D.s1),
+                      child: Text(
+                        // The nearest thing that does work, named, so the row
+                        // above does not read as the only way money moves.
+                        'A service with a fee on it is already paid online when '
+                        'a patient books it. The switch above would make that '
+                        'the rule for this location.',
+                        style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
+                      ),
+                    ),
+                    SizedBox(height: D.s6),
+
+                    const ProfileEyebrow(label: 'ABDM'),
+                    SizedBox(height: D.s2),
+                    ProfileGroup(
+                      children: const [
+                        PendingRow(
+                          first: true,
+                          title: 'HFR ID',
+                          subtitle: 'Health Facility Registry',
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: D.s2),
+                    Padding(
+                      padding: EdgeInsets.only(left: D.s1),
+                      child: Text(
+                        'Linking this location\u2019s HFR ID would make records '
+                        'created here recognised across ABDM.',
+                        style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
+                      ),
+                    ),
+                    SizedBox(height: D.s6),
+
+                    const ProfileEyebrow(label: 'FACILITIES'),
+                    SizedBox(height: D.s2),
+                    ProfileGroup(
+                      children: const [
+                        PendingChoice(
+                          first: true,
+                          label: 'What patients will find here',
+                          options: [
+                            'Wheelchair access',
+                            'Parking',
+                            'Lab sample collection',
+                            'Pharmacy',
+                            'Lift',
+                          ],
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: D.s6),
+
                     if (_failed != null) ...[
                       Container(
                         padding: EdgeInsets.all(D.s4),
@@ -249,34 +331,10 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                       SizedBox(height: D.s5),
                     ],
 
-                    Container(
-                      padding: EdgeInsets.all(D.s4),
-                      decoration: BoxDecoration(
-                        color: D.brandTint,
-                        borderRadius: BorderRadius.circular(D.rCard),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(
-                            Icons.info_outline_rounded,
-                            size: D.iconLg,
-                            color: D.brand,
-                          ),
-                          SizedBox(width: D.s3),
-                          Expanded(
-                            child: Text(
-                              'A landmark, the kind of place this is, which '
-                              'payments it takes, whether fees are collected at '
-                              'booking, an ABDM HFR link and the facilities '
-                              'list are all in the design and none of them are '
-                              'recorded. Empty rows for them would read as '
-                              'settings nobody had filled in.',
-                              style: D.statLabel.copyWith(color: D.brand, height: 1.45),
-                            ),
-                          ),
-                        ],
-                      ),
+                    const PendingNote(
+                      what: 'the kind of place this is, its landmark, which '
+                          'payments it takes, collecting the fee at booking, '
+                          'the ABDM link and the facilities list',
                     ),
                     SizedBox(height: D.s5),
 

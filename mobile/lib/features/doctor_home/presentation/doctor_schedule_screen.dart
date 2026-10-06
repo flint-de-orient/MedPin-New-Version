@@ -10,6 +10,7 @@ import '../../appointments/domain/doctor_hours.dart';
 import '../../appointments/presentation/appointment_providers.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../domain/weekly_schedule.dart';
+import 'widgets/not_on_file.dart';
 import 'widgets/profile_parts.dart';
 
 /// When this doctor sits, and how long they give each patient
@@ -22,14 +23,19 @@ import 'widgets/profile_parts.dart';
 /// diaries, not one with a note. The chips across the top are the locations
 /// this practice has, and everything below them belongs to the chosen one.
 ///
-/// ---- What is not here ------------------------------------------------------
+/// ---- The board's other controls, drawn and inert ---------------------------
 ///
-/// The artboard also asks for patients per slot, walk-in places kept free, a
-/// break between patients, an online-booking switch, how far ahead patients may
-/// book and a cancellation window. The server stores `slotMinutes` and the
-/// weekly windows, and nothing else of those — so a stepper for "walk-in
-/// places" would move a number that no booking has ever read. They are named
-/// once at the foot instead.
+/// Patients per slot, walk-in places kept free, a break between patients, an
+/// online-booking switch, how far ahead patients may book and a cancellation
+/// window. The server stores `slotMinutes` and the weekly windows and nothing
+/// else of those, so each is drawn where the design puts it and marked "Not on
+/// file yet" — visible, and impossible to set. A live stepper for "walk-in
+/// places" would move a number no booking has ever read.
+///
+/// Video is a location on the board, with its own chip and its own hours. It
+/// is not one here: a teleconsult has no `Clinic` row, so there is nowhere for
+/// video hours to live. The chip is drawn inert for the same reason as the
+/// rest.
 class DoctorScheduleScreen extends ConsumerStatefulWidget {
   const DoctorScheduleScreen({super.key, this.clinicId});
 
@@ -268,13 +274,17 @@ class _Editor extends ConsumerWidget {
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: EdgeInsets.zero,
-                  itemCount: rooms.length,
+                  itemCount: rooms.length + 1,
                   separatorBuilder: (_, _) => SizedBox(width: D.s2),
-                  itemBuilder: (context, i) => _RoomChip(
-                    clinic: rooms[i],
-                    on: rooms[i].id == clinicId,
-                    onTap: () => onPickRoom(rooms[i].id),
-                  ),
+                  itemBuilder: (context, i) => i == rooms.length
+                      // Video is a location on the board. It is not one here:
+                      // a teleconsult has no clinic row for hours to live on.
+                      ? const _RoomChip.pending(label: 'Video')
+                      : _RoomChip(
+                          clinic: rooms[i],
+                          on: rooms[i].id == clinicId,
+                          onTap: () => onPickRoom(rooms[i].id),
+                        ),
                 ),
               ),
               SizedBox(height: D.s5),
@@ -376,6 +386,18 @@ class _Editor extends ConsumerWidget {
                           : () => onChanged(week, slotMinutes + 5),
                     ),
                   ),
+                  const PendingStepper(
+                    title: 'Patients per slot',
+                    sub: 'More than 1 lets you double-book',
+                  ),
+                  const PendingStepper(
+                    title: 'Walk-in places',
+                    sub: 'Kept free each session',
+                  ),
+                  const PendingStepper(
+                    title: 'Break between patients',
+                    sub: 'For notes and hand-wash',
+                  ),
                 ],
               ),
               SizedBox(height: D.s6),
@@ -393,6 +415,38 @@ class _Editor extends ConsumerWidget {
               ],
             ],
 
+            const ProfileEyebrow(label: 'BOOKING RULES'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: const [
+                PendingSwitch(
+                  first: true,
+                  title: 'Online booking',
+                  sub: 'Patients book from the MedPin app',
+                ),
+                PendingStepper(
+                  title: 'Open booking',
+                  sub: 'How far ahead patients can book',
+                ),
+                PendingStepper(
+                  title: 'Cancel or reschedule',
+                  sub: 'Allowed until this long before',
+                ),
+              ],
+            ),
+            SizedBox(height: D.s2),
+            Padding(
+              padding: EdgeInsets.only(left: D.s1),
+              child: Text(
+                // What actually governs booking today, so the inert switch
+                // above does not read as the thing holding patients out.
+                'Patients can book any published slot today, and the desk can '
+                'move or cancel one at any time.',
+                style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
+              ),
+            ),
+            SizedBox(height: D.s6),
+
             if (failed != null) ...[
               Container(
                 padding: EdgeInsets.all(D.s4),
@@ -408,29 +462,10 @@ class _Editor extends ConsumerWidget {
               SizedBox(height: D.s5),
             ],
 
-            Container(
-              padding: EdgeInsets.all(D.s4),
-              decoration: BoxDecoration(
-                color: D.brandTint,
-                borderRadius: BorderRadius.circular(D.rCard),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info_outline_rounded, size: D.iconLg, color: D.brand),
-                  SizedBox(width: D.s3),
-                  Expanded(
-                    child: Text(
-                      'The design also offers patients per slot, walk-in places '
-                      'kept free, a break between patients, an online-booking '
-                      'switch, how far ahead patients may book and a '
-                      'cancellation window. None of those are recorded, so a '
-                      'control for them would move a number no booking reads.',
-                      style: D.statLabel.copyWith(color: D.brand, height: 1.45),
-                    ),
-                  ),
-                ],
-              ),
+            const PendingNote(
+              what: 'video as a location of its own, patients per slot, '
+                  'walk-in places, the break between patients, and the three '
+                  'booking rules',
             ),
           ],
         );
@@ -495,14 +530,39 @@ class _Editor extends ConsumerWidget {
 }
 
 class _RoomChip extends StatelessWidget {
-  const _RoomChip({required this.clinic, required this.on, required this.onTap});
+  const _RoomChip({required this.clinic, required this.on, required this.onTap})
+    : label = null;
 
-  final Clinic clinic;
+  /// A location the board has and the record cannot hold — video.
+  const _RoomChip.pending({required this.label})
+    : clinic = null,
+      on = false,
+      onTap = null;
+
+  final Clinic? clinic;
   final bool on;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
+    if (clinic == null) {
+      return Container(
+        padding: EdgeInsets.symmetric(horizontal: D.s4),
+        decoration: BoxDecoration(
+          borderRadius: D.rPill,
+          border: Border.all(color: D.line),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label!, style: D.dateLine.copyWith(color: D.inkFaint)),
+            SizedBox(width: D.s2),
+            const NotOnFile(),
+          ],
+        ),
+      );
+    }
     return Semantics(
       inMutuallyExclusiveGroup: true,
       selected: on,
@@ -522,7 +582,7 @@ class _RoomChip extends StatelessWidget {
             child: Align(
               widthFactor: 1,
               child: Text(
-                clinic.name,
+                clinic!.name,
                 style: D.dateLine.copyWith(color: on ? D.onBrand : D.inkMuted),
               ),
             ),
@@ -657,6 +717,17 @@ class _Preview extends StatelessWidget {
                 ? '$total slots that day, the first ${times.length} shown'
                 : '$total ${total == 1 ? 'slot' : 'slots'} that day',
             style: D.statLabel.copyWith(color: D.inkMuted),
+          ),
+          SizedBox(height: D.s1),
+          Text(
+            // The board greys the walk-in places out of this preview — "12
+            // bookable online, 4 kept for walk-ins". Every one of these is
+            // bookable, because nothing reserves any of them, and showing a
+            // split that no booking honours would be the worst kind of
+            // reassurance.
+            'All of them are bookable online. Keeping some back for walk-ins '
+            'is not on file yet.',
+            style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
           ),
         ],
       ),
