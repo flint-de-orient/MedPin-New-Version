@@ -130,6 +130,18 @@ class D {
   static final TextStyle navLabelOn = _f(11, 1.2, 700);
   static final TextStyle chip = _f(11, 1.2, 800, spacing: 0.66);
 
+  /// 12/600 tracked — a section label above a card of rows.
+  ///
+  /// Measured off the artboards rather than guessed: every one of them sets
+  /// its group headings at 12 or 13 with 0.06em and a semibold weight. The
+  /// nav-bar `chip` at 11/800 was standing in for it and reads a size smaller
+  /// and a great deal heavier than the design.
+  static final TextStyle eyebrow = _f(12, 1.35, 600, spacing: 0.72);
+
+  /// 16/400 — the label on a row inside a card. The accessibility floor for
+  /// body text here, and what every artboard sets these rows at.
+  static final TextStyle row = _f(16, 1.35, 400);
+
   /// 11/1.2 bold — a count nobody has read.
   static final TextStyle badgeText = _f(11, 1.2, 700);
 
@@ -268,7 +280,15 @@ class D {
   static const double disc = 48;
   static const double discLg = 52;
 
+  /// The profile's own disc. Larger than [discLg] because it is the subject of
+  /// the screen rather than a row's avatar.
+  static const double discXl = 72;
+
   /// A field is exactly this tall, and so is the button that submits it.
+  /// A row inside a card. The artboards draw these at a fixed height and let
+  /// a second line push past it; the text scaler does the same.
+  static const double rowH = 56;
+
   static const double inputH = 56;
 
   /// A quick action is at least this tall, and the bar is exactly this.

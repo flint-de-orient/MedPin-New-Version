@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:medpin/features/auth/domain/user.dart';
 import 'package:medpin/features/doctor_home/domain/profile_completeness.dart';
+import 'package:medpin/features/clinician/presentation/clinician_more_screen.dart';
 
 /// What the doctor's profile says is unfinished.
 ///
@@ -65,5 +66,58 @@ void main() {
 
   test('nothing is claimed about a doctor who is not signed in', () {
     expect(whatIsMissing(null, rooms: 0), isEmpty);
+  });
+
+  group('what prints under Professional details', () {
+    test('is what is actually set, in the artboard’s order', () {
+      expect(
+        credentialsLine(
+          AppUser.fromJson({
+            'id': 'u1',
+            'name': 'Dr. Arjun Sen',
+            'phone': '+919830041275',
+            'role': 'doctor',
+            'language': 'en',
+            'qualifications': 'MBBS, MD',
+            'specialty': 'Diabetologist',
+            'registrationNo': 'WBMC 64213',
+          }),
+        ),
+        'MBBS, MD · Diabetologist · WBMC 64213',
+      );
+    });
+
+    test('leaves out what is blank rather than printing a stray separator', () {
+      expect(
+        credentialsLine(
+          AppUser.fromJson({
+            'id': 'u1',
+            'name': 'Dr. Sen',
+            'phone': '+919830041275',
+            'role': 'doctor',
+            'language': 'en',
+            'qualifications': 'MBBS',
+            'specialty': '   ',
+          }),
+        ),
+        'MBBS',
+      );
+    });
+
+    test('is null on an empty profile, so the row does not grow a blank line', () {
+      expect(
+        credentialsLine(
+          AppUser.fromJson({
+            'id': 'u1',
+            'name': 'Dr. Sen',
+            'phone': '+919830041275',
+            'role': 'doctor',
+            'language': 'en',
+          }),
+        ),
+        isNull,
+      );
+      expect(credentialsLine(null), isNull);
+    });
   });
 }

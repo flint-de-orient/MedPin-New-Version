@@ -137,7 +137,7 @@ class ProfileEyebrow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      Text(label.toUpperCase(), style: D.chip.copyWith(color: colour));
+      Text(label.toUpperCase(), style: D.eyebrow.copyWith(color: colour));
 }
 
 /// A row in a list inside a card, with the artboard's hairline above it.
@@ -150,8 +150,14 @@ class ProfileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final row = Padding(
-      padding: EdgeInsets.symmetric(vertical: D.cardPad),
+    final row = Container(
+      // The artboard's 56, with the padding that keeps a two-line row off its
+      // own hairline. A single line sits at 56; a subtitle grows past it.
+      constraints: BoxConstraints(
+        minHeight: MediaQuery.textScalerOf(context).scale(D.rowH),
+      ),
+      padding: EdgeInsets.symmetric(vertical: D.s2),
+      alignment: Alignment.centerLeft,
       child: child,
     );
     return DecoratedBox(
@@ -232,7 +238,7 @@ class ProfileLink extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: D.body.copyWith(color: D.ink)),
+                Text(title, style: D.row.copyWith(color: D.ink)),
                 if (subtitle != null)
                   Text(
                     subtitle!,
@@ -266,7 +272,7 @@ class ProfileLink extends StatelessWidget {
             SizedBox(width: D.s1),
             const Icon(
               Icons.chevron_right_rounded,
-              size: D.iconLg,
+              size: D.iconMd,
               color: D.inkFaint,
             ),
           ],

@@ -16,8 +16,10 @@ import '../../../shared/providers/app_lock_provider.dart';
 import '../../../shared/providers/locale_provider.dart';
 import '../../../shared/utils/phone_format.dart';
 import '../../../shared/widgets/fullscreen_photo.dart';
+import '../../../shared/widgets/app_logo.dart';
 import '../../../shared/widgets/language_picker.dart';
 import '../../../shared/widgets/user_avatar.dart';
+import '../../auth/domain/user.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../doctor_home/presentation/doctor_signature_screen.dart';
 import '../../doctor_home/presentation/widgets/profile_parts.dart';
@@ -30,6 +32,20 @@ import 'widgets/clinician_notification_sheet.dart';
 /// The roles the server lets read patient feedback — `DIRECT_PATIENT_ACCESS` in
 /// backend/src/middleware/auth.js. A practice manager and a dietician are not
 /// among them.
+/// "MBBS, MD · WBMC 64213", or null while there is nothing to print.
+///
+/// Null rather than an empty string: a row with a blank second line is taller
+/// than its neighbours for no reason anybody can see.
+@visibleForTesting
+String? credentialsLine(AppUser? user) {
+  final parts = [
+    if ((user?.qualifications ?? '').trim().isNotEmpty) user!.qualifications!.trim(),
+    if ((user?.specialty ?? '').trim().isNotEmpty) user!.specialty!.trim(),
+    if ((user?.registrationNo ?? '').trim().isNotEmpty) user!.registrationNo!.trim(),
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
+}
+
 bool _readsPatientFeedback(String? role) =>
     const {'doctor', 'staff', 'doctor_assistant', 'lab_manager', 'lab_technician'}.contains(role);
 
@@ -98,7 +114,11 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
           onPressed: () => context.pop(),
         ),
         titleSpacing: 0,
-        title: Text('Profile', style: D.screenTitle.copyWith(color: D.ink)),
+        // The artboard's header is the lockup and the bell, with no title: it
+        // is a tab there and has nowhere to go back to. Here it is opened from
+        // Home's avatar, so the arrow stays and the lockup takes the title's
+        // place rather than a word repeating the row that was tapped.
+        title: const AppWordmark(height: D.logo),
         actions: [
           // The same counted bell as the tabs. A bell that shows a number on
           // Home and none here reads as "nothing waiting" on whichever screen
@@ -119,9 +139,14 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
           children: [
             _Identity(
               name: user?.name ?? roleLabel,
-              phone: user?.phone ?? '',
+              // Grouped, as every other number in this app is shown. Raw, it
+              // ran as one thirteen-digit string nobody can read back.
+              phone: formatPhone(user?.phone),
               avatarUrl: user?.avatarUrl,
-              role: roleLabel,
+              // "Doctor · Owner", which is what the artboard says and what the
+              // membership knows. The role alone left out the half that
+              // decides what this person may change.
+              role: caps.isOwner ? '$roleLabel · Owner' : roleLabel,
               uploading: _uploadingAvatar,
               onChangePhoto: _uploadingAvatar ? null : _changeAvatar,
               onViewPhoto: user?.avatarUrl == null
@@ -144,7 +169,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 // about this account.
                 ProfileLink(
                   title: 'My profile',
-                  subtitle: 'Credentials, locations and the people you work with',
                   onTap: () => context.push('/clinician/more/profile'),
                 ),
               ],
@@ -164,17 +188,14 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                   ProfileLink(
                     first: true,
                     title: 'Appointments',
-                    subtitle: 'Who is coming, who is waiting for a time',
                     onTap: () => context.push('/clinician/appointments'),
                   ),
                   ProfileLink(
                     title: 'Patient queue',
-                    subtitle: 'Today’s waiting room, in the order you call it',
                     onTap: () => context.push('/clinician/queue'),
                   ),
                   ProfileLink(
                     title: 'Follow-ups',
-                    subtitle: 'Who you asked back, and who has not come',
                     onTap: () => context.push('/clinician/follow-ups'),
                   ),
                 ],
@@ -183,16 +204,19 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
             ],
 
             // ---- Language -----------------------------------------------
+            //
+            // One row saying which, as the artboard draws it. The three chips
+            // were a picker sitting open on a screen nobody opens to change
+            // their language — it is read far more often than it is used.
             ProfileEyebrow(label: l10n.profileLanguage.toUpperCase()),
             SizedBox(height: D.s2),
             ProfileGroup(
               children: [
-                ProfileRow(
+                ProfileLink(
                   first: true,
-                  child: LanguagePicker(
-                    selected: currentLocale?.languageCode,
-                    onChanged: _changeLanguage,
-                  ),
+                  title: 'App language',
+                  value: _languageName(currentLocale?.languageCode),
+                  onTap: _pickLanguage,
                 ),
               ],
             ),
@@ -209,7 +233,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 ProfileLink(
                   first: true,
                   title: 'Practice',
-                  subtitle: 'Letterhead, locations and who works here',
                   onTap: () => context.push('/clinician/practice'),
                 ),
                 // Readable by any doctor, not gated on MANAGE_STAFF. Knowing
@@ -220,7 +243,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 if (isDoctor)
                   ProfileLink(
                     title: 'Plan and billing',
-                    subtitle: 'What you are on, and what you are using',
                     onTap: () => context.push('/clinician/billing'),
                   ),
                 // The doctor's own day. Not gated on a plan: a summary of the
@@ -228,12 +250,10 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 if (isDoctor)
                   ProfileLink(
                     title: 'Daily report',
-                    subtitle: 'Who you saw, as a PDF to keep or share',
                     onTap: () => context.push('/clinician/daily-report'),
                   ),
                 ProfileLink(
                   title: 'Clinical alerts',
-                  subtitle: 'Readings and symptoms that need a look',
                   onTap: () => context.push('/clinician/alerts'),
                 ),
                 // Nutrition was the fourth tab until Reports took its place.
@@ -243,25 +263,21 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 if (nutritionAnswerable(caps))
                   ProfileLink(
                     title: 'Nutrition',
-                    subtitle: 'The dietician’s conversations with your patients',
                     onTap: () => context.push('/clinician/nutrition'),
                   ),
                 // Home shows the day and nothing else. These are the cards
                 // that used to sit under it.
                 ProfileLink(
                   title: 'Clinical cards',
-                  subtitle: 'Blood pressure, follow-ups, recent labs, chat summaries',
                   onTap: () => context.push('/clinician/clinical-cards'),
                 ),
                 ProfileLink(
                   title: 'People',
-                  subtitle: 'Doctors, front desk and dieticians',
                   onTap: () => context.push('/clinician/team'),
                 ),
                 if (caps.has(Cap.reportExport))
                   ProfileLink(
                     title: 'Export data',
-                    subtitle: 'Patients, alerts and figures as CSV or JSON',
                     onTap: () => context.push('/clinician/export'),
                   ),
                 // Reviewing what the assistant said is a screen with nothing
@@ -269,12 +285,10 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 if (caps.has(Cap.aiAssistant))
                   ProfileLink(
                     title: 'Chat review',
-                    subtitle: 'What the assistant has been telling patients',
                     onTap: () => context.push('/clinician/chat-review'),
                   ),
                 ProfileLink(
                   title: 'Knowledge base',
-                  subtitle: 'Clinic answers the assistant draws on',
                   onTap: () => context.push('/clinician/knowledge'),
                 ),
                 // Only for somebody the server lets read it: a role that opens
@@ -283,7 +297,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 if (caps.can(Perm.viewPatient) && _readsPatientFeedback(user?.role))
                   ProfileLink(
                     title: 'Patient feedback',
-                    subtitle: 'What patients registered here have written',
                     badge: unreadFeedback == 0 ? null : '$unreadFeedback new',
                     badgeGround: D.brandTint,
                     badgeInk: D.brand,
@@ -302,12 +315,12 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                   ProfileLink(
                     first: true,
                     title: 'Professional details',
-                    // The label always says what the row is for; what is
-                    // currently set goes on the right. Putting the saved
-                    // qualifications in the subtitle meant the row described
-                    // itself on an empty profile and stopped describing itself
-                    // the moment it was filled in.
-                    subtitle: 'Qualifications, specialty and registration no.',
+                    // What is actually set, as the artboard draws it —
+                    // "MBBS, MD · WBMC 64213" under the label. The row still
+                    // says what it is for; the second line says what is on it,
+                    // and on an empty profile there is no second line and the
+                    // badge carries the state instead.
+                    subtitle: credentialsLine(user),
                     badge: (user?.qualifications?.trim().isNotEmpty ?? false)
                         ? null
                         : 'Not set',
@@ -461,6 +474,71 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
     } finally {
       if (mounted) setState(() => _uploadingAvatar = false);
     }
+  }
+
+  /// What a language is called, in its own script. A Bengali speaker has to
+  /// find "বাংলা" while the app is still in English, which is exactly the
+  /// moment they need this row.
+  static String _languageName(String? code) =>
+      LanguagePicker.options
+          .where((o) => o.code == (code ?? 'en'))
+          .map((o) => o.native)
+          .firstOrNull ??
+      'English';
+
+  /// The three the app speaks, on the sheet every other choice here uses.
+  Future<void> _pickLanguage() async {
+    final current = ref.read(localeControllerProvider)?.languageCode;
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      useRootNavigator: true,
+      showDragHandle: false,
+      backgroundColor: D.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(D.rSection)),
+      ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(D.s5, D.s3, D.s5, D.s6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: D.s8 + D.s3,
+                  height: D.s1,
+                  decoration: const BoxDecoration(
+                    color: D.lineStrong,
+                    borderRadius: D.rPill,
+                  ),
+                ),
+              ),
+              SizedBox(height: D.s4),
+              for (final (i, option) in LanguagePicker.options.indexed)
+                ProfileRow(
+                  first: i == 0,
+                  onTap: () => Navigator.pop(ctx, option.code),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          option.native,
+                          style: D.row.copyWith(color: D.ink),
+                        ),
+                      ),
+                      if (option.code == current)
+                        const Icon(Icons.check_rounded, size: D.iconLg, color: D.brand),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null) await _changeLanguage(picked);
   }
 
   Future<void> _changeLanguage(String code) async {
@@ -636,7 +714,7 @@ class _Identity extends StatelessWidget {
                   name: name,
                   avatarUrl: avatarUrl,
                   accent: D.brand,
-                  size: D.discLg,
+                  size: D.discXl,
                 ),
                 if (uploading)
                   Positioned.fill(
@@ -656,25 +734,6 @@ class _Identity extends StatelessWidget {
                       ),
                     ),
                   ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: EdgeInsets.all(D.s1 / 2),
-                    decoration: const BoxDecoration(
-                      color: D.brand,
-                      shape: BoxShape.circle,
-                      border: Border.fromBorderSide(
-                        BorderSide(color: D.ground, width: 2),
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.photo_camera_rounded,
-                      size: D.iconSm,
-                      color: D.onBrand,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -684,7 +743,7 @@ class _Identity extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(name, style: D.opening.copyWith(color: D.ink)),
+              Text(name, style: D.greeting.copyWith(color: D.ink)),
               if (phone.isNotEmpty)
                 Text(phone, style: D.statLabel.copyWith(color: D.inkMuted)),
               SizedBox(height: D.s1),
