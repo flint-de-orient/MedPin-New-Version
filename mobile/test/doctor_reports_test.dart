@@ -30,6 +30,7 @@ ConsultationSummary _summary({
   List<Map<String, dynamic>> perDay = const [],
   List<Map<String, dynamic>> byLocation = const [],
   List<Map<String, dynamic>> byDiagnosis = const [],
+  Map<String, dynamic>? fees,
 }) => ConsultationSummary.fromJson({
   'from': '2026-09-01',
   'to': '2026-09-30',
@@ -44,6 +45,7 @@ ConsultationSummary _summary({
   'perDay': perDay,
   'byLocation': byLocation,
   'byDiagnosis': byDiagnosis,
+  if (fees != null) 'fees': fees,
 });
 
 class _Clinic implements ClinicianRepository {
@@ -197,15 +199,24 @@ void main() {
     expect(find.text('City Care · Salt Lake'), findsOneWidget);
     expect(find.text('Type 2 diabetes'), findsOneWidget);
 
-    // The two the app does not record, said once rather than shown as zero.
-    // It sits at the foot of the tab, below what a phone shows at once.
+    // A window where nothing was charged in the app says so, rather than
+    // showing ₹0 — and still says referrals are not recorded at all. It sits
+    // at the foot of the tab, below what a phone shows at once.
     await tester.scrollUntilVisible(
-      find.textContaining('Fees and referrals are not on this report'),
+      find.textContaining('nothing was charged through the app'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.textContaining('Fees and referrals are not on this report'), findsOneWidget);
-    expect(find.textContaining('₹'), findsNothing);
+    expect(
+      find.textContaining('Cash taken at the desk is not recorded'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Referrals are not on this report'), findsOneWidget);
+    expect(
+      find.textContaining('₹'),
+      findsNothing,
+      reason: 'no money card where no money went through the app',
+    );
   });
 
   testWidgets('an untimed month shows no average, and says why', (tester) async {
@@ -314,6 +325,47 @@ void main() {
       );
       expect(find.text('Filters'), findsOneWidget);
       expect(find.text('All locations'), findsOneWidget);
+    });
+  });
+
+  group('the money, where any went through the app', () {
+    testWidgets('is never shown without how much of the month it is', (tester) async {
+      await _pump(
+        tester,
+        _Clinic(
+          summary: _summary(
+            fees: {
+              'collectedPaise': 2400000,
+              'previousCollectedPaise': 2000000,
+              'outstandingPaise': 50000,
+              'outstandingCount': 1,
+              'paidCount': 11,
+              'countedOf': 12,
+              'consultations': 286,
+            },
+          ),
+        ),
+      );
+
+      expect(find.text('₹24,000'), findsOneWidget);
+      expect(
+        find.text('12 of 286 consultations'),
+        findsOneWidget,
+        reason: 'without this the figure reads as the practice’s takings',
+      );
+      expect(find.text('₹500'), findsOneWidget, reason: 'still owed');
+      expect(find.text('+₹4,000 vs before'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.textContaining('only what patients paid through the app'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        find.textContaining('not the practice\'s takings'),
+        findsOneWidget,
+        reason: 'the warning a doctor reading a takings figure needs',
+      );
     });
   });
 }

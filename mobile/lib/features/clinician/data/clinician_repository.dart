@@ -244,6 +244,25 @@ class ClinicianRepository {
     ];
   }
 
+  /// Every visit the app charged for in the window, paid or not.
+  ///
+  /// Not the practice's takings — only what went through the payment sheet.
+  /// The desk's cash has never been in this app.
+  Future<List<FeeRow>> feeRegister({
+    required DateTime from,
+    required DateTime to,
+    String? clinicId,
+  }) async {
+    final json = await _client.getJson(
+      '/doctor/reports/fees?from=${_day(from)}&to=${_day(to)}'
+      '${clinicId == null ? '' : '&clinicId=$clinicId'}',
+    );
+    return [
+      for (final r in (json['items'] as List? ?? const []))
+        if (r is Map<String, dynamic>) FeeRow.fromJson(r),
+    ];
+  }
+
   /// Who was asked back in the window, and whether they came.
   Future<FollowUpCompliance> followUpCompliance({
     required DateTime from,

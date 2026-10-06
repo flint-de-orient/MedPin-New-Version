@@ -39,6 +39,84 @@ export function isTestMode() {
   return env.RAZORPAY_KEY_ID.startsWith('rzp_test_');
 }
 
+/**
+ * Is this the signature we computed?
+ *
+ * Constant time, because a comparison that returns early on the first wrong
+ * character tells an attacker how much of a forgery matched, through time.
+ * `timingSafeEqual` does not, and it throws on a length mismatch, so the
+ * lengths are checked first. One copy, used by all three verifiers below: two
+ * of them had their own, and a signature check is the last thing in this file
+ * that should exist in more than one version.
+ */
+function sameSignature(expectedHex, given) {
+  try {
+    const a = Buffer.from(expectedHex, 'utf8');
+    const b = Buffer.from(String(given ?? ''), 'utf8');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch (err) {
+    logger.warn({ err }, 'could not compare a razorpay signature');
+    return false;
+  }
+}
+
+/**
+ * One payment, for one appointment.
+ *
+ * ---- Whose account this is -----------------------------------------------
+ *
+ * This deployment's, the same one the MedPin subscriptions are taken on. It is
+ * the only Razorpay account the server has credentials for, so a consultation
+ * fee paid through the app arrives there and reaches the clinic by whatever
+ * arrangement exists outside this system.
+ *
+ * That is a decision with consequences beyond code — a platform collecting a
+ * clinic's consultation fee into its own account is a different regulated
+ * animal from a clinic collecting its own — and the alternative is per-practice
+ * credentials, which is what the design's "Payouts and bank account" screen
+ * implies. Everything either way is identical except the two keys the call is
+ * signed with, which is why `createOrder` takes none of them from its caller:
+ * when practice credentials exist, this is the one function that changes.
+ *
+ * `receipt` is ours and appears on the Razorpay dashboard row; `notes` is
+ * arbitrary and is how a payment is traced back to an appointment if the
+ * callback is ever lost.
+ */
+export function createOrder({ amountPaise, receipt, notes }) {
+  return call('POST', '/orders', {
+    amount: amountPaise,
+    currency: 'INR',
+    receipt,
+    notes,
+    // Razorpay may otherwise capture nothing until we ask, leaving money
+    // authorised and not taken — which looks paid on the phone and unpaid here.
+    payment_capture: 1,
+  });
+}
+
+/**
+ * Whether Razorpay signed this order payment.
+ *
+ * `order_id|payment_id` under the key secret — a different string from the
+ * subscription one below, which is `payment_id|subscription_id`. Getting the
+ * order of the two halves wrong produces a signature that never matches, and
+ * the symptom is every payment looking forged.
+ */
+export function verifyOrderSignature({ orderId, paymentId, signature }) {
+  if (!configured() || !orderId || !paymentId || !signature) return false;
+  const expected = crypto
+    .createHmac('sha256', env.RAZORPAY_KEY_SECRET)
+    .update(`${orderId}|${paymentId}`)
+    .digest('hex');
+  return sameSignature(expected, signature);
+}
+
+/** The key id the app hands to the checkout sheet. Public by design. */
+export function publicKeyId() {
+  return env.RAZORPAY_KEY_ID || null;
+}
+
 /** The provider plan id for one of ours, or null where none is configured. */
 export function planIdFor(plan) {
   return (
@@ -202,22 +280,11 @@ export function verifyCheckoutSignature({ paymentId, subscriptionId, signature }
   if (!configured()) return false;
   if (!paymentId || !subscriptionId || !signature) return false;
 
-  try {
-    const expected = crypto
-      .createHmac('sha256', env.RAZORPAY_KEY_SECRET)
-      .update(`${paymentId}|${subscriptionId}`)
-      .digest('hex');
-
-    const a = Buffer.from(expected, 'utf8');
-    const b = Buffer.from(String(signature), 'utf8');
-    // timingSafeEqual throws on a length mismatch, so the lengths go first.
-    if (a.length !== b.length) return false;
-
-    return crypto.timingSafeEqual(a, b);
-  } catch (err) {
-    logger.warn({ err }, 'could not verify a razorpay checkout signature');
-    return false;
-  }
+  const expected = crypto
+    .createHmac('sha256', env.RAZORPAY_KEY_SECRET)
+    .update(`${paymentId}|${subscriptionId}`)
+    .digest('hex');
+  return sameSignature(expected, signature);
 }
 
 /** One payment, as the provider records it. Used to fill in what checkout omits. */

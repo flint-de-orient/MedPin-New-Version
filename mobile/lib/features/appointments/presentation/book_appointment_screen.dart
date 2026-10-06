@@ -13,6 +13,7 @@ import '../../../shared/services/notification_service.dart';
 import '../../../shared/widgets/auto_refresh.dart';
 import '../data/appointment_repository.dart';
 import '../domain/clinic.dart';
+import '../domain/service.dart';
 import 'appointment_providers.dart';
 import 'request_appointment_sheet.dart';
 
@@ -33,6 +34,11 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
   Slot? _slot;
   final _reason = TextEditingController();
   bool _booking = false;
+
+  /// Which of the practice's services, where it prices any. Null until one is
+  /// chosen, and null on a practice with no price list — which is every
+  /// clinic that takes payment at the desk, and most of them.
+  ClinicService? _service;
 
   /// One per visit to this screen. Confirming the same slot again after a
   /// timeout is the same request, and the server answers with the booking the
@@ -86,6 +92,9 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
             clinicId: _clinic!.id,
             scheduledForIso: _slot!.iso,
             reason: _reason.text.trim(),
+            // The id only. The server reads the amount off its own row, so
+            // nothing here can name a cheaper price.
+            serviceId: _service?.id,
             submission: _submission,
           );
       ref.invalidate(myAppointmentsProvider);
@@ -207,6 +216,13 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
                   onSelect: (s) => setState(() => _slot = s),
                 ),
               ),
+              // What it costs, where the clinic has priced anything. A
+              // practice with no services shows nothing at all rather than a
+              // "₹0" that the desk is about to contradict.
+              _ServicePicker(
+                chosen: _service,
+                onPick: (s) => setState(() => _service = s),
+              ),
               const SizedBox(height: AppSpacing.lg),
               TextField(
                 controller: _reason,
@@ -231,6 +247,65 @@ class _BookAppointmentScreenState extends ConsumerState<BookAppointmentScreen> {
                 slot: _slot,
                 onConfirm: _confirm,
               ),
+    );
+  }
+}
+
+/// The practice's services, and what each costs.
+///
+/// ---- Why nothing is preselected ------------------------------------------
+///
+/// A fee the patient did not choose is a fee they will dispute. The clinic's
+/// cheapest is not a safe default either — booking a follow-up rate for a
+/// first visit is wrong in the clinic's favour at the desk and in the
+/// patient's on the invoice. So one is chosen, or the visit carries no fee
+/// through the app and the desk takes payment as it always has.
+class _ServicePicker extends ConsumerWidget {
+  const _ServicePicker({required this.chosen, required this.onPick});
+
+  final ClinicService? chosen;
+  final ValueChanged<ClinicService?> onPick;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final services = ref.watch(bookableServicesProvider);
+    final rows = services.valueOrNull ?? const <ClinicService>[];
+    // Nothing priced, or the list could not be read: either way there is
+    // nothing to choose and nothing to say.
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: AppSpacing.lg),
+        const _SectionTitle('What this visit is for'),
+        const SizedBox(height: AppSpacing.xs),
+        for (final s in rows)
+          RadioListTile<String>(
+            value: s.id,
+            groupValue: chosen?.id,
+            onChanged: (_) => onPick(s),
+            contentPadding: EdgeInsets.zero,
+            title: Row(
+              children: [
+                Expanded(child: Text(s.name)),
+                Text(
+                  s.price,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            subtitle: (s.note ?? '').isEmpty ? null : Text(s.note!),
+          ),
+        if (chosen != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => onPick(null),
+              child: const Text('Pay at the clinic instead'),
+            ),
+          ),
+      ],
     );
   }
 }

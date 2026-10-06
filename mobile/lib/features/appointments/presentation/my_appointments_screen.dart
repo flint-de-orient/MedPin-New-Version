@@ -8,7 +8,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../l10n/gen/app_localizations.dart';
 import '../../../shared/widgets/auto_refresh.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../data/appointment_repository.dart';
+import '../data/pay_fee.dart';
 import '../domain/appointment.dart';
 import '../domain/clinic.dart';
 import 'appointment_providers.dart';
@@ -181,9 +183,18 @@ class _AppointmentList extends ConsumerWidget {
           final a = items[i];
           return AppointmentCard(
             appointment: a,
+            // What it costs, and the way to settle it. Drawn on a past visit
+            // too where it is still owed: a bill does not stop existing
+            // because the appointment has been and gone.
+            fee: a.fee.line,
             actions:
                 showActions && a.isActive
                     ? [
+                      if (a.fee.owed)
+                        FilledButton(
+                          onPressed: () => _pay(context, ref, a),
+                          child: Text('Pay ${a.fee.line ?? ''}'),
+                        ),
                       // Only where moving it can work: a booked time at a
                       // location, whose published hours the patient chooses
                       // from. It was drawn on every active row, and on a
@@ -208,6 +219,39 @@ class _AppointmentList extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  /// Pay the consultation fee.
+  ///
+  /// The list is reloaded on every outcome except a cancelled sheet, because
+  /// "it was taken but we could not confirm it" is a state the server may
+  /// already have learnt from the webhook by the time this returns.
+  Future<void> _pay(BuildContext context, WidgetRef ref, Appointment a) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final describe =
+        (Object error) => ErrorView.messageFor(context, error);
+
+    final result = await payAppointmentFee(
+      ref,
+      appointmentId: a.id,
+      description: a.clinicName == null
+          ? 'Consultation'
+          : 'Consultation at ${a.clinicName}',
+      describe: describe,
+    );
+
+    if (result.outcome != FeeOutcome.cancelled) {
+      ref.invalidate(myAppointmentsProvider);
+    }
+    final said = switch (result.outcome) {
+      FeeOutcome.paid => 'Paid. Thank you.',
+      // Deliberately not "failed": the money moved. See pay_fee.dart.
+      FeeOutcome.unconfirmed => result.message,
+      FeeOutcome.failed => result.message ?? 'The payment did not go through.',
+      FeeOutcome.notStarted => result.message,
+      FeeOutcome.cancelled => null,
+    };
+    if (said != null) messenger.showSnackBar(SnackBar(content: Text(said)));
   }
 
   Future<void> _cancel(

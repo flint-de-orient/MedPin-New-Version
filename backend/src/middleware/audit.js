@@ -34,7 +34,21 @@ export function audit(action, resource, { when } = {}) {
         subjectPatient: req.patientId ?? req.user?._id,
         ip: req.ip,
         userAgent: req.get('user-agent')?.slice(0, 300),
-        meta: { method: req.method, path: req.route?.path ?? req.originalUrl, status: res.statusCode },
+        /*
+         * Who, what and where, plus whatever the route itself wrote down.
+         *
+         * `req.auditMeta` is for the figures only the handler knows. A price
+         * change is the case that needed it: "who raised the follow-up fee,
+         * and from what" is the question somebody asks three months later,
+         * and a row saying only PATCH /:id 200 cannot answer it. Routes that
+         * have nothing to add set nothing and read exactly as before.
+         */
+        meta: {
+          method: req.method,
+          path: req.route?.path ?? req.originalUrl,
+          status: res.statusCode,
+          ...(req.auditMeta ?? {}),
+        },
       }).catch((err) => logger.error({ err }, 'audit write failed'));
     });
     next();

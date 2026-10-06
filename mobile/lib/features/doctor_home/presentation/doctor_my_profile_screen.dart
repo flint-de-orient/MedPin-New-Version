@@ -141,6 +141,12 @@ class DoctorMyProfileScreen extends ConsumerWidget {
                   route: '/clinician/departments',
                   warn: false,
                 ),
+                (
+                  title: 'Services and fees',
+                  sub: 'What a consultation costs, and what patients pay online',
+                  route: '/clinician/more/services',
+                  warn: false,
+                ),
               ],
             ),
             SizedBox(height: D.s5),
@@ -420,9 +426,9 @@ class _NotYet extends StatelessWidget {
           SizedBox(width: D.s3),
           Expanded(
             child: Text(
-              'Services and fees, booking rules, follow-up reminder timing, '
-              'when patients may message you, leave and holidays, payouts, and '
-              'a bio and languages for patient search are all in the design and '
+              'Booking rules, follow-up reminder timing, when patients may '
+              'message you, leave and holidays, payouts and bank account, and a '
+              'bio and languages for patient search are all in the design and '
               'none of them are recorded anywhere yet. They are left off rather '
               'than drawn as settings that cannot save.',
               style: D.statLabel.copyWith(color: D.brand, height: 1.45),

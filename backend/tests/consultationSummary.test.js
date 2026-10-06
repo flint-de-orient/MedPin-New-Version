@@ -195,3 +195,119 @@ describe('the splits', () => {
     assert.equal(out.kpis.prescriptions.value, 3);
   });
 });
+
+describe('the money, and the half of it the app cannot see', () => {
+  async function charged(when, { amountPaise, status, paidPaise, apptStatus = 'completed' }) {
+    return Appointment.create({
+      patient: patient._id,
+      doctor: doctor._id,
+      practice,
+      status: apptStatus,
+      scheduledFor: when,
+      fee: {
+        amountPaise,
+        status,
+        ...(paidPaise == null ? {} : { paidPaise }),
+      },
+    });
+  }
+
+  test('nothing charged in the app reports nothing counted, not nothing earned', async () => {
+    await seen(new Date('2026-09-10T10:00:00Z'));
+
+    const out = await summary();
+    assert.equal(out.fees.countedOf, 0);
+    assert.equal(out.fees.collectedPaise, 0);
+    assert.equal(
+      out.fees.consultations,
+      1,
+      'the denominator is there so the screen can say 0 of 1 rather than ₹0',
+    );
+  });
+
+  test('collected adds up what arrived; owed adds up what was asked', async () => {
+    await charged(new Date('2026-09-10T10:00:00Z'), {
+      amountPaise: 50000,
+      status: 'paid',
+      paidPaise: 50000,
+    });
+    await charged(new Date('2026-09-11T10:00:00Z'), {
+      amountPaise: 30000,
+      status: 'paid',
+      paidPaise: 30000,
+    });
+    await charged(new Date('2026-09-12T10:00:00Z'), {
+      amountPaise: 40000,
+      status: 'pending',
+    });
+
+    const out = await summary();
+    assert.equal(out.fees.collectedPaise, 80000);
+    assert.equal(out.fees.paidCount, 2);
+    assert.equal(out.fees.outstandingPaise, 40000);
+    assert.equal(out.fees.outstandingCount, 1);
+    assert.equal(out.fees.countedOf, 3);
+  });
+
+  test('a visit with no fee on it is not counted as a free one', async () => {
+    await charged(new Date('2026-09-10T10:00:00Z'), {
+      amountPaise: 50000,
+      status: 'paid',
+      paidPaise: 50000,
+    });
+    // A consultation the desk took cash for. It has no fee in the app, and
+    // counting it would make the average fee look halved.
+    await seen(new Date('2026-09-11T10:00:00Z'));
+
+    const out = await summary();
+    assert.equal(out.fees.countedOf, 1);
+    assert.equal(out.fees.consultations, 2);
+  });
+
+  test('somebody who paid online and did not come has still paid', async () => {
+    await charged(new Date('2026-09-10T10:00:00Z'), {
+      amountPaise: 50000,
+      status: 'paid',
+      paidPaise: 50000,
+      apptStatus: 'no_show',
+    });
+
+    const out = await summary();
+    assert.equal(
+      out.fees.collectedPaise,
+      50000,
+      'a month that dropped their money would not reconcile',
+    );
+  });
+
+  test('the month before is there to compare against', async () => {
+    await charged(new Date('2026-09-10T10:00:00Z'), {
+      amountPaise: 50000,
+      status: 'paid',
+      paidPaise: 50000,
+    });
+    await charged(new Date('2026-08-10T10:00:00Z'), {
+      amountPaise: 20000,
+      status: 'paid',
+      paidPaise: 20000,
+    });
+
+    const out = await summary();
+    assert.equal(out.fees.collectedPaise, 50000);
+    assert.equal(out.fees.previousCollectedPaise, 20000);
+  });
+
+  test('another practice’s takings are not in this one’s report', async () => {
+    await Appointment.create({
+      patient: patient._id,
+      doctor: doctor._id,
+      practice: other,
+      status: 'completed',
+      scheduledFor: new Date('2026-09-10T10:00:00Z'),
+      fee: { amountPaise: 90000, status: 'paid', paidPaise: 90000 },
+    });
+
+    const out = await summary();
+    assert.equal(out.fees.collectedPaise, 0);
+  });
+});

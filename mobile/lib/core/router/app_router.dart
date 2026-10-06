@@ -27,6 +27,7 @@ import '../../features/doctor_home/presentation/doctor_add_patient_screen.dart';
 import '../../features/doctor_home/presentation/doctor_appointments_screen.dart';
 import '../../features/doctor_home/presentation/doctor_my_profile_screen.dart';
 import '../../features/doctor_home/presentation/doctor_professional_screen.dart';
+import '../../features/doctor_home/presentation/doctor_services_screen.dart';
 import '../../features/doctor_home/presentation/doctor_bulk_message_screen.dart';
 import '../../features/doctor_home/presentation/doctor_consult_pick_screen.dart';
 import '../../features/doctor_home/presentation/doctor_consult_screen.dart';
@@ -411,13 +412,21 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         path: '/clinician/nutrition',
         builder: (context, state) => const NutritionInboxScreen(),
       ),
-      // The three registers the MIS's figures were counted from. The window
-      // travels in the query so a register can be opened, read, and come back
-      // to the same month.
+      // The registers the MIS's figures were counted from. The window travels
+      // in the query so a register can be opened, read, and come back to the
+      // same month.
       GoRoute(
         path: '/clinician/reports/consultations',
         builder: (context, state) => DoctorReportRegisterScreen(
           kind: RegisterKind.consultations,
+          from: _day(state.uri.queryParameters['from']),
+          to: _day(state.uri.queryParameters['to']),
+        ),
+      ),
+      GoRoute(
+        path: '/clinician/reports/fees',
+        builder: (context, state) => DoctorReportRegisterScreen(
+          kind: RegisterKind.fees,
           from: _day(state.uri.queryParameters['from']),
           to: _day(state.uri.queryParameters['to']),
         ),
@@ -514,6 +523,11 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/clinician/more/professional',
         builder: (context, state) => const DoctorProfessionalScreen(),
+      ),
+      // What the practice charges, and the only place a fee is set.
+      GoRoute(
+        path: '/clinician/more/services',
+        builder: (context, state) => const DoctorServicesScreen(),
       ),
       GoRoute(
         path: '/clinician/more/edit',

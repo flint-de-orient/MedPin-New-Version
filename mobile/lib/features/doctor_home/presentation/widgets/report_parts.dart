@@ -72,6 +72,13 @@ final prescriptionRegisterProvider = FutureProvider.autoDispose
           .prescriptionRegister(from: window.from, to: window.to),
     );
 
+final feeRegisterProvider = FutureProvider.autoDispose
+    .family<List<FeeRow>, ({DateTime from, DateTime to})>(
+      (ref, window) => ref
+          .watch(clinicianRepositoryProvider)
+          .feeRegister(from: window.from, to: window.to),
+    );
+
 final followUpComplianceProvider = FutureProvider.autoDispose
     .family<FollowUpCompliance, ({DateTime from, DateTime to})>(
       (ref, window) => ref

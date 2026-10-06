@@ -11,7 +11,15 @@ import { idempotentWrite } from '../middleware/idempotentWrite.js';
 import { asyncHandler, notFound, badRequest, conflict } from '../middleware/errors.js';
 import { audit } from '../middleware/audit.js';
 import { Appointment, APPOINTMENT_STATUS } from '../models/Appointment.js';
+import { AuditLog } from '../models/AuditLog.js';
 import { Clinic } from '../models/Clinic.js';
+import { Service } from '../models/Service.js';
+import {
+  configured as razorpayConfigured,
+  createOrder,
+  publicKeyId,
+  verifyOrderSignature,
+} from '../services/billing/razorpay.js';
 import { User, ROLES } from '../models/User.js';
 import { AppointmentWaitlist } from '../models/AppointmentWaitlist.js';
 import { PatientProfile } from '../models/PatientProfile.js';
@@ -346,6 +354,9 @@ router.post(
       reason: z.string().max(600).optional(),
       patientId: z.string().optional(),
       doctorId: z.string().optional(),
+      /// Which of the practice's services, where it charges for them. The
+      /// amount is never sent: see the note on feeFor.
+      serviceId: z.string().optional(),
     }),
   }),
   audit('create', 'Appointment'),
@@ -421,6 +432,10 @@ router.post(
     const practice =
       clinic?.practice ?? (await practiceForWork(req, patientId)) ?? (await practiceOfMember(doctor._id));
 
+    // What this visit costs, read from the practice's own list. Never from the
+    // request: see feeFor.
+    const fee = await feeFor({ practice, serviceId: req.body.serviceId, mode });
+
     // The checks and the write, with the doctor's diary held: two bookings in
     // the same instant each saw the hour free and both wrote. See
     // withDoctorDiary.
@@ -448,6 +463,7 @@ router.post(
         patient: patientId,
         doctor: doctor._id,
         clinic: clinic?._id,
+        ...fee,
         // Whose diary. From the building where there is one; without one, the
         // practice doing the work, and the doctor's own membership last.
         practice,
@@ -1519,6 +1535,228 @@ router.post(
   }),
 );
 
+/**
+ * The fee fields a new booking carries.
+ *
+ * ---- The amount is never taken from the request -------------------------
+ *
+ * The app sends which service was chosen; the price comes from the row. A
+ * client that could name its own amount could name one rupee, and the first
+ * person to notice would be the clinic reconciling its takings a month later.
+ *
+ * ---- A mismatched mode is refused, not quietly repriced -----------------
+ *
+ * A service marked in-clinic booked as a video call is either the wrong
+ * service or a mode the clinic has not priced. Charging the in-clinic rate for
+ * a video call is a decision this code is not entitled to make.
+ */
+async function feeFor({ practice, serviceId, mode }) {
+  // No service named: the app does not collect for this visit. Not "free" —
+  // see the note at the top of routes/services.js.
+  if (!serviceId) return {};
+  if (!practice) throw badRequest('This practice does not have a price list.');
+
+  const service = await Service.findOne({
+    _id: serviceId,
+    practice,
+    isActive: true,
+  }).lean();
+  if (!service) throw badRequest('That service is not available.');
+  if (service.mode !== 'both' && service.mode !== mode) {
+    throw badRequest('That service is not offered for this kind of visit.');
+  }
+
+  return {
+    service: service._id,
+    fee: {
+      amountPaise: service.amountPaise,
+      // Zero is a real price — a free follow-up inside a fortnight — and
+      // nothing is owed on it, so it is not left waiting to be paid.
+      status: service.amountPaise > 0 ? 'pending' : 'not_required',
+    },
+    ...(service.durationMinutes ? { durationMinutes: service.durationMinutes } : {}),
+  };
+}
+
+/**
+ * Start a payment for an appointment's fee.
+ *
+ * ---- Who may ask --------------------------------------------------------
+ *
+ * The patient it is for, or the desk acting for them. Both go through the same
+ * read as every other route here, so neither can start a payment against
+ * somebody else's appointment.
+ *
+ * ---- Idempotent by the order, not by a key ------------------------------
+ *
+ * Asked twice — the sheet dismissed and reopened, the phone reconnecting — the
+ * second call returns the order the first one made rather than creating a
+ * second. Two live orders for one appointment is how a patient pays twice.
+ */
+router.post(
+  '/:id/fee/order',
+  audit('create', 'Appointment'),
+  asyncHandler(async (req, res) => {
+    // Unpopulated on purpose: this route answers with three fields and
+    // nothing else, and the document it saves below is the one it read.
+    const appointment = await Appointment.findOne({
+      _id: req.params.id,
+      ...(await scopeFilter(req)),
+    });
+    if (!appointment) throw notFound('Appointment not found');
+
+    const owed = appointment.fee?.amountPaise ?? 0;
+    if (appointment.fee?.status === 'paid') {
+      throw badRequest('This appointment has already been paid for.');
+    }
+    if (appointment.fee?.status !== 'pending' || owed <= 0) {
+      throw badRequest('Nothing is owed on this appointment through the app.');
+    }
+    if (['cancelled', 'no_show'].includes(appointment.status)) {
+      throw badRequest('This appointment is no longer active.');
+    }
+    if (!razorpayConfigured()) {
+      // Said plainly rather than offering a checkout that cannot open: the
+      // clinic takes the money at the desk, as it always has.
+      throw badRequest('Online payment is not switched on for this clinic.');
+    }
+
+    if (appointment.fee.orderId) {
+      return res.json({
+        orderId: appointment.fee.orderId,
+        amountPaise: owed,
+        keyId: publicKeyId(),
+        reused: true,
+      });
+    }
+
+    const order = await createOrder({
+      amountPaise: owed,
+      // Theirs to show us on the dashboard; ours to trace back.
+      receipt: `appt_${appointment._id}`,
+      notes: {
+        appointment: String(appointment._id),
+        patient: String(appointment.patient?._id ?? appointment.patient),
+        practice: String(appointment.practice ?? ''),
+      },
+    });
+
+    appointment.fee.orderId = order.id;
+    await appointment.save();
+
+    req.auditResourceId = appointment._id;
+    req.auditMeta = { fee: 'order', orderId: order.id, amountPaise: owed };
+
+    res.status(201).json({
+      orderId: order.id,
+      amountPaise: owed,
+      keyId: publicKeyId(),
+      reused: false,
+    });
+  }),
+);
+
+/**
+ * Confirm one.
+ *
+ * ---- What is trusted ----------------------------------------------------
+ *
+ * The signature, and nothing else the phone said. `razorpay_payment_id` alone
+ * proves nothing — anybody can type a string — so the HMAC over
+ * `order_id|payment_id` is checked against our key secret. A phone that
+ * reports success on a payment that never happened moves nothing here.
+ *
+ * The amount recorded is the one this server put on the order, read from the
+ * appointment's own row. It is never a figure from the request, and it is not
+ * read back from Razorpay either: the order was created from this practice's
+ * price list a moment ago and the signature says that order was paid.
+ *
+ * ---- And why it is still not the last word ------------------------------
+ *
+ * A patient who pays and then loses signal never reaches this route. The
+ * money arrived all the same, which is what the webhook is for; this is the
+ * fast path, and it is written so that running it twice changes nothing.
+ */
+router.post(
+  '/:id/fee/verify',
+  validate({
+    body: z.object({
+      paymentId: z.string().min(4).max(120),
+      signature: z.string().min(16).max(256),
+      orderId: z.string().min(4).max(120).optional(),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    // Read plain and populated after the write, so the save is of the row as
+    // it was loaded. The reply needs the names; the write does not.
+    const appointment = await Appointment.findOne({
+      _id: req.params.id,
+      ...(await scopeFilter(req)),
+    });
+    if (!appointment) throw notFound('Appointment not found');
+
+    const orderId = appointment.fee?.orderId;
+    if (!orderId) throw badRequest('No payment has been started for this appointment.');
+
+    // A body naming a different order is refused rather than ignored: it is
+    // either a bug or an attempt to confirm one appointment with another's
+    // payment, and silently using ours would hide both.
+    if (req.body.orderId && req.body.orderId !== orderId) {
+      throw badRequest('That payment belongs to a different order.');
+    }
+
+    if (appointment.fee.status === 'paid') {
+      await appointment.populate(POPULATE);
+      return res.json({ appointment: serialise(appointment), alreadyPaid: true });
+    }
+
+    const signed = verifyOrderSignature({
+      orderId,
+      paymentId: req.body.paymentId,
+      signature: req.body.signature,
+    });
+    if (!signed) {
+      logger.warn(
+        { appointment: String(appointment._id), orderId },
+        'rejected an unsigned appointment payment',
+      );
+      throw badRequest('That payment could not be verified.');
+    }
+
+    appointment.fee.status = 'paid';
+    appointment.fee.paymentId = req.body.paymentId;
+    appointment.fee.paidAt = new Date();
+    // The amount this server put on the order, not a figure from the request.
+    // The two are only ever different after a partial refund, which nothing
+    // here does yet — and which is why the field is separate from the amount
+    // asked rather than the same number twice.
+    appointment.fee.paidPaise = appointment.fee.amountPaise;
+    await appointment.save();
+    await appointment.populate(POPULATE);
+
+    AuditLog.create({
+      actor: req.user?._id,
+      actorRole: req.user?.role,
+      action: 'update',
+      resource: 'Appointment',
+      resourceId: appointment._id,
+      subjectPatient: appointment.patient?._id ?? appointment.patient,
+      ip: req.ip,
+      userAgent: req.get('user-agent')?.slice(0, 300),
+      meta: {
+        fee: 'paid',
+        orderId,
+        paymentId: req.body.paymentId,
+        amountPaise: appointment.fee.amountPaise,
+        path: '/appointments/:id/fee/verify',
+      },
+      at: new Date(),
+    }).catch(() => {});
+
+    res.json({ appointment: serialise(appointment), alreadyPaid: false });
+  }),
+);
+
 function serialise(a) {
   const patient = a.patient && typeof a.patient === 'object' && a.patient.name ? a.patient : null;
   const doctor = a.doctor && typeof a.doctor === 'object' && a.doctor.name ? a.doctor : null;
@@ -1566,6 +1804,18 @@ function serialise(a) {
       ? { roomId: a.teleconsult.roomId, joinUrl: a.teleconsult.joinUrl ?? null }
       : null,
     consultationNotes: a.consultationNotes ?? null,
+    // What the visit costs and whether it is settled. `null` amount on a
+    // booking the app does not collect for, which the screens read as "paid
+    // at the desk" and never as "free".
+    serviceId: a.service ?? null,
+    fee: {
+      amountPaise: a.fee?.amountPaise ?? null,
+      status: a.fee?.status ?? 'not_required',
+      paidAt: a.fee?.paidAt ?? null,
+      // Never the signature, and never the order id to anybody but the payer's
+      // own checkout: see the fee/order route.
+      paymentId: a.fee?.paymentId ?? null,
+    },
     createdAt: a.createdAt,
   };
 }

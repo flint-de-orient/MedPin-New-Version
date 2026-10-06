@@ -11,7 +11,13 @@ import 'package:razorpay_flutter/razorpay_flutter.dart';
 enum CheckoutOutcome { paid, cancelled, failed, couldNotOpen }
 
 class CheckoutResult {
-  const CheckoutResult(this.outcome, {this.paymentId, this.signature, this.message});
+  const CheckoutResult(
+    this.outcome, {
+    this.paymentId,
+    this.signature,
+    this.orderId,
+    this.message,
+  });
 
   final CheckoutOutcome outcome;
 
@@ -19,6 +25,11 @@ class CheckoutResult {
   /// verified the signature over them. See [BillingRepository.verify].
   final String? paymentId;
   final String? signature;
+
+  /// On an order payment, which order it was for. The server knows the
+  /// appointment's own order, and a mismatch is refused there rather than
+  /// trusted from here.
+  final String? orderId;
 
   final String? message;
 
@@ -150,6 +161,115 @@ class RazorpayCheckout {
       // Always, on every path. The plugin holds a platform channel listener and
       // leaving it attached across screens is how a later payment's callback
       // arrives at a disposed widget.
+      razorpay.clear();
+      if (identical(_razorpay, razorpay)) _razorpay = null;
+      if (identical(_pending, completer)) _pending = null;
+    }
+  }
+
+  /// Open checkout for one payment, on an order our server created.
+  ///
+  /// ---- A different Razorpay object from a subscription --------------------
+  ///
+  /// A subscription payment carries `subscription_id` and no amount: the plan
+  /// says what it costs. A one-off carries `order_id` *and* `amount`, and the
+  /// amount here is only what the sheet prints — Razorpay charges what the
+  /// order says, and the order was created by the server. So a tampered amount
+  /// on this side makes the sheet lie and takes the real money anyway, which
+  /// is why the verify route reads the figure off the order rather than off
+  /// anything the phone sent.
+  ///
+  /// [orderId] is never named by the app for the same reason the subscription
+  /// id is not: a client that could name its own order could name a cheaper
+  /// one.
+  Future<CheckoutResult> openOrder({
+    required String keyId,
+    required String orderId,
+    required int amountPaise,
+    required String description,
+    String? contact,
+    String? email,
+    String brandName = 'MedPin',
+    String? brandImageUrl,
+  }) async {
+    if (_pending != null && !_pending!.isCompleted) {
+      return const CheckoutResult(
+        CheckoutOutcome.couldNotOpen,
+        message: 'A payment is already open.',
+      );
+    }
+
+    final completer = Completer<CheckoutResult>();
+    _pending = completer;
+
+    final razorpay = Razorpay();
+    _razorpay = razorpay;
+
+    void finish(CheckoutResult result) {
+      if (!completer.isCompleted) completer.complete(result);
+    }
+
+    razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, (PaymentSuccessResponse r) {
+      finish(
+        CheckoutResult(
+          CheckoutOutcome.paid,
+          paymentId: r.paymentId,
+          signature: r.signature,
+          orderId: r.orderId ?? orderId,
+        ),
+      );
+    });
+
+    razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse r) {
+      final cancelled = r.code == Razorpay.PAYMENT_CANCELLED;
+      finish(
+        CheckoutResult(
+          cancelled ? CheckoutOutcome.cancelled : CheckoutOutcome.failed,
+          message: cancelled ? null : _readable(r.message),
+        ),
+      );
+    });
+
+    razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, (ExternalWalletResponse r) {
+      finish(
+        const CheckoutResult(
+          CheckoutOutcome.cancelled,
+          message: 'Continue in your wallet app. We will update this when the '
+              'payment is confirmed.',
+        ),
+      );
+    });
+
+    try {
+      razorpay.open({
+        'key': keyId,
+        'order_id': orderId,
+        'amount': amountPaise,
+        'currency': 'INR',
+        'name': brandName,
+        'description': description,
+        if (brandImageUrl != null && brandImageUrl.isNotEmpty) 'image': brandImageUrl,
+        'prefill': {
+          if (contact != null && contact.isNotEmpty) 'contact': contact,
+          if (email != null && email.isNotEmpty) 'email': email,
+        },
+        'theme': {'color': '#003399'},
+        // Unlike a subscription mandate, closing this by tapping outside costs
+        // the patient nothing: the order stays, and the next tap reuses it.
+        'modal': {'confirm_close': false},
+      });
+    } catch (err) {
+      finish(
+        const CheckoutResult(
+          CheckoutOutcome.couldNotOpen,
+          message: 'Could not open the payment screen.',
+        ),
+      );
+    }
+
+    try {
+      return await completer.future;
+    } finally {
       razorpay.clear();
       if (identical(_razorpay, razorpay)) _razorpay = null;
       if (identical(_pending, completer)) _pending = null;

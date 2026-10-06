@@ -1,3 +1,5 @@
+import 'service.dart';
+
 /// A booked appointment, as returned by `/appointments`.
 class Appointment {
   const Appointment({
@@ -24,6 +26,8 @@ class Appointment {
     this.isPriority = false,
     this.consultationNotes,
     this.createdAt,
+    this.serviceId,
+    this.fee = const AppointmentFee(),
   });
 
   final String id;
@@ -91,6 +95,13 @@ class Appointment {
   final int? queueNumber;
   final bool isPriority;
   final String? consultationNotes;
+
+  /// Which of the practice's services this was booked as, where it charges.
+  final String? serviceId;
+
+  /// What it costs and whether it is settled. Defaults to nothing owed
+  /// through the app, which is what an older server's reply means.
+  final AppointmentFee fee;
   final DateTime? createdAt;
 
   bool get isTeleconsult => mode == 'teleconsult';
@@ -146,6 +157,10 @@ class Appointment {
       isPriority: j['isPriority'] == true,
       consultationNotes: j['consultationNotes']?.toString(),
       createdAt: DateTime.tryParse(j['createdAt']?.toString() ?? '')?.toLocal(),
+      serviceId: j['serviceId']?.toString(),
+      fee: j['fee'] is Map<String, dynamic>
+          ? AppointmentFee.fromJson(j['fee'] as Map<String, dynamic>)
+          : const AppointmentFee(),
     );
   }
 }

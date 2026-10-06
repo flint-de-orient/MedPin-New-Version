@@ -123,6 +123,51 @@ const appointmentSchema = new mongoose.Schema(
     // Set when triage escalates a chat into a priority slot request.
     createdFromAlert: { type: mongoose.Schema.Types.ObjectId, ref: 'ClinicalAlert' },
     isPriority: { type: Boolean, default: false, index: true },
+
+    /*
+     * What this visit costs, and whether it has been paid.
+     *
+     * ---- Why the amount is copied and not looked up -----------------------
+     *
+     * `service` says which of the practice's services this was booked as;
+     * `amountPaise` is what that service cost *on the day it was booked*. A
+     * clinic that raises its follow-up fee in March must not change what
+     * February's patient was asked for, and a receipt that recomputes its own
+     * total from today's price list is a receipt that disagrees with the money
+     * that moved.
+     *
+     * ---- Why 'not_required' is the default -------------------------------
+     *
+     * Every clinic on this platform today takes money at the desk, in cash,
+     * and nothing in the app has ever recorded it. A booking with no service
+     * on it owes nothing *through the app*, which is not the same as being
+     * free — see the note in services.js — so the word is "not required"
+     * rather than "paid" or "waived".
+     */
+    service: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Service',
+      default: null,
+      index: true,
+    },
+    fee: {
+      /// Integer paise, copied from the service at booking.
+      amountPaise: { type: Number, min: 0, default: null },
+      status: {
+        type: String,
+        enum: ['not_required', 'pending', 'paid', 'refunded'],
+        default: 'not_required',
+        index: true,
+      },
+      /// Razorpay's, created by us and never named by the app: a client that
+      /// could name its own order could name a cheaper one.
+      orderId: { type: String, default: null, index: true },
+      /// Only ever written after a signature this server checked.
+      paymentId: { type: String, default: null },
+      paidAt: { type: Date, default: null },
+      /// What actually arrived, which is not assumed to equal what was asked.
+      paidPaise: { type: Number, min: 0, default: null },
+    },
   },
   { timestamps: true },
 );

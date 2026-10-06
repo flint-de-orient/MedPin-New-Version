@@ -16,14 +16,26 @@ import { Clinic } from '../models/Clinic.js';
  * a practice reads these numbers to decide how it is doing and a figure that
  * came from a formula cannot be checked against the diary.
  *
+ * ---- Fees, and the half of them this cannot see ---------------------------
+ *
+ * `fees` counts what patients paid *through the app* — a consultation booked
+ * against one of the practice's services and settled in the payment sheet. It
+ * is not the practice's takings. Every clinic here also takes cash at the
+ * desk, and nothing in the app has ever recorded a rupee of it, so a month
+ * where the whole queue paid at the window reads as zero collected and is
+ * correct about the only thing it can see.
+ *
+ * `countedOf` is how the screen can say so honestly: it is how many of the
+ * window's consultations had a fee in the app at all. Where that is a
+ * fraction of the consultations, the figure beside it is a fraction of the
+ * money, and the screen should not be able to pretend otherwise.
+ *
  * ---- What is not here, and why ---------------------------------------------
  *
- * The design also asks for fees collected and referrals. Neither exists in this
- * system: there is no money recorded against a patient anywhere — `Payment` and
- * `Invoice` are the practice's own MedPin subscription, not a consultation fee
- * — and nothing records a referral to or from another doctor. They are absent
- * from this response rather than present and zero, so the screen can say they
- * are not recorded instead of reporting that nothing was earned.
+ * Referrals. Nothing records one to or from another doctor, so there is no
+ * field to count — absent from this response rather than present and zero, so
+ * the screen can say it is not recorded instead of reporting that nobody was
+ * referred.
  *
  * The split by visit type is absent for the same reason: "follow-up" versus
  * "report review" is not a field, only free text in `reason`.
@@ -98,6 +110,57 @@ async function countsFor({ doctorId, practiceId, clinicId, from, to }) {
   return { consultations, missed, prescriptions, newPatients };
 }
 
+/**
+ * What was paid through the app in the window, and what is still owed.
+ *
+ * Counted off the appointment and not off any ledger, because the appointment
+ * is where the amount was copied to at booking — see the note on
+ * `fee.amountPaise` in models/Appointment.js. `paidPaise` is what arrived;
+ * `amountPaise` is what was asked for. They are the same figure today and
+ * will not be the day a partial refund exists, which is why the collected
+ * total adds up the first and the outstanding total the second.
+ *
+ * Every appointment in the window with a fee on it counts, whatever its
+ * status: a patient who paid online and then did not come has still paid, and
+ * a month that quietly dropped their money would not reconcile.
+ */
+async function feesFor({ doctorId, practiceId, clinicId, from, to }) {
+  const { start, end } = bounds(from, to);
+  const rows = await Appointment.aggregate([
+    {
+      $match: {
+        ...scope({ doctorId, practiceId, clinicId }),
+        scheduledFor: { $gte: start, $lte: end },
+        'fee.amountPaise': { $gt: 0 },
+      },
+    },
+    {
+      $group: {
+        _id: '$fee.status',
+        count: { $sum: 1 },
+        asked: { $sum: '$fee.amountPaise' },
+        paid: { $sum: { $ifNull: ['$fee.paidPaise', 0] } },
+      },
+    },
+  ]);
+
+  const by = new Map(rows.map((r) => [r._id, r]));
+  const paid = by.get('paid');
+  const pending = by.get('pending');
+  const refunded = by.get('refunded');
+
+  return {
+    collectedPaise: paid?.paid ?? 0,
+    paidCount: paid?.count ?? 0,
+    outstandingPaise: pending?.asked ?? 0,
+    outstandingCount: pending?.count ?? 0,
+    refundedPaise: refunded?.paid ?? 0,
+    // How many of the window's visits had a fee in the app at all. The screen
+    // needs this to say what fraction of the money it is looking at.
+    countedOf: rows.reduce((sum, r) => sum + r.count, 0),
+  };
+}
+
 /** Minutes between being called in and being finished, where both are known. */
 async function averageConsultMinutes({ doctorId, practiceId, clinicId, from, to }) {
   const { start, end } = bounds(from, to);
@@ -134,10 +197,21 @@ export async function buildConsultationSummary({
 
   const previous = previousRange(from, to);
 
-  const [now, before, average, perDayRows, byClinicRows, diagnosisRows] = await Promise.all([
+  const [
+    now,
+    before,
+    average,
+    fees,
+    feesBefore,
+    perDayRows,
+    byClinicRows,
+    diagnosisRows,
+  ] = await Promise.all([
     countsFor({ doctorId, practiceId, clinicId, from, to }),
     countsFor({ doctorId, practiceId, clinicId, from: previous.from, to: previous.to }),
     averageConsultMinutes({ doctorId, practiceId, clinicId, from, to }),
+    feesFor({ doctorId, practiceId, clinicId, from, to }),
+    feesFor({ doctorId, practiceId, clinicId, from: previous.from, to: previous.to }),
     Appointment.aggregate([
       { $match: seenInRange },
       {
@@ -195,6 +269,18 @@ export async function buildConsultationSummary({
       // Null until something has both timestamps; `from` says how many
       // consultations the average is actually made of.
       averageMinutes: { value: average.minutes, from: average.from },
+    },
+    // What the app collected, which is not what the practice took. See the
+    // note at the top of this file.
+    fees: {
+      collectedPaise: fees.collectedPaise,
+      previousCollectedPaise: feesBefore.collectedPaise,
+      outstandingPaise: fees.outstandingPaise,
+      outstandingCount: fees.outstandingCount,
+      refundedPaise: fees.refundedPaise,
+      paidCount: fees.paidCount,
+      countedOf: fees.countedOf,
+      consultations: now.consultations,
     },
     perDay,
     byLocation: byClinicRows.map((r) => ({

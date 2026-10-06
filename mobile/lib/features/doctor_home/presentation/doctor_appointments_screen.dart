@@ -466,6 +466,17 @@ class _BookingRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: D.caption.copyWith(color: D.inkFaint),
                 ),
+              // Only where the app is collecting for this visit. A line here
+              // on every row would read as a bill on the ones the desk takes
+              // cash for.
+              if (a.fee.line != null)
+                Text(
+                  a.fee.line!,
+                  style: D.caption.copyWith(
+                    color: a.fee.paid ? D.done : D.pending,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               SizedBox(height: D.s1),
               Row(
                 children: [

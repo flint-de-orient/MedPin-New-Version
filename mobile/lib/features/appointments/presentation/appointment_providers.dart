@@ -6,6 +6,7 @@ import '../data/clinic_repository.dart';
 import '../domain/appointment.dart';
 import '../domain/clinic.dart';
 import '../domain/doctor_hours.dart';
+import '../domain/service.dart';
 
 /// All clinics the caller may see (patients: active only; clinicians: all).
 final clinicsProvider = FutureProvider.autoDispose<List<Clinic>>((ref) {
@@ -25,6 +26,21 @@ final slotDayProvider = FutureProvider.autoDispose
           .watch(clinicRepositoryProvider)
           .slots(args.clinicId, args.date);
     });
+
+/// The practice's services, for a screen about to book one.
+///
+/// Active only, and an empty list on any failure: a booking screen that cannot
+/// read the price list must offer no prices rather than block the booking. The
+/// desk has taken payment at the window since before this app existed.
+final bookableServicesProvider = FutureProvider.autoDispose<List<ClinicService>>(
+  (ref) async {
+    try {
+      return await ref.watch(appointmentRepositoryProvider).services();
+    } catch (_) {
+      return const [];
+    }
+  },
+);
 
 /// The signed-in patient's own appointments (server scopes by role). Split in
 /// the UI into upcoming and past.

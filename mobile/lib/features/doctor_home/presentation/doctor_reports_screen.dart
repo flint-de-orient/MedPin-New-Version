@@ -20,12 +20,17 @@ import 'widgets/report_parts.dart';
 /// decide how their month went; a figure they cannot check against the diary is
 /// one they are right not to trust.
 ///
-/// ---- Two of the artboard's cards are not here ------------------------------
+/// ---- Fees, and the half of them this cannot see ----------------------------
 ///
-/// Fees collected and referrals. Nothing in this system records either — the
-/// money it knows about is the practice's own subscription, not a consultation
-/// fee — so the screen says so once, plainly, rather than showing ₹0 and a
-/// referral count of nothing.
+/// Fees are here now, and they are specifically what patients paid *through
+/// the app*: a visit booked against one of the practice's services and settled
+/// in the payment sheet. The desk's cash is not in the app and never has been,
+/// so the card carries how many of the window's consultations it is counting —
+/// eleven of two hundred is a figure about eleven consultations, and a card
+/// that showed the money without the count would read as the month's takings.
+///
+/// Referrals are still not here. Nothing records one, so there is nothing to
+/// count, and the note at the foot says that rather than showing a nought.
 class DoctorReportsScreen extends ConsumerStatefulWidget {
   const DoctorReportsScreen({super.key});
 
@@ -166,11 +171,19 @@ class _DoctorReportsScreenState extends ConsumerState<DoctorReportsScreen> {
                           SizedBox(height: D.s4),
                         ],
                       ],
+                      if (!report.fees.isEmpty) ...[
+                        ReportCard(
+                          title: 'Fees through the app',
+                          note: feeCoverage(report.fees),
+                          child: _Fees(fees: report.fees),
+                        ),
+                        SizedBox(height: D.s4),
+                      ],
                       const ProfileEyebrow(label: 'Detailed reports'),
                       SizedBox(height: D.s2),
                       _Registers(window: window),
                       SizedBox(height: D.s4),
-                      const _NotRecorded(),
+                      _NotRecorded(fees: report.fees),
                     ],
                   ),
                 ),
@@ -429,6 +442,14 @@ class _Registers extends StatelessWidget {
         route: q('/clinician/reports/prescriptions'),
       ),
       (
+        title: 'Fees through the app',
+        // Named for what it is. "Fees and collections", the artboard's title,
+        // would be read as the practice's takings, and the desk's cash has
+        // never been in this app.
+        sub: 'What patients paid online, and who still owes',
+        route: q('/clinician/reports/fees'),
+      ),
+      (
         title: 'Follow-up compliance',
         sub: 'Who was asked back, and who came',
         route: q('/clinician/reports/follow-ups'),
@@ -479,9 +500,89 @@ class _Registers extends StatelessWidget {
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }
 
+/// The money paid through the app, and how much of the month that is.
+class _Fees extends StatelessWidget {
+  const _Fees({required this.fees});
+
+  final FeeTotals fees;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Collected',
+                    style: D.statLabel.copyWith(color: D.inkMuted),
+                  ),
+                  Text(fees.collected, style: D.score.copyWith(color: D.ink)),
+                  Text(
+                    deltaMoney(fees),
+                    style: D.caption.copyWith(
+                      color: fees.collectedPaise >= fees.previousCollectedPaise
+                          ? D.done
+                          : D.inkMuted,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: D.s4),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Still owed',
+                    style: D.statLabel.copyWith(color: D.inkMuted),
+                  ),
+                  Text(
+                    fees.outstanding,
+                    style: D.score.copyWith(
+                      color: fees.outstandingPaise > 0 ? D.pending : D.ink,
+                    ),
+                  ),
+                  Text(
+                    fees.outstandingCount == 0
+                        ? 'Nothing unpaid'
+                        : '${fees.outstandingCount} '
+                              '${fees.outstandingCount == 1 ? 'booking' : 'bookings'}',
+                    style: D.caption.copyWith(
+                      color: D.inkFaint,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (fees.refundedPaise > 0) ...[
+          SizedBox(height: D.s3),
+          Text(
+            '${FeeTotals(collectedPaise: fees.refundedPaise).collected} refunded, '
+            'already taken off the figure above.',
+            style: D.statLabel.copyWith(color: D.inkMuted),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 /// What this report cannot tell them, said once.
 class _NotRecorded extends StatelessWidget {
-  const _NotRecorded();
+  const _NotRecorded({required this.fees});
+
+  final FeeTotals fees;
 
   @override
   Widget build(BuildContext context) {
@@ -498,8 +599,7 @@ class _NotRecorded extends StatelessWidget {
           SizedBox(width: D.s3),
           Expanded(
             child: Text(
-              'Fees and referrals are not on this report because nothing in the app '
-              'records them yet — not because they were nil.',
+              notRecordedLine(fees),
               style: D.statLabel.copyWith(color: D.brand, height: 1.45),
             ),
           ),
@@ -507,6 +607,49 @@ class _NotRecorded extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Paid in the app for 11 of 286 consultations".
+///
+/// On the card, beside the money, because the money without it reads as the
+/// practice's takings — and the desk's cash is not in this app.
+@visibleForTesting
+String feeCoverage(FeeTotals fees) {
+  if (fees.consultations == 0) return '${fees.countedOf} charged in the app';
+  return '${fees.countedOf} of ${fees.consultations} consultations';
+}
+
+/// "+₹4,200 vs before", or what the figures can honestly carry.
+@visibleForTesting
+String deltaMoney(FeeTotals fees) {
+  final change = fees.collectedPaise - fees.previousCollectedPaise;
+  if (fees.previousCollectedPaise == 0) {
+    return change == 0 ? 'None before either' : 'Nothing to compare';
+  }
+  if (change == 0) return 'Same as before';
+  final size = FeeTotals(collectedPaise: change.abs()).collected;
+  return '${change > 0 ? '+' : '−'}$size vs before';
+}
+
+/// What the report cannot tell them, in the words that are true today.
+///
+/// Two separate facts, and they were one sentence while neither was recorded.
+/// Fees are recorded now, but only the ones paid in the app — so the sentence
+/// about them changed from "not recorded" to "not all of them", which is a
+/// different warning and the one a doctor reading a takings figure needs.
+@visibleForTesting
+String notRecordedLine(FeeTotals fees) {
+  const referrals =
+      'Referrals are not on this report because nothing in the app records '
+      'them — not because nobody was referred.';
+  if (fees.isEmpty) {
+    return 'Fees are not on this report because nothing was charged through '
+        'the app in this window. Cash taken at the desk is not recorded '
+        'anywhere in the app. $referrals';
+  }
+  return 'Fees count only what patients paid through the app. Cash taken at '
+      'the desk is not recorded anywhere in the app, so this is not the '
+      'practice\'s takings. $referrals';
 }
 
 /// "1 – 30 Sep 2026 · compared with 1 – 31 Aug".

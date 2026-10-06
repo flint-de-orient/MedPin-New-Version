@@ -105,6 +105,20 @@ String reportCsv(ConsultationSummary r) {
         ],
       ],
     ),
+    // Paise, not the formatted rupees on the screen. A spreadsheet is going to
+    // be summed, and "₹24,000" is text.
+    csvTable(
+      ['Fees through the app', 'Paise', 'Appointments'],
+      [
+        ['Collected', r.fees.collectedPaise, r.fees.paidCount],
+        ['Still owed', r.fees.outstandingPaise, r.fees.outstandingCount],
+        ['Refunded', r.fees.refundedPaise, ''],
+        // The denominator travels with the money: without it the total reads
+        // as the practice's takings, and the desk's cash is not in this app.
+        ['Charged in the app', '', r.fees.countedOf],
+        ['Consultations in the window', '', r.fees.consultations],
+      ],
+    ),
     if (r.byLocation.isNotEmpty)
       csvTable(
         ['Location', 'Consultations'],

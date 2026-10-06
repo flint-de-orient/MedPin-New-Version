@@ -5,6 +5,7 @@ import '../../../core/network/submission_keys.dart';
 import '../../../shared/models/paged.dart';
 import '../../../shared/providers/core_providers.dart';
 import '../domain/appointment.dart';
+import '../domain/service.dart';
 
 /// Talks to `/appointments`. Patients see and act on their own; clinicians see
 /// the whole diary (the server scopes it by role).
@@ -74,6 +75,10 @@ class AppointmentRepository {
     String mode = 'in_clinic',
     String? reason,
     String? patientId,
+    /// Which of the practice's services, where it charges for them. The amount
+    /// is deliberately not sent: the server reads it off its own row, so a
+    /// client cannot name a cheaper price.
+    String? serviceId,
     SubmissionKeys? submission,
   }) async {
     final body = {
@@ -82,6 +87,7 @@ class AppointmentRepository {
       'mode': mode,
       if (reason != null && reason.isNotEmpty) 'reason': reason,
       if (patientId != null) 'patientId': patientId,
+      if (serviceId != null) 'serviceId': serviceId,
     };
     final json = await _client.postJson(
       '/appointments',
@@ -124,6 +130,101 @@ class AppointmentRepository {
       '/appointments/$id/cancel',
       body: body,
       headers: _keyed('cancel:$id', body, submission),
+    );
+    return Appointment.fromJson(json['appointment'] as Map<String, dynamic>);
+  }
+
+  /// What the practice charges, for a screen about to book or about to pay.
+  ///
+  /// An empty list is the normal state and not a failure: every clinic here
+  /// takes money at the desk today, and nothing in the app has ever recorded
+  /// it. See backend/src/routes/services.js.
+  Future<List<ClinicService>> services({bool includeWithdrawn = false}) async {
+    final json = await _client.getJson(
+      '/doctor/services',
+      query: {if (includeWithdrawn) 'includeWithdrawn': '1'},
+    );
+    return [
+      for (final r in (json['items'] as List? ?? const []))
+        if (r is Map<String, dynamic>) ClinicService.fromJson(r),
+    ];
+  }
+
+  Future<ClinicService> saveService({
+    String? id,
+    required String name,
+    required String mode,
+    required int amountPaise,
+    int? durationMinutes,
+    String? note,
+    bool? isActive,
+    SubmissionKeys? submission,
+  }) async {
+    final body = {
+      'name': name,
+      'mode': mode,
+      'amountPaise': amountPaise,
+      // Sent only when there is one. A null here means "clear it", and the
+      // only screen that saves a service has no field for a duration — so
+      // sending null unasked would wipe one set anywhere else.
+      if (durationMinutes != null) 'durationMinutes': durationMinutes,
+      // Null on purpose where the note was emptied: that is the clear.
+      'note': note,
+      if (isActive != null) 'isActive': isActive,
+    };
+    final json = id == null
+        ? await _client.postJson(
+            '/doctor/services',
+            body: body,
+            headers: _keyed('service', body, submission),
+          )
+        : await _client.patchJson(
+            '/doctor/services/$id',
+            body: body,
+            headers: _keyed('service:$id', body, submission),
+          );
+    return ClinicService.fromJson(json['service'] as Map<String, dynamic>);
+  }
+
+  /// Removes it, or withdraws it where appointments were booked against it.
+  ///
+  /// The server decides which: a service a booking refers to is kept, because
+  /// the booking's own copy of the amount is a figure and the row is what says
+  /// what the figure was for. [DeletedService.message] carries its words.
+  Future<DeletedService> deleteService(String id) async {
+    final json = await _client.deleteJson('/doctor/services/$id');
+    return DeletedService(
+      withdrawn: json['withdrawn'] == true,
+      message: json['message']?.toString(),
+    );
+  }
+
+  /// Start a payment for an appointment's fee.
+  ///
+  /// Asked twice, the server answers with the order the first call made — two
+  /// live orders for one appointment is how somebody pays twice.
+  Future<FeeOrder> feeOrder(String appointmentId) async {
+    final json = await _client.postJson('/appointments/$appointmentId/fee/order');
+    return FeeOrder.fromJson(json);
+  }
+
+  /// Hand the checkout's three fields back for the signature to be checked.
+  ///
+  /// Nothing is paid until this returns: the SDK reporting success on a phone
+  /// is not money, and the server believes the signature rather than the app.
+  Future<Appointment> verifyFee(
+    String appointmentId, {
+    required String paymentId,
+    required String signature,
+    String? orderId,
+  }) async {
+    final json = await _client.postJson(
+      '/appointments/$appointmentId/fee/verify',
+      body: {
+        'paymentId': paymentId,
+        'signature': signature,
+        if (orderId != null) 'orderId': orderId,
+      },
     );
     return Appointment.fromJson(json['appointment'] as Map<String, dynamic>);
   }

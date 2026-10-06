@@ -233,6 +233,76 @@ router.get(
   }),
 );
 
+/**
+ * The fees register: every visit the app charged for, and whether it is paid.
+ *
+ * ---- Not the practice's takings ------------------------------------------
+ *
+ * Only visits booked against one of the practice's services. The cash the desk
+ * took is not in this app and never has been, so this register is a list of
+ * what went through the payment sheet — which is exactly what somebody
+ * reconciling a Razorpay statement needs, and exactly not what somebody
+ * totting up the month's income does.
+ *
+ * Every status is here, not just the paid ones. "Who still owes" is the
+ * question this list is most often opened for.
+ */
+router.get(
+  '/fees',
+  validate({
+    query: z.object({
+      from: z.string().regex(DATE_RE, 'Use YYYY-MM-DD'),
+      to: z.string().regex(DATE_RE, 'Use YYYY-MM-DD'),
+      clinicId: z.string().optional(),
+      limit: z.coerce.number().int().min(1).max(200).default(100),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    const { from, to, clinicId, limit } = q(req);
+    const practiceId = await practiceOf(req);
+    if (!practiceId) throw noPractice();
+
+    const rows = await Appointment.find({
+      doctor: req.user._id,
+      practice: practiceId,
+      ...(clinicId ? { clinic: clinicId } : {}),
+      'fee.amountPaise': { $gt: 0 },
+      scheduledFor: {
+        $gte: new Date(`${from}T00:00:00.000Z`),
+        $lte: new Date(`${to}T23:59:59.999Z`),
+      },
+    })
+      .select('patient scheduledFor clinic service fee status')
+      .sort({ scheduledFor: -1 })
+      .limit(limit)
+      .populate('patient', 'name')
+      .populate('clinic', 'name')
+      .populate('service', 'name')
+      .lean();
+
+    res.json({
+      items: rows.map((a) => ({
+        id: String(a._id),
+        patientId: a.patient?._id ? String(a.patient._id) : null,
+        patientName: a.patient?.name ?? 'Patient',
+        at: a.scheduledFor,
+        clinicName: a.clinic?.name ?? null,
+        // The row that says what the amount was for. Null where the service
+        // has since been removed, which withdrawal exists to prevent.
+        serviceName: a.service?.name ?? null,
+        amountPaise: a.fee?.amountPaise ?? 0,
+        // What arrived, which is not assumed to equal what was asked.
+        paidPaise: a.fee?.paidPaise ?? null,
+        feeStatus: a.fee?.status ?? 'not_required',
+        paidAt: a.fee?.paidAt ?? null,
+        // What became of the visit itself. Somebody who paid and did not come
+        // has still paid, and a register that hid that would not reconcile.
+        visitStatus: a.status,
+      })),
+    });
+  }),
+);
+
 /** The prescription register: what was prescribed in the window. */
 router.get(
   '/prescriptions',

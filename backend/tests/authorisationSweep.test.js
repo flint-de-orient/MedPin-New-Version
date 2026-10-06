@@ -217,6 +217,18 @@ const CLASSIFIED = new Map([
       'filter beyond the id and could have moved another practice’s appointment.',
   ],
   [
+    'appointments.js /:id/fee/order',
+    'scoped: the same practice filter as reschedule, so another patient’s fee is '
+      + 'not reachable by id. The amount comes from the appointment’s own row, '
+      + 'which the server wrote at booking — never from the request.',
+  ],
+  [
+    'appointments.js /:id/fee/verify',
+    'scoped: the same filter again, and the write is gated on a Razorpay signature '
+      + 'over this appointment’s own order. A caller who reached somebody else’s '
+      + 'appointment still could not produce one.',
+  ],
+  [
     'appointments.js /:id/check-in',
     'scoped: the same practice filter. Marking somebody arrived is desk work and '
       + 'every preset can do it.',

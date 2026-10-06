@@ -24,6 +24,7 @@ import dashboardRoutes from './dashboard.js';
 import doctorRoutes from './doctor.js';
 import panelRoutes from './panels.js';
 import reportRoutes from './reports.js';
+import serviceRoutes from './services.js';
 import chatSummaryRoutes from './chatSummaries.js';
 import departmentRoutes from './departments.js';
 import teamRoutes from './team.js';
@@ -117,6 +118,9 @@ router.use('/doctor/panels', panelRoutes);
 // The doctor's own daily summary, as a PDF or a preview. Before /doctor for the
 // same reason as the panels.
 router.use('/doctor/reports', reportRoutes);
+// What the practice charges for a consultation. Before /doctor for the same
+// reason as the reports, and its own router because a price is not a patient.
+router.use('/doctor/services', serviceRoutes);
 router.use('/doctor', doctorRoutes);
 // A day of each patient's conversation, for the clinicians it did not interrupt.
 router.use('/chat-summaries', chatSummaryRoutes);

@@ -194,6 +194,20 @@ class ApiClient {
     return _asMap(response.data);
   }
 
+  /// A delete whose answer matters.
+  ///
+  /// Most deletes have nothing to say and [delete] discards the body. A few
+  /// answer with what they actually did — withdrawing a service that bookings
+  /// refer to rather than removing it, and saying so — and a caller that threw
+  /// that away would report "deleted" over a row still on the screen.
+  Future<Map<String, dynamic>> deleteJson(
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    final response = await _run(() => _dio.delete(path, data: body));
+    return _asMap(response.data);
+  }
+
   /// [body] is optional because most deletes identify the resource by path,
   /// but a few — detaching a device token, for one — name it in the payload.
   Future<void> delete(String path, {Map<String, dynamic>? body}) async {

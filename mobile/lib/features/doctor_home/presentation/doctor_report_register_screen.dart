@@ -13,12 +13,13 @@ import 'widgets/report_parts.dart';
 /// One screen for three registers, because they are the same screen: a window,
 /// a list of rows, and a line at the top saying what was counted. A doctor who
 /// does not believe "286 consultations" opens this and reads them.
-enum RegisterKind { consultations, prescriptions, followUps }
+enum RegisterKind { consultations, prescriptions, fees, followUps }
 
 extension RegisterText on RegisterKind {
   String get title => switch (this) {
     RegisterKind.consultations => 'Consultation register',
     RegisterKind.prescriptions => 'Prescription register',
+    RegisterKind.fees => 'Fees through the app',
     RegisterKind.followUps => 'Follow-up compliance',
   };
 }
@@ -72,6 +73,7 @@ class DoctorReportRegisterScreen extends ConsumerWidget {
         child: switch (kind) {
           RegisterKind.consultations => _Consultations(window: window),
           RegisterKind.prescriptions => _Prescriptions(window: window),
+          RegisterKind.fees => _Fees(window: window),
           RegisterKind.followUps => _FollowUps(window: window),
         },
       ),
@@ -135,6 +137,146 @@ class _Consultations extends ConsumerWidget {
     );
   }
 }
+
+/// Every visit the app charged for, and whether the money arrived.
+class _Fees extends ConsumerWidget {
+  const _Fees({required this.window});
+
+  final ({DateTime from, DateTime to}) window;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rows = ref.watch(feeRegisterProvider(window));
+
+    return rows.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: D.brand)),
+      error: (e, _) => ProfileFailed(
+        error: e,
+        onRetry: () => ref.invalidate(feeRegisterProvider(window)),
+      ),
+      data: (items) => items.isEmpty
+          ? const ProfileEmpty(
+              // Said as itself: a month where every patient paid at the desk
+              // is a normal month, not an empty register.
+              text: 'Nothing was charged through the app in this window. '
+                  'Cash taken at the desk is not recorded anywhere in the app.',
+              icon: Icons.currency_rupee_rounded,
+            )
+          : ListView(
+              padding: EdgeInsets.fromLTRB(D.s5, D.s4, D.s5, D.s8),
+              children: [
+                Padding(
+                  padding: EdgeInsets.only(left: D.s1, bottom: D.s2),
+                  child: ProfileEyebrow(label: feesHeading(items)),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: D.s4),
+                  decoration: _card,
+                  child: Column(
+                    children: [
+                      for (final (i, r) in items.indexed)
+                        ProfileRow(
+                          first: i == 0,
+                          onTap: r.patientId == null
+                              ? null
+                              : () => context.push(
+                                  '/clinician/patients/${r.patientId}',
+                                  extra: r.patientName,
+                                ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      r.patientName,
+                                      style: D.subtitle.copyWith(
+                                        color: D.ink,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      [
+                                        DateFormat('d MMM, h:mm a').format(r.at),
+                                        if (r.serviceName != null) r.serviceName!,
+                                        if (r.clinicName != null) r.clinicName!,
+                                      ].join(' · '),
+                                      style: D.statLabel.copyWith(color: D.inkMuted),
+                                    ),
+                                    // Only where the visit itself did not
+                                    // happen: somebody who paid and did not
+                                    // come has still paid.
+                                    if (r.visitStatus == 'no_show' ||
+                                        r.visitStatus == 'cancelled')
+                                      Text(
+                                        r.visitStatus == 'no_show'
+                                            ? 'Did not come'
+                                            : 'Visit cancelled',
+                                        style: D.caption.copyWith(color: D.danger),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(width: D.s2),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    r.amount,
+                                    style: D.subtitle.copyWith(
+                                      color: D.ink,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    feeWord(r),
+                                    style: D.caption.copyWith(
+                                      color: r.paid ? D.done : D.pending,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+/// "₹24,000 paid · ₹500 still owed", from the rows on screen.
+@visibleForTesting
+String feesHeading(List<FeeRow> rows) {
+  var paid = 0, owed = 0;
+  for (final r in rows) {
+    if (r.paid) {
+      paid += r.paidPaise ?? r.amountPaise;
+    } else if (r.status == 'pending') {
+      owed += r.amountPaise;
+    }
+  }
+  String money(int paise) =>
+      paise % 100 == 0 ? '₹${paise ~/ 100}' : '₹${(paise / 100).toStringAsFixed(2)}';
+  return owed == 0
+      ? '${money(paid)} paid'
+      : '${money(paid)} paid · ${money(owed)} still owed';
+}
+
+/// The word under the amount. Never a colour on its own — this clinic's
+/// patients and doctors include people who cannot tell these two apart.
+@visibleForTesting
+String feeWord(FeeRow r) => switch (r.status) {
+  'paid' => 'Paid',
+  'refunded' => 'Refunded',
+  _ => 'Unpaid',
+};
 
 class _Prescriptions extends ConsumerWidget {
   const _Prescriptions({required this.window});

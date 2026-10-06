@@ -79,6 +79,7 @@ class AppointmentCard extends StatelessWidget {
     this.onTap,
     this.trailing,
     this.actions,
+    this.fee,
   });
 
   final Appointment appointment;
@@ -86,6 +87,11 @@ class AppointmentCard extends StatelessWidget {
   final VoidCallback? onTap;
   final Widget? trailing;
   final List<Widget>? actions;
+
+  /// "₹500 due", "₹500 paid". Null where the app does not collect for this
+  /// visit, which is most of them — and is not the same as free, so the line
+  /// is left out rather than filled in with something reassuring.
+  final String? fee;
 
   @override
   Widget build(BuildContext context) {
@@ -257,6 +263,31 @@ class AppointmentCard extends StatelessWidget {
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                if (fee != null) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Row(
+                    children: [
+                      Icon(
+                        a.fee.paid
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.currency_rupee_rounded,
+                        size: 16,
+                        color: a.fee.paid ? AppColors.success : scheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        fee!,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: a.fee.paid
+                              ? AppColors.success
+                              : scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
                 if (actions != null && actions!.isNotEmpty) ...[
