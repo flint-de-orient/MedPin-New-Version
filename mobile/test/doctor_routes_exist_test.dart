@@ -125,7 +125,7 @@ void main() {
     );
 
     for (final file in [
-      'lib/features/doctor_home/presentation/doctor_my_profile_screen.dart',
+      'lib/features/clinician/presentation/clinician_more_screen.dart',
       'lib/features/doctor_home/domain/profile_completeness.dart',
     ]) {
       final src = File(file).readAsStringSync();

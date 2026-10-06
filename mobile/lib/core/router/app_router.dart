@@ -25,7 +25,6 @@ import '../../features/doctor_home/presentation/doctor_home_screen.dart';
 import '../../features/doctor_home/presentation/doctor_messages_screen.dart';
 import '../../features/doctor_home/presentation/doctor_add_patient_screen.dart';
 import '../../features/doctor_home/presentation/doctor_appointments_screen.dart';
-import '../../features/doctor_home/presentation/doctor_my_profile_screen.dart';
 import '../../features/doctor_home/presentation/doctor_professional_screen.dart';
 import '../../features/doctor_home/presentation/doctor_services_screen.dart';
 import '../../features/doctor_home/presentation/doctor_leave_screen.dart';
@@ -516,13 +515,6 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/dietician/profile/edit',
         builder: (context, state) => const EditProfileScreen(),
-      ),
-      // Everything about being this clinic's doctor: the credentials that print
-      // on a prescription, the rooms, the diary, the people. Opened from the
-      // Profile tab's identity block, as the artboard does.
-      GoRoute(
-        path: '/clinician/more/profile',
-        builder: (context, state) => const DoctorMyProfileScreen(),
       ),
       // The three lines that print at the top of a prescription.
       GoRoute(

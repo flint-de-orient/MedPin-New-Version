@@ -2,49 +2,37 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// The two profile screens against the boards they were drawn from.
+/// The Profile screen's sections and rows, written down.
 ///
 /// ---- Why a source scan ----------------------------------------------------
 ///
-/// Four rows drifted in without anybody noticing: Nutrition and Clinical cards
-/// on the Profile tab, Departments and Practice on the hub. Each was a
-/// reasonable thing to add on the day — every one opens a real screen that
-/// would otherwise have no way in — and the result was two lists that no
-/// longer matched the design and read as leftovers from the old app.
+/// Four rows drifted in once without anybody noticing — Nutrition, Clinical
+/// cards, Departments, Practice — each reasonable on the day, and together a
+/// screen that no longer matched the design. The list lives here so that
+/// adding or removing a row fails the build until this file is changed too.
+/// The change is cheap; deciding it is not.
 ///
-/// So the lists are written down here, from the boards, and a row added or
-/// removed on either screen fails the build until this file is changed too.
-/// That is the point: the change is cheap, deciding it is not.
+/// ---- Two boards, one screen ------------------------------------------------
 ///
-/// ---- Where these came from ------------------------------------------------
+/// The design draws this across `project/Profile.dc.html` (the account and the
+/// clinic's tools) and `project/Doctor-MyProfile.dc.html` (the doctor as a
+/// doctor). They were two screens and the second was somewhere nobody went, so
+/// both are here now. Where the boards overlapped — Plan and billing, the
+/// letterhead, the language, the sign-out, the people — the row appears once.
 ///
-/// `project/Profile.dc.html` — the Clinic tools group, nine rows.
-/// `project/Doctor-MyProfile.dc.html` — five groups, twenty-one rows.
-///
-/// Rows the board has that nothing can save yet are still rows: they are drawn
-/// inert and marked "Not on file yet". See widgets/not_on_file.dart.
+/// Rows the boards have that nothing can save yet are still rows: drawn inert
+/// and marked "Not on file yet". See widgets/not_on_file.dart.
 
-/// Clinic tools on the Profile tab, in the board's order.
-const _clinicTools = [
-  'Practice',
-  'Plan and billing',
-  'Daily report',
-  'Clinical alerts',
-  'People',
-  'Export data',
-  'Chat review',
-  'Knowledge base',
-  'Patient feedback',
-];
-
-/// The settings hub, group by group, in the board's order.
-const _hub = {
+const _profile = {
   'ABOUT YOU': [
+    'Edit profile', // l10n.profileEditProfile
     'Professional details',
     'ABDM · HPR ID',
     'About and photo',
     'Languages',
   ],
+  // Not on either board — see the comment on the group in the screen.
+  'THE DIARY': ['Appointments', 'Patient queue', 'Follow-ups'],
   'PRACTICE': [
     'Locations',
     'Schedules and slots',
@@ -58,75 +46,120 @@ const _hub = {
     'Prescription letterhead and signature',
   ],
   'TEAM': ['Staff and assistants', 'Colleagues you work with'],
+  'CLINIC TOOLS': [
+    'Practice',
+    'Plan and billing',
+    'Daily report',
+    'Clinical alerts',
+    'Export data',
+    'Chat review',
+    'Knowledge base',
+    'Patient feedback',
+  ],
+  'SECURITY': ['App lock'],
+  'CLINIC': ['Patient call number'],
   'ACCOUNT': [
     'Notifications',
     'Payouts and bank account',
-    'Plan and billing',
     'Privacy and data',
     'App language',
     'Help and support',
-    'Log out',
   ],
+  'ABOUT': ['App version'],
 };
+
+const _screen = 'lib/features/clinician/presentation/clinician_more_screen.dart';
 
 /// `title: '…'` — and never `subtitle:`, which ends in the same six letters
 /// and swallowed every second line the first time this was written.
 final _title = RegExp(r"(?<![a-z])title: '([^']+)'");
 
-String _read(String path) => File(path).readAsStringSync();
-
 void main() {
-  test('the Profile tab offers the board\'s nine clinic tools, in its order', () {
-    final src = _read('lib/features/clinician/presentation/clinician_more_screen.dart');
-    final block = src.substring(
-      src.indexOf('CLINIC TOOLS'),
-      src.indexOf('PRESCRIPTION LETTERHEAD'),
-    );
-    final rows = [for (final m in _title.allMatches(block)) m.group(1)!];
+  late String body;
 
-    expect(
-      rows,
-      _clinicTools,
-      reason: 'Nutrition and Clinical cards were here and are not on the board. '
-          'If a row belongs, add it to the board first, then to this list.',
-    );
+  setUpAll(() {
+    final src = File(_screen).readAsStringSync();
+    // The build method only; the widgets beneath it have titles of their own.
+    body = src.substring(0, src.indexOf('// ------------------------------------------------------------- actions'));
   });
 
-  test('the hub is the board\'s five groups and twenty-one rows', () {
-    final src = _read(
-      'lib/features/doctor_home/presentation/doctor_my_profile_screen.dart',
-    );
-    // The build method only; the widgets beneath it have titles of their own.
-    final body = src.substring(0, src.indexOf('/// The disc, the name'));
+  test('the scan reads something, so a passing run means something', () {
+    // Every assertion below iterates what this finds. On an empty match they
+    // would all pass against an empty screen.
+    expect(_title.allMatches(body).length, greaterThan(20));
+  });
 
+  test('the sections are the two boards merged, in one order', () {
+    final headings = [
+      for (final m in RegExp(
+        r"ProfileEyebrow\(label: (?:'([^']+)'|l10n\.(\w+))",
+      ).allMatches(body))
+        m.group(1) ?? _fromL10n(m.group(2)!),
+    ];
+    expect(headings, _profile.keys.toList());
+  });
+
+  test('every section carries the rows it is supposed to', () {
     final found = <String, List<String>>{};
     String? group;
     final pattern = RegExp(
-      r"ProfileEyebrow\(label: '([^']+)'\)"
+      r"ProfileEyebrow\(label: (?:'([^']+)'|l10n\.(\w+))"
       r"|(?<![a-z])title: '([^']+)'"
-      r"|\n\s+'(Log out)',",
+      r"|title: l10n\.(profileEditProfile)"
+      r"|l10n\.(profileAppLock),"
+      r"|const _Version\(",
     );
     for (final m in pattern.allMatches(body)) {
-      if (m.group(1) != null) {
-        group = m.group(1);
-        found[group!] = [];
+      if (m.group(1) != null || m.group(2) != null) {
+        group = m.group(1) ?? _fromL10n(m.group(2)!);
+        found[group] = [];
       } else if (group != null) {
-        found[group]!.add(m.group(2) ?? m.group(3)!);
+        found[group]!.add(
+          m.group(3) ??
+              (m.group(4) != null
+                  ? 'Edit profile'
+                  : m.group(5) != null
+                  ? 'App lock'
+                  : 'App version'),
+        );
       }
     }
 
-    expect(found.keys, _hub.keys, reason: 'the board\'s own group headings');
-    for (final entry in _hub.entries) {
+    for (final entry in _profile.entries) {
       expect(found[entry.key], entry.value, reason: entry.key);
     }
   });
 
-  test('the scan reads something, so a passing run means something', () {
-    // Both assertions above iterate what this finds. On an empty match they
-    // would pass against an empty screen.
-    final src = _read(
-      'lib/features/doctor_home/presentation/doctor_my_profile_screen.dart',
+  test('there is one Profile screen, not two', () {
+    // The hub was a second screen that opened from this one. Bringing it back
+    // means bringing back the row nobody tapped.
+    expect(
+      File('lib/features/doctor_home/presentation/doctor_my_profile_screen.dart')
+          .existsSync(),
+      isFalse,
     );
-    expect(_title.allMatches(src).length, greaterThan(10));
+    expect(body, isNot(contains("'My profile'")));
+  });
+
+  test('no row appears twice', () {
+    final all = <String>[];
+    for (final rows in _profile.values) {
+      all.addAll(rows);
+    }
+    expect(
+      all.length,
+      all.toSet().length,
+      reason: 'the boards overlap; the screen must not. Plan and billing, the '
+          'letterhead, the language and the people were each on both.',
+    );
   });
 }
+
+/// The l10n keys this screen uses for a heading, as they render in English.
+String _fromL10n(String key) => switch (key) {
+  'profileSecurity' => 'SECURITY',
+  'profileClinic' => 'CLINIC',
+  'profileAccount' => 'ACCOUNT',
+  'profileLanguage' => 'LANGUAGE',
+  _ => key,
+};

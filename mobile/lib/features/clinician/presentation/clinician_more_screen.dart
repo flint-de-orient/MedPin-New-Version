@@ -17,10 +17,14 @@ import '../../../shared/providers/locale_provider.dart';
 import '../../../shared/utils/phone_format.dart';
 import '../../../shared/widgets/fullscreen_photo.dart';
 import '../../../shared/widgets/app_logo.dart';
-import '../../../shared/widgets/user_avatar.dart';
 import '../../auth/domain/user.dart';
 import '../../auth/presentation/auth_controller.dart';
+import '../../appointments/domain/clinic.dart';
+import '../../appointments/presentation/appointment_providers.dart';
+import '../../doctor_home/domain/profile_completeness.dart';
 import '../../doctor_home/presentation/doctor_signature_screen.dart';
+import '../../doctor_home/presentation/widgets/not_on_file.dart';
+import '../../doctor_home/presentation/widgets/profile_header.dart';
 import '../../doctor_home/presentation/widgets/profile_parts.dart';
 import '../../feedback/data/feedback_repository.dart';
 import '../data/practice_repository.dart';
@@ -58,13 +62,18 @@ bool _readsPatientFeedback(String? role) =>
 /// the artboard's; the drawing was not, and content matching is not the design
 /// matching.
 ///
-/// ---- What is here and what is one tap away --------------------------------
+/// ---- One screen, not two --------------------------------------------------
 ///
-/// This is the account and the clinic's tools. The doctor *as a doctor* — the
-/// credentials that print on a prescription, the rooms, the diary, the people —
-/// is My profile, under Account. The diary is also listed here in its own
-/// group, because "where are my appointments" is the question this screen is
-/// most often opened to answer and it should not need two taps.
+/// The design draws this across two boards: `Profile`, the account and the
+/// clinic's tools, and `Doctor-MyProfile`, the doctor as a doctor — the
+/// credentials that print on a prescription, the rooms, the people. They were
+/// two screens here too, one opening the other, and the second was somewhere
+/// nobody went.
+///
+/// Both boards are on this screen now. Where they overlapped — Plan and
+/// billing, the letterhead, the language, the sign-out, the people — the row
+/// appears once, in the group that describes it best, and the duplicate is
+/// gone. Everything else keeps the heading its own board gave it.
 class ClinicianMoreScreen extends ConsumerStatefulWidget {
   const ClinicianMoreScreen({super.key});
 
@@ -96,6 +105,9 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
     final practice = ref.watch(practiceOverviewProvider).valueOrNull;
     final mayEditPractice = caps.can(Perm.manageStaff);
     final unreadFeedback = ref.watch(feedbackUnreadProvider).valueOrNull ?? 0;
+    final clinics = ref.watch(clinicsProvider).valueOrNull ?? const <Clinic>[];
+    final rooms = [for (final c in clinics) if (c.isActive) c];
+    final missing = whatIsMissing(user, rooms: rooms.length);
 
     return Scaffold(
       backgroundColor: D.ground,
@@ -136,13 +148,15 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
         child: ListView(
           padding: EdgeInsets.fromLTRB(D.s4, D.s5, D.s4, D.s8),
           children: [
-            _Identity(
+            ProfileIdentity(
               name: user?.name ?? roleLabel,
               // Grouped, as every other number in this app is shown. Raw, it
               // ran as one thirteen-digit string nobody can read back.
               phone: formatPhone(user?.phone),
+              specialty: user?.specialty?.trim(),
+              credentials: credentialsLine(user),
               avatarUrl: user?.avatarUrl,
-              // "Doctor · Owner", which is what the artboard says and what the
+              // "Doctor · Owner", which is what the board says and what the
               // membership knows. The role alone left out the half that
               // decides what this person may change.
               role: caps.isOwner ? '$roleLabel · Owner' : roleLabel,
@@ -152,10 +166,18 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                   ? null
                   : () => FullscreenPhoto.show(context, user!.avatarUrl),
             ),
+            SizedBox(height: D.s5),
+            if (missing.isNotEmpty) ...[
+              ProfileUnfinished(missing: missing),
+              SizedBox(height: D.s4),
+            ],
+            const ProfilePublicButtons(),
+            SizedBox(height: D.s4),
+            ProfileBookings(rooms: rooms),
             SizedBox(height: D.s6),
 
-            // ---- Account ------------------------------------------------
-            ProfileEyebrow(label: l10n.profileAccount.toUpperCase()),
+            // ---- About you ----------------------------------------------
+            const ProfileEyebrow(label: 'ABOUT YOU'),
             SizedBox(height: D.s2),
             ProfileGroup(
               children: [
@@ -164,11 +186,27 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                   title: l10n.profileEditProfile,
                   onTap: () => context.push('/clinician/more/edit'),
                 ),
-                // Everything about being this clinic's doctor rather than
-                // about this account.
                 ProfileLink(
-                  title: 'My profile',
-                  onTap: () => context.push('/clinician/more/profile'),
+                  title: 'Professional details',
+                  subtitle: credentialsLine(user),
+                  badge: (user?.qualifications?.trim().isNotEmpty ?? false)
+                      ? null
+                      : 'Not set',
+                  badgeGround: D.pendingGround,
+                  badgeInk: D.pending,
+                  onTap: () => context.push('/clinician/more/professional'),
+                ),
+                const PendingRow(
+                  title: 'ABDM · HPR ID',
+                  subtitle: 'Ayushman Bharat Digital Mission',
+                ),
+                const PendingRow(
+                  title: 'About and photo',
+                  subtitle: 'Bio patients read before booking',
+                ),
+                const PendingRow(
+                  title: 'Languages',
+                  subtitle: 'The languages you consult in',
                 ),
               ],
             ),
@@ -176,9 +214,9 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
 
             // ---- The diary ----------------------------------------------
             //
-            // Its own group rather than a row buried in the tools. The design
-            // puts the day's work first on every other doctor screen, and
-            // this one was the exception.
+            // Not on either board. "Where are my appointments" is the question
+            // this screen is most often opened to answer, and it was two taps
+            // down a list called Clinic tools.
             if (isDoctor) ...[
               const ProfileEyebrow(label: 'THE DIARY'),
               SizedBox(height: D.s2),
@@ -187,14 +225,17 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                   ProfileLink(
                     first: true,
                     title: 'Appointments',
+                    subtitle: 'Who is coming, who is waiting for a time',
                     onTap: () => context.push('/clinician/appointments'),
                   ),
                   ProfileLink(
                     title: 'Patient queue',
+                    subtitle: 'Today\u2019s waiting room, in the order you call it',
                     onTap: () => context.push('/clinician/queue'),
                   ),
                   ProfileLink(
                     title: 'Follow-ups',
+                    subtitle: 'Who you asked back, and who has not come',
                     onTap: () => context.push('/clinician/follow-ups'),
                   ),
                 ],
@@ -202,33 +243,98 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
               SizedBox(height: D.s6),
             ],
 
-            // ---- Language -----------------------------------------------
-            //
-            // One row saying which, as the artboard draws it. The three chips
-            // were a picker sitting open on a screen nobody opens to change
-            // their language — it is read far more often than it is used.
-            ProfileEyebrow(label: l10n.profileLanguage.toUpperCase()),
+            // ---- Practice ------------------------------------------------
+            const ProfileEyebrow(label: 'PRACTICE'),
             SizedBox(height: D.s2),
             ProfileGroup(
               children: [
                 ProfileLink(
                   first: true,
-                  title: 'App language',
-                  value: languageName(currentLocale?.languageCode),
-                  onTap: () => pickAppLanguage(context, ref),
+                  title: 'Locations',
+                  subtitle: 'Map, address and contact',
+                  badge: rooms.isEmpty ? 'None' : '${rooms.length}',
+                  badgeGround: rooms.isEmpty ? D.pendingGround : D.brandTint,
+                  badgeInk: rooms.isEmpty ? D.pending : D.brand,
+                  onTap: () => context.push('/clinician/more/locations'),
+                ),
+                ProfileLink(
+                  title: 'Schedules and slots',
+                  subtitle: 'Hours and slot rules for each location',
+                  onTap: () => context.push('/clinician/more/schedule'),
+                ),
+                ProfileLink(
+                  title: 'Services and fees',
+                  subtitle: 'What a consultation costs',
+                  onTap: () => context.push('/clinician/more/services'),
+                ),
+                ProfileLink(
+                  title: 'Leave and holidays',
+                  subtitle: 'Days you are not seeing patients',
+                  onTap: () => context.push('/clinician/more/leave'),
                 ),
               ],
             ),
             SizedBox(height: D.s6),
 
-            // ---- Clinic tools -------------------------------------------
+            // ---- Patients and care ---------------------------------------
+            const ProfileEyebrow(label: 'PATIENTS AND CARE'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                const PendingRow(
+                  first: true,
+                  title: 'Booking rules',
+                  subtitle: 'How far ahead, cancellations, walk-ins',
+                ),
+                const PendingRow(
+                  title: 'Follow-up reminders',
+                  subtitle: 'When a patient is reminded to come back',
+                ),
+                const PendingRow(
+                  title: 'Chat and urgent messages',
+                  subtitle: 'When patients can message you',
+                ),
+                ProfileLink(
+                  title: 'Prescription letterhead and signature',
+                  subtitle: 'Printed on every prescription',
+                  badge: (user?.signatureUrl ?? '').isEmpty
+                      ? 'Signature missing'
+                      : null,
+                  badgeGround: D.pendingGround,
+                  badgeInk: D.pending,
+                  onTap: () => context.push('/clinician/more/signature'),
+                ),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Team ----------------------------------------------------
+            const ProfileEyebrow(label: 'TEAM'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                ProfileLink(
+                  first: true,
+                  title: 'Staff and assistants',
+                  subtitle: 'Who can register patients and run the diary',
+                  onTap: () => context.push('/clinician/staff'),
+                ),
+                // The `Profile` board's "People" and the hub's "Colleagues you
+                // work with" are the same screen. One row.
+                ProfileLink(
+                  title: 'Colleagues you work with',
+                  subtitle: 'Doctors, dieticians and the rest of the practice',
+                  onTap: () => context.push('/clinician/team'),
+                ),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Clinic tools --------------------------------------------
             const ProfileEyebrow(label: 'CLINIC TOOLS'),
             SizedBox(height: D.s2),
             ProfileGroup(
               children: [
-                // Messages deliberately absent: it is a tab. A duplicate here
-                // pointed at the retired DirectMessage inbox, so the same word
-                // opened different data depending on where you tapped it.
                 ProfileLink(
                   first: true,
                   title: 'Practice',
@@ -244,8 +350,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                     title: 'Plan and billing',
                     onTap: () => context.push('/clinician/billing'),
                   ),
-                // The doctor's own day. Not gated on a plan: a summary of the
-                // consultations somebody did is part of doing them.
                 if (isDoctor)
                   ProfileLink(
                     title: 'Daily report',
@@ -255,17 +359,11 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                   title: 'Clinical alerts',
                   onTap: () => context.push('/clinician/alerts'),
                 ),
-                ProfileLink(
-                  title: 'People',
-                  onTap: () => context.push('/clinician/team'),
-                ),
                 if (caps.has(Cap.reportExport))
                   ProfileLink(
                     title: 'Export data',
                     onTap: () => context.push('/clinician/export'),
                   ),
-                // Reviewing what the assistant said is a screen with nothing
-                // on it where there is no assistant.
                 if (caps.has(Cap.aiAssistant))
                   ProfileLink(
                     title: 'Chat review',
@@ -275,9 +373,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                   title: 'Knowledge base',
                   onTap: () => context.push('/clinician/knowledge'),
                 ),
-                // Only for somebody the server lets read it: a role that opens
-                // patients directly, holding VIEW_PATIENT. A practice manager
-                // was shown the row and refused behind it.
                 if (caps.can(Perm.viewPatient) && _readsPatientFeedback(user?.role))
                   ProfileLink(
                     title: 'Patient feedback',
@@ -289,41 +384,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
               ],
             ),
             SizedBox(height: D.s6),
-
-            // ---- Prescription letterhead (doctor only) ------------------
-            if (isDoctor) ...[
-              const ProfileEyebrow(label: 'PRESCRIPTION LETTERHEAD'),
-              SizedBox(height: D.s2),
-              ProfileGroup(
-                children: [
-                  ProfileLink(
-                    first: true,
-                    title: 'Professional details',
-                    // What is actually set, as the artboard draws it —
-                    // "MBBS, MD · WBMC 64213" under the label. The row still
-                    // says what it is for; the second line says what is on it,
-                    // and on an empty profile there is no second line and the
-                    // badge carries the state instead.
-                    subtitle: credentialsLine(user),
-                    badge: (user?.qualifications?.trim().isNotEmpty ?? false)
-                        ? null
-                        : 'Not set',
-                    badgeGround: D.pendingGround,
-                    badgeInk: D.pending,
-                    onTap: () => context.push('/clinician/more/professional'),
-                  ),
-                  ProfileLink(
-                    title: 'Digital signature',
-                    subtitle: 'Printed on every prescription',
-                    badge: (user?.signatureUrl ?? '').isEmpty ? 'Not set' : null,
-                    badgeGround: D.pendingGround,
-                    badgeInk: D.pending,
-                    onTap: () => context.push('/clinician/more/signature'),
-                  ),
-                ],
-              ),
-              SizedBox(height: D.s6),
-            ],
 
             // ---- Security -----------------------------------------------
             ProfileEyebrow(label: l10n.profileSecurity.toUpperCase()),
@@ -340,7 +400,7 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                           children: [
                             Text(
                               l10n.profileAppLock,
-                              style: D.body.copyWith(color: D.ink),
+                              style: D.row.copyWith(color: D.ink),
                             ),
                             Text(
                               l10n.profileAppLockSub,
@@ -378,7 +438,7 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                     first: true,
                     title: 'Patient call number',
                     subtitle: practice.emergencyPhone == null
-                        ? 'Not set — patients have no number to ring'
+                        ? 'Not set \u2014 patients have no number to ring'
                         : formatPhone(practice.emergencyPhone),
                     onTap: mayEditPractice ? () => _editPracticePhone(practice) : null,
                   ),
@@ -387,10 +447,39 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
               SizedBox(height: D.s6),
             ],
 
+            // ---- Account ------------------------------------------------
+            ProfileEyebrow(label: l10n.profileAccount.toUpperCase()),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: [
+                const PendingRow(first: true, title: 'Notifications'),
+                const PendingRow(
+                  title: 'Payouts and bank account',
+                  subtitle: 'Where online fees are settled',
+                ),
+                const PendingRow(title: 'Privacy and data'),
+                ProfileLink(
+                  title: 'App language',
+                  value: languageName(currentLocale?.languageCode),
+                  onTap: () => pickAppLanguage(context, ref),
+                ),
+                const PendingRow(title: 'Help and support'),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
             // ---- About --------------------------------------------------
             const ProfileEyebrow(label: 'ABOUT'),
             SizedBox(height: D.s2),
             ProfileGroup(children: [const _Version(first: true)]),
+            SizedBox(height: D.s6),
+
+            const PendingNote(
+              what: 'the ABDM link, your bio and photo, the languages you '
+                  'consult in, booking rules, follow-up reminder timing, when '
+                  'patients may message you, payouts, notifications, privacy '
+                  'and help',
+            ),
             SizedBox(height: D.s6),
 
             // ---- Log out ------------------------------------------------
@@ -556,99 +645,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
     } on ApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     }
-  }
-}
-
-/// The disc, the name, and what this person is at this practice.
-class _Identity extends StatelessWidget {
-  const _Identity({
-    required this.name,
-    required this.phone,
-    required this.avatarUrl,
-    required this.role,
-    required this.uploading,
-    required this.onChangePhoto,
-    required this.onViewPhoto,
-  });
-
-  final String name;
-  final String phone;
-  final String? avatarUrl;
-  final String role;
-  final bool uploading;
-  final VoidCallback? onChangePhoto;
-  final VoidCallback? onViewPhoto;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-
-    return Row(
-      children: [
-        Semantics(
-          button: true,
-          label: l10n.profileChangePhoto,
-          child: GestureDetector(
-            onTap: onChangePhoto,
-            onLongPress: onViewPhoto,
-            child: Stack(
-              children: [
-                UserAvatar(
-                  name: name,
-                  avatarUrl: avatarUrl,
-                  accent: D.brand,
-                  size: D.discXl,
-                ),
-                if (uploading)
-                  Positioned.fill(
-                    child: ClipOval(
-                      child: ColoredBox(
-                        color: D.scrim,
-                        child: const Center(
-                          child: SizedBox(
-                            width: D.icon,
-                            height: D.icon,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        SizedBox(width: D.s4),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(name, style: D.greeting.copyWith(color: D.ink)),
-              if (phone.isNotEmpty)
-                Text(phone, style: D.statLabel.copyWith(color: D.inkMuted)),
-              SizedBox(height: D.s1),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: D.s3, vertical: D.s1 / 2),
-                decoration: const BoxDecoration(
-                  color: D.brandTint,
-                  borderRadius: D.rPill,
-                ),
-                child: Text(
-                  role,
-                  style: D.caption.copyWith(
-                    color: D.brand,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 }
 
