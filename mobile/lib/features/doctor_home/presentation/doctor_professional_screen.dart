@@ -216,8 +216,12 @@ class _DoctorProfessionalScreenState
             ),
             SizedBox(height: D.s6),
 
-            // ---- Specialty -------------------------------------------
-            const ProfileEyebrow(label: 'SPECIALTY'),
+            // ---- Specialisations -------------------------------------
+            //
+            // The board's own heading. The field under it is the one that
+            // works and the one that prints: our prescription carries a
+            // specialty line, which the board's letterhead does not.
+            const ProfileEyebrow(label: 'SPECIALISATIONS'),
             SizedBox(height: D.s2),
             ProfileGroup(
               children: [
@@ -230,12 +234,29 @@ class _DoctorProfessionalScreenState
                   caps: TextCapitalization.words,
                 ),
                 const PendingRow(
-                  title: 'Specialisations',
-                  subtitle: 'Each one on its own, for search',
+                  title: 'Each specialisation on its own',
+                  subtitle: 'So patients can search them',
                 ),
-                const PendingRow(
-                  title: 'Conditions you treat',
-                  subtitle: 'Patients find you when they search these',
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Conditions you treat --------------------------------
+            const ProfileEyebrow(label: 'CONDITIONS YOU TREAT'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: const [
+                PendingChoice(
+                  first: true,
+                  label: 'What you see most',
+                  note: 'Patients find you when they search these.',
+                  options: [
+                    'Type 2 diabetes',
+                    'Hypertension',
+                    'Thyroid disorders',
+                    'PCOS',
+                    'Obesity',
+                  ],
                 ),
               ],
             ),
@@ -247,6 +268,22 @@ class _DoctorProfessionalScreenState
             ProfileGroup(
               children: const [
                 PendingField(first: true, label: 'Practising since'),
+              ],
+            ),
+            SizedBox(height: D.s6),
+
+            // ---- Memberships and awards ------------------------------
+            //
+            // The board's last section, and one I had missed entirely.
+            const ProfileEyebrow(label: 'MEMBERSHIPS AND AWARDS'),
+            SizedBox(height: D.s2),
+            ProfileGroup(
+              children: const [
+                PendingChoice(
+                  first: true,
+                  label: 'Bodies you belong to',
+                  options: ['RSSDI member', 'API member'],
+                ),
               ],
             ),
             SizedBox(height: D.s6),
@@ -268,8 +305,9 @@ class _DoctorProfessionalScreenState
 
             const PendingNote(
               what: 'your profession, council and registration year, the ABDM '
-                  'link, each degree on its own, your specialisations and the '
-                  'conditions you treat, and years in practice',
+                  'link, each degree on its own, your specialisations, the '
+                  'conditions you treat, years in practice, and your '
+                  'memberships and awards',
             ),
           ],
         ),

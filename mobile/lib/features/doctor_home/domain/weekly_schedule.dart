@@ -152,6 +152,37 @@ String summaryLine(List<WeeklyHour> week, int slotMinutes) {
       'up to $busiest ${busiest == 1 ? 'patient' : 'patients'} a day';
 }
 
+/// The first slot still free today, across every room that publishes hours.
+///
+/// ---- Why "still" is the whole job -----------------------------------------
+///
+/// A slot list for today includes the morning. At four in the afternoon the
+/// first *available* slot in it may be nine o'clock, and a profile reading
+/// "Next free slot: today, 9:00 AM" is telling the doctor about an hour that
+/// has gone. So the clock is compared, not just the availability flag.
+///
+/// Null when nothing is left — which the screen says as itself rather than
+/// falling back to the first slot of the day.
+({String time, String where})? nextFreeToday(
+  List<({String where, SlotDay day})> rooms, {
+  required DateTime now,
+}) {
+  final after = now.hour * 60 + now.minute;
+  ({String time, String where})? best;
+  var bestAt = 1 << 30;
+
+  for (final room in rooms) {
+    for (final slot in room.day.slots) {
+      if (!slot.available) continue;
+      final at = _minutes(slot.time);
+      if (at <= after || at >= bestAt) continue;
+      bestAt = at;
+      best = (time: clock(slot.time), where: room.where);
+    }
+  }
+  return best;
+}
+
 /// "Mon – Sat", "Thu, Sat", "Mon – Wed, Fri".
 ///
 /// Runs are collapsed because that is how a clinic says its hours, and a list
@@ -187,4 +218,50 @@ String openDaysLine(List<int> openDays) {
     }
   }
   return parts.join(', ');
+}
+
+// ============================================================== closures ====
+//
+// Days a location is shut. They live beside the week because they are read
+// with it: the schedule screen shows them under its hours, and the leave
+// screen edits the same list.
+
+/// Closed days from today onward, earliest first.
+///
+/// Past closures are dropped from the list rather than from the record: they
+/// are why last month's diary looks the way it does, and a list of them going
+/// back a year is not what somebody opens this screen for.
+List<ClinicOverride> upcomingClosures(
+  List<ClinicOverride> overrides, {
+  DateTime? now,
+}) {
+  final today = DateFormat('yyyy-MM-dd').format(now ?? DateTime.now());
+  return [
+    for (final o in overrides)
+      if (o.isClosed && o.date.compareTo(today) >= 0) o,
+  ]..sort((a, b) => a.date.compareTo(b.date));
+}
+
+/// Every day in the range closed, with the ones already closed left alone.
+List<ClinicOverride> withClosures(
+  List<ClinicOverride> existing,
+  DateTime from,
+  DateTime to,
+) {
+  final out = [...existing];
+  final have = {for (final o in existing) o.date};
+  for (var d = DateTime(from.year, from.month, from.day);
+      !d.isAfter(DateTime(to.year, to.month, to.day));
+      d = d.add(const Duration(days: 1))) {
+    final key = DateFormat('yyyy-MM-dd').format(d);
+    if (have.contains(key)) continue;
+    out.add(ClinicOverride(date: key, isClosed: true));
+  }
+  return out..sort((a, b) => a.date.compareTo(b.date));
+}
+
+/// "Thu, 19 Oct 2026".
+String closureLine(String date) {
+  final at = DateTime.tryParse(date);
+  return at == null ? date : DateFormat('EEE, d MMM yyyy').format(at);
 }

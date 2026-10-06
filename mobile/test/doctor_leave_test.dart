@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:medpin/features/appointments/domain/clinic.dart';
-import 'package:medpin/features/doctor_home/presentation/doctor_leave_screen.dart';
+import 'package:medpin/features/doctor_home/domain/weekly_schedule.dart';
 
 /// Days the clinic is shut.
 ///

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/theme/doctor_tokens.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../appointments/data/clinic_repository.dart';
 import '../../appointments/domain/clinic.dart';
 import '../../appointments/presentation/appointment_providers.dart';
+import '../domain/weekly_schedule.dart';
 import 'widgets/profile_parts.dart';
 
 /// Days this location is shut (`Doctor-MyProfile` → Leave and holidays).
@@ -296,49 +296,4 @@ class _Chip extends StatelessWidget {
       ),
     );
   }
-}
-
-// =============================================================== reading ====
-
-/// Closed days from today onward, earliest first.
-///
-/// Past closures are dropped from the list rather than from the record: they
-/// are why last month's diary looks the way it does, and a list of them going
-/// back a year is not what somebody opens this screen for.
-@visibleForTesting
-List<ClinicOverride> upcomingClosures(
-  List<ClinicOverride> overrides, {
-  DateTime? now,
-}) {
-  final today = DateFormat('yyyy-MM-dd').format(now ?? DateTime.now());
-  return [
-    for (final o in overrides)
-      if (o.isClosed && o.date.compareTo(today) >= 0) o,
-  ]..sort((a, b) => a.date.compareTo(b.date));
-}
-
-/// Every day in the range closed, with the ones already closed left alone.
-@visibleForTesting
-List<ClinicOverride> withClosures(
-  List<ClinicOverride> existing,
-  DateTime from,
-  DateTime to,
-) {
-  final out = [...existing];
-  final have = {for (final o in existing) o.date};
-  for (var d = DateTime(from.year, from.month, from.day);
-      !d.isAfter(DateTime(to.year, to.month, to.day));
-      d = d.add(const Duration(days: 1))) {
-    final key = DateFormat('yyyy-MM-dd').format(d);
-    if (have.contains(key)) continue;
-    out.add(ClinicOverride(date: key, isClosed: true));
-  }
-  return out..sort((a, b) => a.date.compareTo(b.date));
-}
-
-/// "Thu, 19 Oct 2026".
-@visibleForTesting
-String closureLine(String date) {
-  final at = DateTime.tryParse(date);
-  return at == null ? date : DateFormat('EEE, d MMM yyyy').format(at);
 }

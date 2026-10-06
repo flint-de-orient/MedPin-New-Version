@@ -236,11 +236,6 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                     ],
                     SizedBox(height: D.s6),
 
-                    const ProfileEyebrow(label: 'WHEN YOU SIT HERE'),
-                    SizedBox(height: D.s2),
-                    _Schedule(clinicId: clinic.id),
-                    SizedBox(height: D.s6),
-
                     const ProfileEyebrow(label: 'FEES'),
                     SizedBox(height: D.s2),
                     const _Fees(),
@@ -314,6 +309,12 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                         ),
                       ],
                     ),
+                    SizedBox(height: D.s6),
+
+                    // Last, where the board puts it, and under its own name.
+                    const ProfileEyebrow(label: 'SCHEDULE'),
+                    SizedBox(height: D.s2),
+                    _Schedule(clinicId: clinic.id),
                     SizedBox(height: D.s6),
 
                     if (_failed != null) ...[

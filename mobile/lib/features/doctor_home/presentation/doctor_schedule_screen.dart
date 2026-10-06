@@ -447,6 +447,16 @@ class _Editor extends ConsumerWidget {
             ),
             SizedBox(height: D.s6),
 
+            // ---- Leave and holidays -------------------------------------
+            //
+            // The board's last section, on the board's own screen. It also has
+            // its own row on the hub, as the board does — both reach the same
+            // closures.
+            const ProfileEyebrow(label: 'LEAVE AND HOLIDAYS'),
+            SizedBox(height: D.s2),
+            _Leave(clinicId: clinicId, location: location.location),
+            SizedBox(height: D.s6),
+
             if (failed != null) ...[
               Container(
                 padding: EdgeInsets.all(D.s4),
@@ -526,6 +536,93 @@ class _Editor extends ConsumerWidget {
     );
     if (sure != true) return;
     onChanged(copiedAcross(week, from), slotMinutes);
+  }
+}
+
+/// The days this room is shut, and the way to add more.
+///
+/// ---- Two of the board's words are not true here ---------------------------
+///
+/// It says a leave covers "all locations" and that "14 patients will be told".
+/// A closure hangs on a location, so taking a week off is marking it at each
+/// of them; and nothing tells anybody — a booking already made survives the
+/// closure and the desk still has to ring. Both are said as they are, because
+/// a doctor who believes their patients have been told is a doctor who does
+/// not ring them.
+class _Leave extends ConsumerWidget {
+  const _Leave({required this.clinicId, required this.location});
+
+  final String clinicId;
+  final Clinic location;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final closures = upcomingClosures(location.overrides);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ProfileGroup(
+          children: [
+            if (closures.isEmpty)
+              ProfileRow(
+                first: true,
+                child: Text(
+                  'No days closed at ${location.name}.',
+                  style: D.row.copyWith(color: D.inkMuted),
+                ),
+              )
+            else
+              for (final (i, o) in closures.take(3).indexed)
+                ProfileRow(
+                  first: i == 0,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          closureLine(o.date),
+                          style: D.row.copyWith(color: D.ink),
+                        ),
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: D.s2,
+                          vertical: D.s1 / 2,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: D.pendingGround,
+                          borderRadius: D.rPill,
+                        ),
+                        child: Text(
+                          'Closed',
+                          style: D.caption.copyWith(
+                            color: D.pending,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ProfileLink(
+              title: closures.isEmpty ? 'Add leave' : 'All leave at this location',
+              onTap: () =>
+                  context.push('/clinician/more/leave?clinicId=$clinicId'),
+            ),
+          ],
+        ),
+        SizedBox(height: D.s2),
+        Padding(
+          padding: EdgeInsets.only(left: D.s1),
+          child: Text(
+            'Leave is per location, and nobody is told: an appointment already '
+            'booked on a closed day stands, and the desk still has to ring '
+            'those patients.',
+            style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
+          ),
+        ),
+      ],
+    );
   }
 }
 

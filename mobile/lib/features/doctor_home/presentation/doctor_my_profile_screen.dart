@@ -8,10 +8,46 @@ import '../../appointments/presentation/appointment_providers.dart';
 import '../../auth/domain/user.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../../shared/providers/locale_provider.dart';
+// For dateKey — the 'yyyy-MM-dd' the slot endpoint takes. One copy of it,
+// shared with the reschedule sheet.
+import '../domain/appointment_book.dart';
 import '../domain/profile_completeness.dart';
+import '../domain/weekly_schedule.dart';
 import 'widgets/not_on_file.dart';
 import 'widgets/profile_actions.dart';
 import 'widgets/profile_parts.dart';
+
+/// The first slot still free today, across every room publishing hours.
+///
+/// The board's "Next free slot: today, 12:15 PM · Salt Lake". Each room's day
+/// is read through [slotDayProvider], which the booking screens already use,
+/// so this costs one request per room and shares their cache. Null means
+/// nothing is left today — said as itself, never as the first slot of a
+/// morning that has gone.
+final nextFreeSlotProvider =
+    FutureProvider.autoDispose<({String time, String where})?>((ref) async {
+      final clinics = await ref.watch(clinicsProvider.future);
+      final rooms = [
+        for (final c in clinics)
+          if (c.isActive && c.weeklyHours.isNotEmpty) c,
+      ];
+      if (rooms.isEmpty) return null;
+
+      final today = dateKey(DateTime.now());
+      final days = <({String where, SlotDay day})>[];
+      for (final room in rooms) {
+        try {
+          final day = await ref.watch(
+            slotDayProvider((clinicId: room.id, date: today)).future,
+          );
+          days.add((where: room.name, day: day));
+        } catch (_) {
+          // One room that cannot be read is not a reason to say nothing about
+          // the others.
+        }
+      }
+      return nextFreeToday(days, now: DateTime.now());
+    });
 
 /// Everything about being this clinic's doctor (`Doctor-MyProfile`).
 ///
@@ -448,13 +484,30 @@ class _PublicProfile extends StatelessWidget {
 /// Both halves are real. Whether this doctor is taking bookings is whether an
 /// open location publishes hours — which is what a patient's booking screen
 /// actually reads — and the leave row opens the closures that stop them.
-class _Bookings extends StatelessWidget {
+/// "Next free slot: today, 12:15 PM · Salt Lake", or what is true instead.
+///
+/// While the slots are still being read it says what it already knows — how
+/// many rooms publish hours — rather than flashing a half-sentence.
+String _nextLine(WidgetRef ref, int publishing, int total) {
+  final next = ref.watch(nextFreeSlotProvider);
+  final rooms = '$publishing of $total ${total == 1 ? 'location' : 'locations'} '
+      'publishing hours';
+  return next.when(
+    loading: () => rooms,
+    error: (_, _) => rooms,
+    data: (slot) => slot == null
+        ? 'No free slot left today · $rooms'
+        : 'Next free slot: today, ${slot.time} · ${slot.where}',
+  );
+}
+
+class _Bookings extends ConsumerWidget {
   const _Bookings({required this.rooms});
 
   final List<Clinic> rooms;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // Published hours at an open location is what makes a slot exist. Without
     // one, "taking bookings" would be a claim with nothing behind it.
     final publishing = [for (final c in rooms) if (c.weeklyHours.isNotEmpty) c];
@@ -487,9 +540,7 @@ class _Bookings extends StatelessWidget {
                 ),
                 Text(
                   on
-                      ? '${publishing.length} of ${rooms.length} '
-                            '${rooms.length == 1 ? 'location' : 'locations'} '
-                            'publishing hours'
+                      ? _nextLine(ref, publishing.length, rooms.length)
                       : 'No published hours, so no slot exists to book',
                   style: D.caption.copyWith(color: D.inkMuted, height: 1.4),
                 ),

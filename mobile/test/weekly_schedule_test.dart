@@ -153,4 +153,58 @@ void main() {
       expect(hhmm(fromHhmm('23:59')), '23:59');
     });
   });
+
+  group('the next free slot today', () {
+    SlotDay day(List<(String, bool)> slots) => SlotDay(
+      clinicId: 'c1',
+      date: '2026-10-06',
+      slotMinutes: 15,
+      slots: [
+        for (final (time, free) in slots)
+          Slot(time: time, iso: '2026-10-06T$time:00Z', available: free),
+      ],
+    );
+
+    test('is the first one still ahead, not the first one free', () {
+      // At four in the afternoon the morning is still in the list and still
+      // marked available. Reporting 9:00 AM is reporting an hour that is gone.
+      final next = nextFreeToday(
+        [(where: 'Salt Lake', day: day([('09:00', true), ('16:30', true)]))],
+        now: DateTime(2026, 10, 6, 16),
+      );
+      expect(next?.time, '4:30 PM');
+    });
+
+    test('skips the ones already taken', () {
+      final next = nextFreeToday(
+        [(where: 'Salt Lake', day: day([('09:00', false), ('09:15', true)]))],
+        now: DateTime(2026, 10, 6, 8),
+      );
+      expect(next?.time, '9:15 AM');
+    });
+
+    test('takes the earliest across rooms, and says which room', () {
+      final next = nextFreeToday(
+        [
+          (where: 'Salt Lake', day: day([('12:15', true)])),
+          (where: 'New Town', day: day([('10:00', true)])),
+        ],
+        now: DateTime(2026, 10, 6, 9),
+      );
+      expect(next?.time, '10:00 AM');
+      expect(next?.where, 'New Town');
+    });
+
+    test('nothing left today is null, never the first slot of the morning', () {
+      final next = nextFreeToday(
+        [(where: 'Salt Lake', day: day([('09:00', true), ('09:15', false)]))],
+        now: DateTime(2026, 10, 6, 17),
+      );
+      expect(next, isNull);
+    });
+
+    test('a day with no rooms at all is null, not a crash', () {
+      expect(nextFreeToday(const [], now: DateTime(2026, 10, 6)), isNull);
+    });
+  });
 }
