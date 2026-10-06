@@ -45,10 +45,15 @@ const _nutritionOnlyWithDietician = {'cardiology', 'general_physician'};
 
 /// Whether there is anybody to answer in the nutrition stream.
 ///
-/// This was the rule that decided whether Nutrition was the fourth tab. It is
-/// not a tab any more — Profile lists it — but the question it asked is still
-/// the right one, so it decides whether Profile offers the row at all. Two
-/// things can answer there, not one:
+/// ---- Nothing calls this today ---------------------------------------------
+///
+/// It decided whether Nutrition was the fourth tab, and then whether Profile
+/// offered the row. The design's Profile has no Nutrition row — in the
+/// artboards Nutrition is a tab of a four-tab bar this app does not use — so
+/// the row went when the screen was matched to the board, and the stream now
+/// has no way in. The rule is kept because the question is still the right
+/// one and the capability is still sent; the day Nutrition has a home again,
+/// this is what gates it. Two things can answer there, not one:
 ///
 ///   the nutrition assistant, which is `AI_ASSISTANT`
 ///   a dietician, which is a fact about the roster

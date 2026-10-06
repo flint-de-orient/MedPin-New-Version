@@ -7,8 +7,10 @@ import '../../appointments/domain/clinic.dart';
 import '../../appointments/presentation/appointment_providers.dart';
 import '../../auth/domain/user.dart';
 import '../../auth/presentation/auth_controller.dart';
+import '../../../shared/providers/locale_provider.dart';
 import '../domain/profile_completeness.dart';
 import 'widgets/not_on_file.dart';
+import 'widgets/profile_actions.dart';
 import 'widgets/profile_parts.dart';
 
 /// Everything about being this clinic's doctor (`Doctor-MyProfile`).
@@ -133,11 +135,6 @@ class DoctorMyProfileScreen extends ConsumerWidget {
                   subtitle: 'Days you are not seeing patients',
                   onTap: () => context.push('/clinician/more/leave'),
                 ),
-                ProfileLink(
-                  title: 'Departments',
-                  subtitle: 'How the practice is divided up',
-                  onTap: () => context.push('/clinician/departments'),
-                ),
               ],
             ),
             SizedBox(height: D.s6),
@@ -211,11 +208,31 @@ class DoctorMyProfileScreen extends ConsumerWidget {
                 ),
                 const PendingRow(title: 'Privacy and data'),
                 ProfileLink(
-                  title: 'Practice',
-                  subtitle: 'Name, letterhead and who works here',
-                  onTap: () => context.push('/clinician/practice'),
+                  title: 'App language',
+                  value: languageName(
+                    ref.watch(localeControllerProvider)?.languageCode,
+                  ),
+                  onTap: () => pickAppLanguage(context, ref),
                 ),
                 const PendingRow(title: 'Help and support'),
+                ProfileRow(
+                  onTap: () => confirmLogout(context, ref),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.logout_rounded, size: D.iconLg, color: D.danger),
+                      SizedBox(width: D.s3),
+                      Expanded(
+                        child: Text(
+                          'Log out',
+                          style: D.row.copyWith(
+                            color: D.danger,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
             SizedBox(height: D.s6),

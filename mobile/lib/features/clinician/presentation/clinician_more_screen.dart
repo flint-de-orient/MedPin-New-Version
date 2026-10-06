@@ -17,7 +17,6 @@ import '../../../shared/providers/locale_provider.dart';
 import '../../../shared/utils/phone_format.dart';
 import '../../../shared/widgets/fullscreen_photo.dart';
 import '../../../shared/widgets/app_logo.dart';
-import '../../../shared/widgets/language_picker.dart';
 import '../../../shared/widgets/user_avatar.dart';
 import '../../auth/domain/user.dart';
 import '../../auth/presentation/auth_controller.dart';
@@ -26,7 +25,7 @@ import '../../doctor_home/presentation/widgets/profile_parts.dart';
 import '../../feedback/data/feedback_repository.dart';
 import '../data/practice_repository.dart';
 import '../domain/practice.dart';
-import 'clinician_tabs.dart';
+import '../../doctor_home/presentation/widgets/profile_actions.dart';
 import 'widgets/clinician_notification_sheet.dart';
 
 /// The roles the server lets read patient feedback — `DIRECT_PATIENT_ACCESS` in
@@ -215,8 +214,8 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 ProfileLink(
                   first: true,
                   title: 'App language',
-                  value: _languageName(currentLocale?.languageCode),
-                  onTap: _pickLanguage,
+                  value: languageName(currentLocale?.languageCode),
+                  onTap: () => pickAppLanguage(context, ref),
                 ),
               ],
             ),
@@ -255,21 +254,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 ProfileLink(
                   title: 'Clinical alerts',
                   onTap: () => context.push('/clinician/alerts'),
-                ),
-                // Nutrition was the fourth tab until Reports took its place.
-                // The stream is still there and this is how it is reached — on
-                // the same condition the tab had: somebody has to be able to
-                // answer in it.
-                if (nutritionAnswerable(caps))
-                  ProfileLink(
-                    title: 'Nutrition',
-                    onTap: () => context.push('/clinician/nutrition'),
-                  ),
-                // Home shows the day and nothing else. These are the cards
-                // that used to sit under it.
-                ProfileLink(
-                  title: 'Clinical cards',
-                  onTap: () => context.push('/clinician/clinical-cards'),
                 ),
                 ProfileLink(
                   title: 'People',
@@ -414,7 +398,7 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
               children: [
                 ProfileRow(
                   first: true,
-                  onTap: _confirmLogout,
+                  onTap: () => confirmLogout(context, ref),
                   child: Row(
                     children: [
                       const Icon(Icons.logout_rounded, size: D.iconLg, color: D.danger),
@@ -476,80 +460,7 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
     }
   }
 
-  /// What a language is called, in its own script. A Bengali speaker has to
-  /// find "বাংলা" while the app is still in English, which is exactly the
-  /// moment they need this row.
-  static String _languageName(String? code) =>
-      LanguagePicker.options
-          .where((o) => o.code == (code ?? 'en'))
-          .map((o) => o.native)
-          .firstOrNull ??
-      'English';
 
-  /// The three the app speaks, on the sheet every other choice here uses.
-  Future<void> _pickLanguage() async {
-    final current = ref.read(localeControllerProvider)?.languageCode;
-    final picked = await showModalBottomSheet<String>(
-      context: context,
-      useRootNavigator: true,
-      showDragHandle: false,
-      backgroundColor: D.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(D.rSection)),
-      ),
-      builder: (ctx) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(D.s5, D.s3, D.s5, D.s6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: D.s8 + D.s3,
-                  height: D.s1,
-                  decoration: const BoxDecoration(
-                    color: D.lineStrong,
-                    borderRadius: D.rPill,
-                  ),
-                ),
-              ),
-              SizedBox(height: D.s4),
-              for (final (i, option) in LanguagePicker.options.indexed)
-                ProfileRow(
-                  first: i == 0,
-                  onTap: () => Navigator.pop(ctx, option.code),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          option.native,
-                          style: D.row.copyWith(color: D.ink),
-                        ),
-                      ),
-                      if (option.code == current)
-                        const Icon(Icons.check_rounded, size: D.iconLg, color: D.brand),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (picked != null) await _changeLanguage(picked);
-  }
-
-  Future<void> _changeLanguage(String code) async {
-    await ref.read(localeControllerProvider.notifier).setLanguage(code);
-    ref.read(authControllerProvider.notifier).updateLocalUserLanguage(code);
-    try {
-      await ref.read(authRepositoryProvider).updateMe(language: code);
-    } on ApiException {
-      // Local preference still applies.
-    }
-  }
 
   Future<void> _toggleAppLock(bool enable) async {
     final l10n = AppLocalizations.of(context);
@@ -568,34 +479,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
     }
   }
 
-  Future<void> _confirmLogout() async {
-    final l10n = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: D.card,
-        title: Text('Log out?', style: D.subhead.copyWith(color: D.ink)),
-        content: Text(
-          'You will need to log in again to open the clinic dashboard.',
-          style: D.body.copyWith(color: D.inkMuted),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Stay', style: D.bodyStrong.copyWith(color: D.inkMuted)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              l10n.profileLogout,
-              style: D.bodyStrong.copyWith(color: D.danger),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) await ref.read(authControllerProvider.notifier).logout();
-  }
 
   /// The number this practice's patients ring, edited on the practice.
   ///
