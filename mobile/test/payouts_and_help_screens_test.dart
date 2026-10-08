@@ -46,16 +46,40 @@ PracticeOverview _practice({PayoutAccount payout = const PayoutAccount()}) =>
       payout: payout,
     );
 
-/// What was sent to PATCH /practices/:id.
+/// What was sent to PATCH /practices/:id, and what comes back.
+///
+/// It echoes the payout it was given, because that is what a server which
+/// stores the field does — and the screen now checks the answer against what
+/// it sent. [deaf] is the other case: a deployment whose zod schema has never
+/// heard of `payout`, which strips the key, saves nothing and still answers
+/// 200.
 class _Practices implements PracticeRepository {
   final sent = <Map<String, dynamic>>[];
   Object? fails;
 
+  /// True to behave like a server that predates the payout field.
+  bool deaf = false;
+
   @override
-  Future<PracticeOverview> update(String id, Map<String, dynamic> body) async {
+  Future<PracticeOverview?> update(String id, Map<String, dynamic> body) async {
     if (fails != null) throw fails!;
     sent.add(body);
-    return _practice();
+    if (deaf) return _practice();
+
+    final p = (body['payout'] as Map<String, dynamic>?) ?? const {};
+    final number = p['accountNumber'] as String?;
+    return _practice(
+      payout: PayoutAccount(
+        accountName: p['accountName'] as String?,
+        accountLast4: number == null
+            ? null
+            : number.substring(number.length - 4),
+        ifsc: p['ifsc'] as String?,
+        bankName: p['bankName'] as String?,
+        upiId: p['upiId'] as String?,
+        onFile: number != null || p['upiId'] != null,
+      ),
+    );
   }
 
   @override
@@ -268,6 +292,35 @@ void main() {
       final payout = practices.sent.single['payout'] as Map<String, dynamic>;
       expect(payout['upiId'], 'citycare@okaxis');
       expect(payout['accountNumber'], isNull);
+    });
+
+    testWidgets('a server that silently dropped the field does not say Saved', (
+      tester,
+    ) async {
+      // The real failure this guards. The route validates with a zod object,
+      // which strips keys it does not know rather than refusing them, so a
+      // deployment that predates the field saves nothing and answers 200 —
+      // and a clinic would believe MedPin knows where to send their money.
+      practices.deaf = true;
+      await openPayouts(tester);
+
+      await tester.enterText(find.byType(TextField).first, 'City Care Clinic');
+      await tester.enterText(find.byType(TextField).at(1), '50100234567890');
+      await tester.enterText(find.byType(TextField).at(2), 'HDFC0001234');
+      await tester.pumpAndSettle();
+      final save = find.text('Save account');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('has not been updated'), findsOneWidget);
+      expect(find.textContaining('Saved'), findsNothing);
+      // And the number is still in the box, so it can be sent again rather
+      // than typed out a second time.
+      expect(
+        tester.widget<TextField>(find.byType(TextField).at(1)).controller?.text,
+        '50100234567890',
+      );
     });
 
     testWidgets('the server’s refusal is shown in its own words', (tester) async {

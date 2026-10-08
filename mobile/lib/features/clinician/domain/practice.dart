@@ -126,6 +126,40 @@ class PracticeRules {
       ? 'All day'
       : '$messagingFrom – $messagingTo';
 
+  /// Value equality, so a screen can ask whether what it sent is what came
+  /// back.
+  ///
+  /// Needed because the practice route validates with a zod object, which
+  /// strips keys it does not know rather than refusing them: a server that
+  /// predates these three groups saves nothing and answers 200. Without this
+  /// the comparison is by reference, which is never equal, and the check
+  /// would report every save as failed.
+  @override
+  bool operator ==(Object other) =>
+      other is PracticeRules &&
+      other.onlineBooking == onlineBooking &&
+      other.bookingWindowDays == bookingWindowDays &&
+      other.cancelCutoffHours == cancelCutoffHours &&
+      other.reminderDaysBefore == reminderDaysBefore &&
+      listEquals(other.reminderChannels, reminderChannels) &&
+      other.messagingAlways == messagingAlways &&
+      other.messagingFrom == messagingFrom &&
+      other.messagingTo == messagingTo &&
+      other.urgentAlways == urgentAlways;
+
+  @override
+  int get hashCode => Object.hash(
+    onlineBooking,
+    bookingWindowDays,
+    cancelCutoffHours,
+    reminderDaysBefore,
+    Object.hashAll(reminderChannels),
+    messagingAlways,
+    messagingFrom,
+    messagingTo,
+    urgentAlways,
+  );
+
   factory PracticeRules.fromJson(Map<String, dynamic> p) {
     final booking = p['booking'] as Map<String, dynamic>? ?? const {};
     final reminder = p['followUpReminder'] as Map<String, dynamic>? ?? const {};

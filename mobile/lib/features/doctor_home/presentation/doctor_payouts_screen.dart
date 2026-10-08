@@ -371,7 +371,7 @@ class _DoctorPayoutsScreenState extends ConsumerState<DoctorPayoutsScreen> {
       _failed = null;
     });
     try {
-      await ref.read(practiceRepositoryProvider).update(practice.id, {
+      final after = await ref.read(practiceRepositoryProvider).update(practice.id, {
         'payout': {
           'accountName': _name.text.trim().isEmpty ? null : _name.text.trim(),
           'accountNumber': number.isEmpty ? null : number,
@@ -380,8 +380,33 @@ class _DoctorPayoutsScreenState extends ConsumerState<DoctorPayoutsScreen> {
           'upiId': upi.isEmpty ? null : upi,
         },
       });
-      ref.invalidate(practiceOverviewProvider);
       if (!mounted) return;
+
+      /*
+       * Did it actually land?
+       *
+       * The route validates with a zod object, and zod *strips* keys it does
+       * not know rather than refusing them. A server that predates this
+       * field therefore drops `payout` in the middle, saves nothing, and
+       * answers 200 — and the screen used to say "Saved".
+       *
+       * For a tagline that is a wasted tap. Here it is a clinic believing
+       * MedPin knows where to send their money, and finding out at the end of
+       * a month. So the answer is checked against what was sent, and nothing
+       * is cleared when it does not match: the number stays in the box so it
+       * can be sent again once the server has it.
+       */
+      if (!_landed(after, number: number, upi: upi)) {
+        setState(() {
+          _busy = false;
+          _failed = 'This server has not been updated to store a payout '
+              'account yet, so nothing was saved. Nothing has changed — try '
+              'again once MedPin has deployed it.';
+        });
+        return;
+      }
+
+      ref.invalidate(practiceOverviewProvider);
       // Cleared rather than kept: the number is saved, and a box still
       // holding it is a box somebody can read it out of.
       _number.clear();
@@ -400,6 +425,28 @@ class _DoctorPayoutsScreenState extends ConsumerState<DoctorPayoutsScreen> {
         _failed = ErrorView.messageFor(context, e);
       });
     }
+  }
+
+  /// Whether the account the server answered with is the one that was sent.
+  ///
+  /// Checked on the account number where there is one, because that is the
+  /// field that decides where money goes and the only one whose arrival
+  /// cannot be inferred from anything else. The last four digits are all that
+  /// comes back, which is enough: a server that stored the number returns
+  /// them, and one that dropped the field returns null.
+  ///
+  /// UPI alone is checked on the id itself, since there is no number to read
+  /// four digits off.
+  ///
+  /// A null practice — a deployment with no practice row at all — counts as
+  /// not landed. Saying "saved" against a server that answered with nothing
+  /// is the failure this whole check exists for.
+  bool _landed(PracticeOverview? after, {required String number, required String upi}) {
+    if (after == null) return false;
+    if (number.isNotEmpty) {
+      return after.payout.accountLast4 == number.substring(number.length - 4);
+    }
+    return after.payout.upiId == upi;
   }
 }
 

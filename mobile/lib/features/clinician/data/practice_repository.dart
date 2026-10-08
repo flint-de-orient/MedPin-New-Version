@@ -20,8 +20,27 @@ class PracticeRepository {
     return PracticeOverview.fromJson(json);
   }
 
-  Future<void> update(String id, Map<String, dynamic> changes) async {
-    await _client.patchJson('/practices/$id', body: changes);
+  /// Saves changes, and answers with the practice as it now stands.
+  ///
+  /// ---- Why the answer is returned rather than discarded -------------------
+  ///
+  /// This threw the response away, and that made one failure invisible. The
+  /// route validates with a zod object, which *strips* keys it does not know
+  /// rather than refusing them — so a field this app has learned about and
+  /// the deployed server has not is dropped in the middle, saved as nothing,
+  /// and answered with 200. The screen then says "Saved".
+  ///
+  /// For a tagline that is a wasted tap. For a bank account it is a clinic
+  /// believing MedPin knows where to send their money. The caller compares
+  /// what came back against what it sent — see `_save` in
+  /// doctor_payouts_screen.dart.
+  ///
+  /// Null when the response carries no practice, which is the same unbackfilled
+  /// deployment [mine] answers null for.
+  Future<PracticeOverview?> update(String id, Map<String, dynamic> changes) async {
+    final json = await _client.patchJson('/practices/$id', body: changes);
+    if (json['practice'] == null) return null;
+    return PracticeOverview.fromJson(json);
   }
 }
 

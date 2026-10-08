@@ -283,9 +283,35 @@ class _DoctorCareRulesScreenState extends ConsumerState<DoctorCareRulesScreen> {
       _failed = null;
     });
     try {
-      await ref.read(practiceRepositoryProvider).update(practice.id, rules.toJson());
-      ref.invalidate(practiceOverviewProvider);
+      final after = await ref
+          .read(practiceRepositoryProvider)
+          .update(practice.id, rules.toJson());
       if (!mounted) return;
+
+      /*
+       * Did it land?
+       *
+       * Same trap as the payout account. The route validates with a zod
+       * object, which strips keys it does not know rather than refusing
+       * them — so a server that predates these three groups drops them,
+       * saves nothing, and answers 200. The screen then says "Saved" and a
+       * doctor believes they have closed online booking.
+       *
+       * Compared on the booking window, which is the field a reader is most
+       * likely to have just changed and the only one of the three whose
+       * absence cannot be confused with a default.
+       */
+      if (after == null || after.rules != rules) {
+        setState(() {
+          _busy = false;
+          _failed = 'This server has not been updated to store these rules '
+              'yet, so nothing was saved. Nothing has changed — try again '
+              'once MedPin has deployed it.';
+        });
+        return;
+      }
+
+      ref.invalidate(practiceOverviewProvider);
       setState(() {
         _busy = false;
         _dirty = false;
