@@ -104,6 +104,39 @@ void main() {
     );
   });
 
+  test('every answer on the Help screen opens a screen that exists', () {
+    /*
+     * The scan above reads `context.push('literal')`. Help pushes
+     * `context.push(a.go!)` out of a const list, so a typo in that list is a
+     * button that lands on a blank page and nothing catches it — which is the
+     * exact failure this file exists for, one indirection further out.
+     */
+    final help = File(
+      'lib/features/doctor_home/presentation/doctor_help_screen.dart',
+    ).readAsStringSync();
+
+    final declared = _declaredPaths();
+    final targets = RegExp(r"go: '([^']+)'")
+        .allMatches(help)
+        .map((m) => m.group(1)!)
+        .toList();
+
+    expect(
+      targets,
+      isNotEmpty,
+      reason: 'the Help screen stopped linking anywhere, or the field was '
+          'renamed and this test now checks nothing',
+    );
+
+    final missing = targets.where((t) => !declared.contains(t)).toList();
+    expect(
+      missing,
+      isEmpty,
+      reason: 'The Help screen offers these and the router declares none of '
+          'them: ${missing.join(', ')}',
+    );
+  });
+
   test('the signature is reachable, and from the screen that owns it', () {
     // The specific dead end this file was written after: My profile offered
     // "Digital signature", the unfinished list offered to finish it, and both
