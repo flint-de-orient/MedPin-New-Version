@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/theme/doctor_tokens.dart';
 
@@ -21,6 +22,9 @@ class TeamTextField extends StatelessWidget {
     this.keyboard,
     this.maxLength,
     this.validator,
+    this.formatters,
+    this.onChanged,
+    this.lines = 1,
   });
 
   final TextEditingController controller;
@@ -30,6 +34,18 @@ class TeamTextField extends StatelessWidget {
   final int? maxLength;
   final String? Function(String?)? validator;
 
+  /// What the field will and will not accept as it is typed — digits only on
+  /// an account number, upper case on an IFSC. A check that only runs on
+  /// submit lets somebody fill a box wrongly and find out at the end.
+  final List<TextInputFormatter>? formatters;
+
+  /// Told as it is typed, for a button that has to go live on what is in the
+  /// box. A validator runs on submit and cannot answer that.
+  final ValueChanged<String>? onChanged;
+
+  /// How tall, for the boxes that hold a sentence rather than a field.
+  final int lines;
+
   @override
   Widget build(BuildContext context) {
     return TextFormField(
@@ -38,6 +54,10 @@ class TeamTextField extends StatelessWidget {
       keyboardType: keyboard,
       maxLength: maxLength,
       validator: validator,
+      inputFormatters: formatters,
+      onChanged: onChanged,
+      minLines: lines,
+      maxLines: lines == 1 ? 1 : lines + 2,
       style: D.input.copyWith(color: D.ink),
       decoration: InputDecoration(
         hintText: hint,

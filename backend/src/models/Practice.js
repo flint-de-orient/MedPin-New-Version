@@ -277,6 +277,59 @@ const practiceSchema = new mongoose.Schema(
      */
     emergencyPhone: { type: String, trim: true, maxlength: 40, default: null },
 
+    /**
+     * Where this practice's money is sent.
+     *
+     * ---- Why a practice needs this at all -------------------------------
+     *
+     * There is one Razorpay account and it is MedPin's — see RAZORPAY_KEY_ID
+     * in config/env.js. A fee a patient pays online therefore lands with us,
+     * not with the clinic, and we owe it to them. This is the account it is
+     * owed into. Cash taken at the desk never touches any of this.
+     *
+     * ---- The account number goes in and does not come out ---------------
+     *
+     * `select: false`, so it is absent from every query that does not name
+     * it, and `toPublic()` sends only the last four digits. A clinic needs to
+     * check they typed the right account; nobody needs to read a full account
+     * number back out of an API, and a field that can be read is a field that
+     * ends up in a log, a crash report or a screenshot.
+     *
+     * Changing it means typing it again. That is the point: an account number
+     * shown in a box is an account number somebody can alter one digit of.
+     */
+    payout: {
+      /// The name as the bank holds it. A transfer to a mismatched name fails.
+      accountName: { type: String, trim: true, maxlength: 160, default: null },
+
+      /// Never sent back. See above.
+      accountNumber: {
+        type: String,
+        trim: true,
+        maxlength: 34,
+        default: null,
+        select: false,
+      },
+
+      /// Kept so the clinic can check the account without us holding the
+      /// number in a readable field.
+      accountLast4: { type: String, trim: true, maxlength: 4, default: null },
+
+      ifsc: { type: String, trim: true, uppercase: true, maxlength: 11, default: null },
+      bankName: { type: String, trim: true, maxlength: 120, default: null },
+
+      /// An alternative to the bank transfer for a small practice.
+      upiId: { type: String, trim: true, maxlength: 120, default: null },
+
+      /// When MedPin last confirmed a transfer reached it. Set by an operator,
+      /// never by the clinic — a practice that could mark its own account
+      /// verified could mark a wrong one verified.
+      verifiedAt: { type: Date, default: null },
+
+      updatedAt: { type: Date, default: null },
+      updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    },
+
     /// What kind of organisation. Null until somebody says — see PRACTICE_TYPE.
     practiceType: {
       type: String,
@@ -525,6 +578,22 @@ practiceSchema.methods.toPublic = function toPublic() {
     registrationNo: this.registrationNo ?? null,
     prescriptionPrefix: this.prescriptionPrefix ?? null,
     emergencyPhone: this.emergencyPhone ?? null,
+    /*
+     * Where the money goes, minus the account number.
+     *
+     * `onFile` so a screen can say "set" without having to infer it from four
+     * digits that may legitimately be absent on a UPI-only arrangement.
+     */
+    payout: {
+      accountName: this.payout?.accountName ?? null,
+      accountLast4: this.payout?.accountLast4 ?? null,
+      ifsc: this.payout?.ifsc ?? null,
+      bankName: this.payout?.bankName ?? null,
+      upiId: this.payout?.upiId ?? null,
+      verifiedAt: this.payout?.verifiedAt ?? null,
+      updatedAt: this.payout?.updatedAt ?? null,
+      onFile: Boolean(this.payout?.accountLast4 || this.payout?.upiId),
+    },
     // The rules a patient meets. Always whole objects, with the defaults
     // already applied, so a screen never has to decide what a missing key
     // means — and an older row that predates the fields reads as today's

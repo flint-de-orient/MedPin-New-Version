@@ -495,6 +495,42 @@ router.patch(
           urgentAlways: z.boolean(),
         })
         .optional(),
+
+      /*
+       * Where this practice's money is sent.
+       *
+       * A whole object or absent, like the three above, and for a sharper
+       * reason: half a bank account is a failed transfer. Somebody who sends
+       * a new IFSC without the account number it belongs to has described an
+       * account that does not exist.
+       *
+       * `accountNumber` is digits only. An IFSC is the Reserve Bank's own
+       * shape — four letters, a zero, six alphanumerics — and is checked
+       * here rather than at the bank, where the answer arrives days later as
+       * a returned payment.
+       */
+      payout: z
+        .object({
+          accountName: z.string().trim().min(2).max(160).nullable(),
+          accountNumber: z
+            .string()
+            .trim()
+            .regex(/^[0-9]{6,18}$/, 'An account number is 6 to 18 digits')
+            .nullable(),
+          ifsc: z
+            .string()
+            .trim()
+            .toUpperCase()
+            .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'That is not an IFSC code')
+            .nullable(),
+          bankName: z.string().trim().max(120).nullable(),
+          upiId: z
+            .string()
+            .trim()
+            .regex(/^[\w.\-]{2,64}@[A-Za-z]{2,32}$/, 'That is not a UPI id')
+            .nullable(),
+        })
+        .optional(),
     }),
   }),
   audit('update', 'Practice'),
@@ -508,7 +544,13 @@ router.patch(
      */
     await assertOwner(req, req.params.id);
 
-    const practice = await Practice.findById(req.params.id);
+    /*
+     * `+payout.accountNumber`, because the field is `select: false` and this
+     * is the one place that needs it: without it, re-saving the same account
+     * compares against undefined, reads as a change, and clears the
+     * operator's confirmation that money reached it.
+     */
+    const practice = await Practice.findById(req.params.id).select('+payout.accountNumber');
     if (!practice) throw notFound('Practice not found');
 
     // The letterhead's artwork has to be this practice's own: once set, it is
@@ -547,6 +589,63 @@ router.patch(
       if (hours.from === hours.to) {
         throw badRequest('The hours patients can message you have to be a real window.');
       }
+    }
+
+    /*
+     * The payout account, field by field — not through the blanket assign
+     * below.
+     *
+     * Three reasons it cannot go through that loop. It has to derive
+     * `accountLast4` from the number; it has to stamp who changed it, because
+     * a bank account changed without a name against it is the one audit entry
+     * somebody will want; and the loop replaces the whole subdocument, which
+     * would silently clear `verifiedAt` — an operator's confirmation that
+     * money actually reached this account, which a clinic editing its own
+     * bank name has no business resetting.
+     *
+     * A new account number *does* clear it: it is a different account, and
+     * nothing has been confirmed about it yet.
+     */
+    if (req.body.payout !== undefined) {
+      const p = req.body.payout;
+      // One or the other has to be reachable, or this is an account that
+      // cannot be paid into and the clinic should be told now rather than at
+      // the end of the month.
+      if (!p.upiId && !(p.accountNumber && p.ifsc)) {
+        throw badRequest(
+          'Give either a bank account with its IFSC, or a UPI id. Without one of those there is nowhere to send the money.',
+        );
+      }
+      if (p.accountNumber && !p.accountName) {
+        throw badRequest('A bank transfer needs the account holder’s name exactly as the bank has it.');
+      }
+
+      const changedAccount = Boolean(p.accountNumber) && p.accountNumber !== practice.payout?.accountNumber;
+
+      practice.payout = {
+        accountName: p.accountName ?? null,
+        accountNumber: p.accountNumber ?? null,
+        accountLast4: p.accountNumber ? p.accountNumber.slice(-4) : null,
+        ifsc: p.ifsc ?? null,
+        bankName: p.bankName ?? null,
+        upiId: p.upiId ?? null,
+        verifiedAt: changedAccount ? null : (practice.payout?.verifiedAt ?? null),
+        updatedAt: new Date(),
+        updatedBy: req.user._id,
+      };
+
+      /*
+       * The audit entry says what changed and never what to. An account
+       * number in the audit log is an account number in a second place, and
+       * the log is read by more people than the field is.
+       */
+      req.auditMeta = {
+        ...req.auditMeta,
+        payoutChanged: true,
+        payoutLast4: practice.payout.accountLast4,
+        payoutHasUpi: Boolean(practice.payout.upiId),
+      };
+      delete req.body.payout;
     }
 
     for (const [k, v] of Object.entries(req.body)) practice[k] = v;

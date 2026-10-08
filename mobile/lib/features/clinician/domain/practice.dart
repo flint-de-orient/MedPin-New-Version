@@ -210,6 +210,7 @@ class PracticeOverview {
     required this.staff,
     required this.dieticians,
     this.rules = const PracticeRules(),
+    this.payout = const PayoutAccount(),
   });
 
   final String id;
@@ -234,6 +235,9 @@ class PracticeOverview {
 
   /// How patients may book, be reminded, and reach the clinic.
   final PracticeRules rules;
+
+  /// Where this practice's share of the online fees is sent.
+  final PayoutAccount payout;
 
   bool get isComplete => gaps.isEmpty;
 
@@ -270,6 +274,85 @@ class PracticeOverview {
       staff: (people['staff'] as num?)?.toInt() ?? 0,
       dieticians: (people['dieticians'] as num?)?.toInt() ?? 0,
       rules: PracticeRules.fromJson(p),
+      payout: PayoutAccount.fromJson(p['payout']),
+    );
+  }
+}
+
+/// Where a practice's money is sent, as much of it as leaves the server.
+///
+/// ---- Why there is no account number here --------------------------------
+///
+/// The server never sends one. It is stored `select: false` and only the last
+/// four digits come back — see the note on `payout` in models/Practice.js. A
+/// clinic checking they typed the right account reads four digits; nobody
+/// needs the whole number back, and a number that can be read is a number
+/// that ends up in a log or a screenshot.
+///
+/// So changing the account means typing it again, and this class has no field
+/// to pre-fill a box with. That is the design, not a gap.
+class PayoutAccount {
+  const PayoutAccount({
+    this.accountName,
+    this.accountLast4,
+    this.ifsc,
+    this.bankName,
+    this.upiId,
+    this.verifiedAt,
+    this.updatedAt,
+    this.onFile = false,
+  });
+
+  final String? accountName;
+
+  /// The last four digits of the account number, for checking against a
+  /// passbook. Null on a UPI-only arrangement.
+  final String? accountLast4;
+
+  final String? ifsc;
+  final String? bankName;
+  final String? upiId;
+
+  /// When MedPin last confirmed a transfer actually reached it.
+  ///
+  /// Set by an operator and never by the clinic: a practice that could mark
+  /// its own account verified could mark a wrong one verified.
+  final DateTime? verifiedAt;
+
+  final DateTime? updatedAt;
+
+  /// Whether there is anywhere to send money at all.
+  final bool onFile;
+
+  /// The account in one line, for a row that shows it rather than edits it.
+  String get line {
+    if (!onFile) return 'Not set';
+    final bank = [
+      if ((bankName ?? '').isNotEmpty) bankName!,
+      if ((accountLast4 ?? '').isNotEmpty) '••••$accountLast4',
+    ].join(' ');
+    if (bank.isNotEmpty) return bank;
+    return upiId ?? 'Not set';
+  }
+
+  factory PayoutAccount.fromJson(Object? raw) {
+    if (raw is! Map<String, dynamic>) return const PayoutAccount();
+    DateTime? at(String key) =>
+        DateTime.tryParse(raw[key]?.toString() ?? '')?.toLocal();
+    String? text(String key) {
+      final v = raw[key]?.toString();
+      return (v == null || v.isEmpty) ? null : v;
+    }
+
+    return PayoutAccount(
+      accountName: text('accountName'),
+      accountLast4: text('accountLast4'),
+      ifsc: text('ifsc'),
+      bankName: text('bankName'),
+      upiId: text('upiId'),
+      verifiedAt: at('verifiedAt'),
+      updatedAt: at('updatedAt'),
+      onFile: raw['onFile'] == true,
     );
   }
 }
