@@ -34,7 +34,22 @@ import 'widgets/profile_parts.dart';
 class DoctorLocationScreen extends ConsumerStatefulWidget {
   const DoctorLocationScreen({super.key, required this.clinicId});
 
+  /// The location being edited, or [newLocation] to create one.
+  ///
+  /// ---- Why creating lives on the editing screen ---------------------------
+  ///
+  /// The doctor panel could not create a location at all. The only button in
+  /// the app was on `clinics_screen.dart`, three hops behind a one-time push
+  /// notification — while two of this panel's own screens told the doctor
+  /// nothing could be booked until a location existed.
+  ///
+  /// A second screen would be these same fourteen fields written twice, and
+  /// the pair would drift the first time one gained a field. The server takes
+  /// the same body either way; only the verb changes.
   final String clinicId;
+
+  /// The id that means "there is no location yet".
+  static const newLocation = 'new';
 
   @override
   ConsumerState<DoctorLocationScreen> createState() =>
@@ -109,12 +124,17 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
     });
   }
 
+  /// True when this screen is making a location rather than changing one.
+  bool get _creating => widget.clinicId == DoctorLocationScreen.newLocation;
+
   @override
   Widget build(BuildContext context) {
     final clinics = ref.watch(clinicsProvider);
-    final clinic = (clinics.valueOrNull ?? const <Clinic>[])
-        .where((c) => c.id == widget.clinicId)
-        .firstOrNull;
+    final clinic = _creating
+        ? null
+        : (clinics.valueOrNull ?? const <Clinic>[])
+              .where((c) => c.id == widget.clinicId)
+              .firstOrNull;
     if (clinic != null) _adopt(clinic);
 
     return Scaffold(
@@ -137,7 +157,10 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Location', style: D.screenTitle.copyWith(color: D.ink)),
+            Text(
+              _creating ? 'New location' : 'Location',
+              style: D.screenTitle.copyWith(color: D.ink),
+            ),
             if (clinic != null)
               Text(
                 clinic.name,
@@ -179,7 +202,7 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
             error: e,
             onRetry: () => ref.invalidate(clinicsProvider),
           ),
-          data: (_) => clinic == null
+          data: (_) => clinic == null && !_creating
               ? const ProfileEmpty(
                   text: 'That location is not one of this practice’s.',
                   icon: Icons.location_off_outlined,
@@ -348,10 +371,16 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                     SizedBox(height: D.s6),
 
                     // Last, where the board puts it, and under its own name.
-                    const ProfileEyebrow(label: 'SCHEDULE'),
-                    SizedBox(height: D.s2),
-                    _Schedule(clinicId: clinic.id),
-                    SizedBox(height: D.s6),
+                    //
+                    // Not while creating: hours are published against a
+                    // location that exists, and there is nothing to publish
+                    // them against until this one is saved.
+                    if (clinic != null) ...[
+                      const ProfileEyebrow(label: 'SCHEDULE'),
+                      SizedBox(height: D.s2),
+                      _Schedule(clinicId: clinic.id),
+                      SizedBox(height: D.s6),
+                    ],
 
                     if (_failed != null) ...[
                       Container(
@@ -369,6 +398,8 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
                     ],
 
 
+                    // Nothing to close that does not exist yet.
+                    if (clinic != null)
                     TextButton(
                       onPressed: _saving ? null : () => _stopPractising(clinic),
                       style: TextButton.styleFrom(
@@ -408,7 +439,7 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
       _failed = null;
     });
     try {
-      await ref.read(clinicRepositoryProvider).update(widget.clinicId, {
+      final body = {
         'name': _name.text.trim(),
         // Empty clears it. A blank address on a location patients are sent to
         // is worth being able to set deliberately.
@@ -423,13 +454,27 @@ class _DoctorLocationScreenState extends ConsumerState<DoctorLocationScreen> {
         'facilities': _facilities,
         'paymentMethods': _payments,
         'collectFeeAtBooking': _collectAtBooking,
-      });
+      };
+
+      final repo = ref.read(clinicRepositoryProvider);
+      if (_creating) {
+        await repo.create(body);
+      } else {
+        await repo.update(widget.clinicId, body);
+      }
       ref.invalidate(clinicsProvider);
       if (!mounted) return;
       setState(() {
         _saving = false;
         _dirty = false;
       });
+      // Created: back to the list, which is where the new row is. Staying
+      // would leave the screen looking like an editor for something it can
+      // no longer find, because its id is still "new".
+      if (_creating) {
+        context.pop();
+        return;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Saved')));

@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/doctor_tokens.dart';
 import '../../appointments/domain/clinic.dart';
 import '../../appointments/presentation/appointment_providers.dart';
+import '../../../core/capabilities/capabilities.dart';
+import '../../clinician/presentation/widgets/team_parts.dart';
 import 'widgets/profile_parts.dart';
 
 /// The places this practice consults from.
@@ -54,6 +56,24 @@ class DoctorLocationsScreen extends ConsumerWidget {
             final open = [for (final c in all) if (c.isActive) c];
             final closed = [for (final c in all) if (!c.isActive) c];
 
+            /*
+             * Whether another one can be added, answered the way the server
+             * answers it.
+             *
+             * `POST /clinics` always allows the first — a practice with none
+             * cannot take a booking at all, so refusing it would be selling a
+             * plan that cannot be used. A second needs MULTI_LOCATION, which
+             * a plain clinic on the Essential plan does not hold.
+             *
+             * The app never read that capability, so it could not tell the
+             * two apart and offered neither. A single-location practice is a
+             * legitimate state, not a gap — but a practice with nothing at
+             * all is stuck, and two of this panel's own screens say so.
+             */
+            final mayAddMore =
+                ref.watch(capabilitySetProvider).has(Cap.multiLocation);
+            final mayAdd = all.isEmpty || mayAddMore;
+
             return RefreshIndicator(
               onRefresh: () async => ref.invalidate(clinicsProvider),
               child: ListView(
@@ -95,6 +115,29 @@ class DoctorLocationsScreen extends ConsumerWidget {
                       ],
                     ),
                   ],
+
+                  SizedBox(height: D.s6),
+                  if (mayAdd)
+                    TeamButton(
+                      label: all.isEmpty ? 'Add your first location' : 'Add a location',
+                      icon: Icons.add_rounded,
+                      onPressed: () =>
+                          context.push('/clinician/more/locations/new'),
+                    )
+                  else
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: D.s1),
+                      child: Text(
+                        // Said rather than left as an absence. Somebody on
+                        // this screen looking for the button should be told
+                        // why there isn't one, and what would change it.
+                        'This practice is set up for a single location. '
+                        'Running from more than one needs a practice type '
+                        'that has them — a polyclinic or a hospital — on a '
+                        'plan that includes it.',
+                        style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
+                      ),
+                    ),
                 ],
               ),
             );

@@ -614,6 +614,15 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        // Before ':id', so the literal is not swallowed by the parameter.
+        // Creating and editing are the same fourteen fields and the same
+        // body; only the verb changes. See DoctorLocationScreen.newLocation.
+        path: '/clinician/more/locations/new',
+        builder: (context, state) => const DoctorLocationScreen(
+          clinicId: DoctorLocationScreen.newLocation,
+        ),
+      ),
+      GoRoute(
         path: '/clinician/more/locations/:id',
         builder: (context, state) =>
             DoctorLocationScreen(clinicId: state.pathParameters['id']!),
