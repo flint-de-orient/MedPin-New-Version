@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { requireAuth, requireClinician, requireDoctor } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { asyncHandler, notFound } from '../middleware/errors.js';
+import { asyncHandler, notFound, AppError } from '../middleware/errors.js';
 import { TIME_RE } from '../utils/clinicTime.js';
 import { audit } from '../middleware/audit.js';
 import { Practice, PRACTICE_STATUS, VERIFICATION } from '../models/Practice.js';
@@ -11,6 +11,10 @@ import { Clinic } from '../models/Clinic.js';
 import { User, ROLES, CLINICIAN_ROLES } from '../models/User.js';
 import { Membership, PERMISSIONS } from '../models/Membership.js';
 import { requirePermission } from '../middleware/authorise.js';
+// The practice this request is scoped to, and its header. Both are needed
+// here because every route in this file takes a practice from the URL as
+// well — see assertOwner.
+import { practiceOf, practicesOf, PRACTICE_HEADER } from '../middleware/practiceScope.js';
 import { forgetClinicIdentity } from '../services/clinicIdentity.js';
 import {
   joinByPhone,
@@ -132,6 +136,59 @@ function readinessOf(practice) {
 }
 
 /**
+ * Which practice `/mine` is about.
+ *
+ * ---- Why this is not just `practiceOf(req)` -------------------------------
+ *
+ * It was `findOne({ user, status: 'active' })` — whichever membership the
+ * database returned first. That is the precise pattern `practiceOf` was
+ * written to remove, and this was the last clinician route still doing it:
+ * for somebody who works at two practices it answered with an arbitrary one,
+ * and the app's edit sheet writes back to whatever id it returns, so a save
+ * could land on the practice the clinician did not mean.
+ *
+ * But it cannot simply call `practiceOf`, which *throws* when the caller's
+ * only practice is suspended. This screen is where a suspended practice's
+ * staff are told they are suspended — see httpPracticeSuspension — so here
+ * that is the answer, not a refusal.
+ *
+ * The rule, in order: a working practice if there is exactly one; the one
+ * they named if they work at several; otherwise the suspended one, because
+ * being told why is the whole point of this screen. Several working practices
+ * and nobody said which is the same 409 every other route gives, rather than
+ * a coin flip.
+ */
+async function mineResolved(req) {
+  const working = await practicesOf(req);
+  // Populated by practicesOf above, never cached — a reinstatement takes
+  // effect on the next request.
+  const suspended = req._suspendedPracticeIds ?? [];
+  const named = req.get?.(PRACTICE_HEADER)?.trim();
+
+  if (working.length === 1) return working[0];
+  if (working.length > 1) {
+    if (named && working.includes(named)) return named;
+    throw ambiguousPractice();
+  }
+
+  if (suspended.length === 1) return suspended[0];
+  if (suspended.length > 1) {
+    if (named && suspended.includes(named)) return named;
+    throw ambiguousPractice();
+  }
+  return null;
+}
+
+/** The same refusal `practiceOf` gives, so the app meets one error and not two. */
+function ambiguousPractice() {
+  return new AppError(
+    409,
+    'PRACTICE_REQUIRED',
+    'You work at more than one practice. Choose which one this request is for.',
+  );
+}
+
+/**
  * The caller's practice, its locations, and who works in it.
  *
  * One request rather than four. This screen is opened between patients, and
@@ -151,19 +208,10 @@ router.get(
      * already has an answer for that, and "whichever clinic was created first"
      * is never it.
      */
-    const membership = await Membership.findOne({
-      user: req.user.id ?? req.user._id,
-      status: 'active',
-      endedOn: null,
-    })
-      .populate('practice')
-      .lean();
+    const practiceId = await mineResolved(req);
+    if (!practiceId) return res.json({ practice: null });
 
-    const practice =
-      membership?.practice && typeof membership.practice === 'object'
-        ? membership.practice
-        : null;
-
+    const practice = await Practice.findById(practiceId).lean();
     if (!practice) return res.json({ practice: null });
 
     const [locations, people] = await Promise.all([
@@ -374,11 +422,42 @@ async function assertBelongs(req, practiceId) {
   throw forbidden('That practice is not yours.');
 }
 
-/** And may they manage it? */
+/**
+ * And may they manage *this* one?
+ *
+ * ---- The hole this closes ------------------------------------------------
+ *
+ * `requirePermission(MANAGE_STAFF)` resolves the membership it tests through
+ * `practiceOf(req)` — the `x-medpin-practice` header. Every route in this
+ * file takes its practice from the URL instead, and `assertBelongs` only asks
+ * "are you a member here". Nothing compared the two.
+ *
+ * So a doctor who owns practice A and is a plain member of practice B could
+ * send `x-medpin-practice: A` with `PATCH /practices/B`: the permission was
+ * read off the A membership, which holds MANAGE_STAFF, and the membership
+ * check passed because they really are a member of B. That is enough to
+ * rewrite B's prescription letterhead — the name and registration number on a
+ * legal document — and to redirect B's payout bank account.
+ *
+ * The old comment here asserted that `requirePermission` had already answered
+ * this. It had not, and a comment claiming a guarantee that does not hold is
+ * worse than no comment.
+ *
+ * Every other clinician router already does this one comparison: team.js,
+ * clinics.js, departments.js, records.js, services.js, chatSummaries.js. This
+ * file was the only one that did not.
+ *
+ * Null means the caller has no membership anywhere — the fresh-install state
+ * `assertBelongs` deliberately permits. It is not an escalation: there is no
+ * second practice to borrow a permission from.
+ */
 async function assertOwner(req, practiceId) {
   await assertBelongs(req, practiceId);
-  // `requirePermission(MANAGE_STAFF)` has already run; this is the practice
-  // half of the question, which that cannot answer.
+
+  const scoped = await practiceOf(req);
+  if (scoped && String(scoped) !== String(practiceId)) {
+    throw forbidden('That practice is not yours.');
+  }
 }
 
 /**

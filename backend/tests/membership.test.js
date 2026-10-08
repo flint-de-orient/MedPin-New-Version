@@ -139,7 +139,28 @@ describe('the practice screen survives a missing backfill', () => {
     // keeps a location lookup from coming back into the route.
     const at = route.indexOf("'/mine'");
     const mine = route.slice(at, route.indexOf('router.get(', at));
-    assert.match(mine, /Membership\.findOne\(/);
+
+    /*
+     * Membership-derived, which is the thing that matters — but no longer by
+     * `Membership.findOne` in this slice.
+     *
+     * That call *was* the bug's other half: findOne returns whichever row the
+     * database hands back, so somebody at two practices got an arbitrary one
+     * and the app's edit sheet wrote back to it. Resolution moved into
+     * `mineResolved`, which goes through `practicesOf` — the same path every
+     * other clinician route uses — and refuses rather than guessing when
+     * several are in play.
+     *
+     * So this now pins the invariant the comment above always described,
+     * instead of the single call that happened to implement it.
+     */
+    assert.match(mine, /mineResolved\(req\)/);
+    assert.match(route, /async function mineResolved\(req\)/);
+    assert.match(route, /await practicesOf\(req\)/);
+    assert.ok(
+      !/Membership\.findOne\(/.test(mine),
+      'the first membership is being taken again — see mineResolved',
+    );
     assert.ok(!/Clinic\.findOne\(/.test(mine), 'the practice is looked up from a clinic again');
     assert.match(mine, /if \(!practice\) return res\.json\(\{ practice: null \}\)/);
   });
