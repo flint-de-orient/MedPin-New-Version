@@ -77,11 +77,17 @@ const WEEK = [
   ...[1, 3, 5].map((d) => ({ dayOfWeek: d, start: '17:00', end: '20:00' })),
 ];
 
+/*
+ * All in clinic. MedPin sees patients in a building: a teleconsult has no
+ * `Clinic` row, so there is nowhere for video hours to live and no published
+ * day to book one into. A seeded video price would be a visit the product
+ * cannot arrange.
+ */
 const PRICES = [
-  { name: 'First consultation', amountPaise: 60000, durationMinutes: 20, mode: 'both' },
-  { name: 'Follow-up', amountPaise: 30000, durationMinutes: 15, mode: 'both' },
-  { name: 'Report review', amountPaise: 20000, durationMinutes: 10, mode: 'both' },
-  { name: 'Teleconsult', amountPaise: 40000, durationMinutes: 15, mode: 'teleconsult' },
+  { name: 'First consultation', amountPaise: 60000, durationMinutes: 20 },
+  { name: 'Follow-up', amountPaise: 30000, durationMinutes: 15 },
+  { name: 'Report review', amountPaise: 20000, durationMinutes: 10 },
+  { name: 'Dressing or injection', amountPaise: 15000, durationMinutes: 10 },
 ];
 
 async function main() {
@@ -286,7 +292,7 @@ async function seedServices(practice, doctor) {
       practice: practice._id,
       doctor: doctor._id,
       name: p.name,
-      mode: p.mode,
+      mode: 'in_clinic',
       amountPaise: p.amountPaise,
       durationMinutes: p.durationMinutes,
       isActive: true,

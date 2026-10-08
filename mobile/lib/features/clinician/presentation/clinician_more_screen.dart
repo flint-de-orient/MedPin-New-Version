@@ -187,8 +187,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
               ProfileUnfinished(missing: missing),
               SizedBox(height: D.s4),
             ],
-            const ProfilePublicButtons(),
-            SizedBox(height: D.s4),
             ProfileBookings(rooms: rooms),
             SizedBox(height: D.s6),
 

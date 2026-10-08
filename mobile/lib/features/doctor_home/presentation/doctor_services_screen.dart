@@ -185,7 +185,13 @@ class _Card extends StatelessWidget {
                         ),
                         Text(
                           [
-                            s.modeLabel,
+                            // Only where it is not the ordinary in-clinic
+                            // visit. With every service in the clinic, "In
+                            // clinic" on every row is a word that
+                            // distinguishes nothing — but a row saved as
+                            // `both` or `teleconsult` before this still says
+                            // so, because that one does differ.
+                            if (s.mode != 'in_clinic') s.modeLabel,
                             if (s.durationMinutes != null) '${s.durationMinutes} min',
                           ].join(' · '),
                           style: D.caption.copyWith(color: D.inkFaint),
@@ -250,7 +256,9 @@ class _ServiceSheetState extends ConsumerState<_ServiceSheet> {
     // Rupees in the field, paise on the wire. A doctor types 500, not 50000.
     _rupees = TextEditingController(text: _service == null ? '' : _service!.rupees);
     _note = TextEditingController(text: _service?.note ?? '');
-    _mode = _service?.mode ?? 'both';
+    // In clinic, always — see the note where the picker used to be. An
+    // existing row keeps whatever it was saved as until somebody edits it.
+    _mode = _service?.mode ?? 'in_clinic';
     _active = _service?.isActive ?? true;
     for (final c in [_name, _rupees, _note]) {
       c.addListener(() => setState(() {}));
@@ -358,26 +366,21 @@ class _ServiceSheetState extends ConsumerState<_ServiceSheet> {
                 'leaving this service off the list.',
                 style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
               ),
-              SizedBox(height: D.s4),
-              _Labelled(
-                label: 'Which kind of visit',
-                child: Wrap(
-                  spacing: D.s2,
-                  runSpacing: D.s2,
-                  children: [
-                    for (final (value, label) in const [
-                      ('both', 'In clinic or video'),
-                      ('in_clinic', 'In clinic'),
-                      ('teleconsult', 'Video'),
-                    ])
-                      _Pick(
-                        label: label,
-                        on: _mode == value,
-                        onTap: () => setState(() => _mode = value),
-                      ),
-                  ],
-                ),
-              ),
+              /*
+               * No "which kind of visit".
+               *
+               * MedPin sees patients in a clinic. A teleconsult has no
+               * `Clinic` row, so there is nowhere for video hours to live and
+               * no published day to book one into — the Schedules screen says
+               * the same thing about its own video chip. Offering a video
+               * price was offering a visit the product cannot arrange, and
+               * the first patient to buy one would have nothing to attend.
+               *
+               * The field stays on the model and the server still accepts all
+               * three: a practice may already hold a service saved as `both`,
+               * and dropping the value would change what that row means. New
+               * ones are in-clinic.
+               */
               SizedBox(height: D.s4),
               _Labelled(
                 label: 'A line for the patient (optional)',
@@ -607,46 +610,4 @@ class _Box extends StatelessWidget {
     ),
     child: child,
   );
-}
-
-class _Pick extends StatelessWidget {
-  const _Pick({required this.label, required this.on, required this.onTap});
-
-  final String label;
-  final bool on;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      inMutuallyExclusiveGroup: true,
-      selected: on,
-      button: true,
-      child: Material(
-        color: on ? D.brand : D.card,
-        borderRadius: D.rPill,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: D.rPill,
-          child: Container(
-            constraints: BoxConstraints(
-              minHeight: MediaQuery.textScalerOf(context).scale(D.tap),
-            ),
-            padding: EdgeInsets.symmetric(horizontal: D.s4),
-            decoration: BoxDecoration(
-              borderRadius: D.rPill,
-              border: Border.all(color: on ? D.brand : D.lineStrong),
-            ),
-            child: Align(
-              widthFactor: 1,
-              child: Text(
-                label,
-                style: D.dateLine.copyWith(color: on ? D.onBrand : D.inkMuted),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

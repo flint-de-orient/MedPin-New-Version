@@ -12,7 +12,6 @@ import '../../domain/profile_completeness.dart';
 import '../../domain/weekly_schedule.dart';
 import '../../../../l10n/gen/app_localizations.dart';
 import '../../../../shared/widgets/user_avatar.dart';
-import 'not_on_file.dart';
 
 /// The blocks under the doctor's name on the Profile screen.
 ///
@@ -138,61 +137,6 @@ class ProfileUnfinished extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-/// The board's two buttons under the identity.
-///
-/// Both need something that does not exist: there is no patient-facing doctor
-/// page to preview, and nothing to share a link to. Drawn as the board has
-/// them, off, with the reason under them rather than a tap that does nothing.
-class ProfilePublicButtons extends StatelessWidget {
-  const ProfilePublicButtons({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final height = MediaQuery.textScalerOf(context).scale(D.tap);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            for (final (i, label) in const [
-              'See as a patient',
-              'Share profile',
-            ].indexed) ...[
-              if (i != 0) SizedBox(width: D.s2),
-              Expanded(
-                child: Container(
-                  height: height,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(D.rCard),
-                    border: Border.all(color: D.line),
-                  ),
-                  child: Text(label, style: D.dateLine.copyWith(color: D.inkFaint)),
-                ),
-              ),
-            ],
-          ],
-        ),
-        SizedBox(height: D.s2),
-        Row(
-          children: [
-            const NotOnFile(),
-            SizedBox(width: D.s2),
-            Expanded(
-              child: Text(
-                'There is no patient-facing page for a doctor yet, so there is '
-                'nothing to preview or share.',
-                style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }
