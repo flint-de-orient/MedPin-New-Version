@@ -43,7 +43,7 @@ typedef Booking = ({
 
 /// Returns true when something changed, so the diary behind it can reload.
 Future<bool> manageAppointment(BuildContext context, Booking booking) =>
-    _open(context, booking, fresh: false);
+    _open(context, booking, mode: _Mode.move);
 
 /// A new appointment for a patient whose last one was missed or called off.
 ///
@@ -51,12 +51,47 @@ Future<bool> manageAppointment(BuildContext context, Booking booking) =>
 /// or missed, and is right to — the old row is what happened, and overwriting
 /// it would lose that. This books a second one.
 Future<bool> bookAgain(BuildContext context, Booking booking) =>
-    _open(context, booking, fresh: true);
+    _open(context, booking, mode: _Mode.again);
+
+/// Giving a request the time it asked for.
+///
+/// ---- Why this is its own mode and not "book again" -----------------------
+///
+/// It was `bookAgain`, and that was wrong twice over.
+///
+/// A request has no clinic *by construction* — the server's own words at
+/// POST /appointments/request: "No clinic and no time yet: the desk assigns
+/// both when it confirms." So the sheet opened with `clinicId == null`, hid
+/// the day picker, hid the action button and hid cancel, and the doctor got
+/// a sheet with one sentence and nothing to press.
+///
+/// And had it offered a button, that button called `book` — which creates a
+/// SECOND appointment and leaves the request sitting at `requested` forever.
+/// The route for this is PATCH /appointments/:id/confirm, which exists
+/// precisely because book and reschedule cannot do it.
+///
+/// So assign mode picks the location as well as the time, because on a
+/// request there is nothing to inherit one from.
+Future<bool> assignTime(BuildContext context, Booking booking) =>
+    _open(context, booking, mode: _Mode.assign);
+
+/// What this sheet is doing. The three are different enough that one boolean
+/// could not tell them apart — which is how assign ended up calling book.
+enum _Mode {
+  /// Move a booking that already has a time and a place.
+  move,
+
+  /// Book a fresh one for a patient whose last was missed or called off.
+  again,
+
+  /// Give a waiting request its first time, and its first location.
+  assign,
+}
 
 Future<bool> _open(
   BuildContext context,
   Booking booking, {
-  required bool fresh,
+  required _Mode mode,
 }) async {
   final changed = await showModalBottomSheet<bool>(
     context: context,
@@ -67,18 +102,16 @@ Future<bool> _open(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(D.rSection)),
     ),
-    builder: (_) => _ManageSheet(booking: booking, fresh: fresh),
+    builder: (_) => _ManageSheet(booking: booking, mode: mode),
   );
   return changed ?? false;
 }
 
 class _ManageSheet extends ConsumerStatefulWidget {
-  const _ManageSheet({required this.booking, required this.fresh});
+  const _ManageSheet({required this.booking, required this.mode});
 
   final Booking booking;
-
-  /// True to book a second appointment, false to move this one.
-  final bool fresh;
+  final _Mode mode;
 
   @override
   ConsumerState<_ManageSheet> createState() => _ManageSheetState();
@@ -97,11 +130,33 @@ class _ManageSheetState extends ConsumerState<_ManageSheet> {
 
   Booking get _a => widget.booking;
 
-  bool get _fresh => widget.fresh;
+  /// True where there is no existing time to contrast with — a fresh booking
+  /// or a request being given one.
+  bool get _fresh => widget.mode != _Mode.move;
+
+  bool get _assigning => widget.mode == _Mode.assign;
+
+  /// The location this will land at. Taken from the appointment where it has
+  /// one; chosen here when assigning, because a request carries none.
+  String? _pickedClinicId;
 
   @override
   Widget build(BuildContext context) {
-    final clinicId = _a.clinicId;
+    // Open locations, for the chooser that assign mode needs. Watched only
+    // then: the other two modes inherit the appointment's own location and
+    // have no business asking the server for a list.
+    final rooms = _assigning
+        ? (ref.watch(clinicsProvider).valueOrNull ?? const <Clinic>[])
+              .where((c) => c.isActive)
+              .toList()
+        : const <Clinic>[];
+
+    // One open location is not a choice, so it is not drawn as one.
+    if (_assigning && _pickedClinicId == null && rooms.length == 1) {
+      _pickedClinicId = rooms.first.id;
+    }
+
+    final clinicId = _assigning ? _pickedClinicId : _a.clinicId;
     final at = _a.scheduledFor?.toLocal();
 
     return SafeArea(
@@ -126,7 +181,11 @@ class _ManageSheetState extends ConsumerState<_ManageSheet> {
               ),
               SizedBox(height: D.s4),
               Text(
-                _fresh ? 'Book again' : 'Manage appointment',
+                switch (widget.mode) {
+                  _Mode.assign => 'Give a time',
+                  _Mode.again => 'Book again',
+                  _Mode.move => 'Manage appointment',
+                },
                 style: D.opening.copyWith(color: D.ink),
               ),
               SizedBox(height: D.s1),
@@ -147,7 +206,40 @@ class _ManageSheetState extends ConsumerState<_ManageSheet> {
               ),
               SizedBox(height: D.s5),
 
-              if (clinicId == null)
+              // Assigning: which location, before which day. A request has
+              // none, so there is nothing to inherit and the question has to
+              // be asked.
+              if (_assigning && rooms.length > 1) ...[
+                const _Eyebrow('Location'),
+                SizedBox(height: D.s2),
+                Wrap(
+                  spacing: D.s2,
+                  runSpacing: D.s2,
+                  children: [
+                    for (final room in rooms)
+                      _RoomChip(
+                        label: room.name,
+                        on: _pickedClinicId == room.id,
+                        onTap: () => setState(() {
+                          _pickedClinicId = room.id;
+                          _slot = null;
+                        }),
+                      ),
+                  ],
+                ),
+                SizedBox(height: D.s5),
+              ],
+
+              if (_assigning && rooms.isEmpty)
+                const _Note(
+                  // Honest, and the one case where the desk really is the
+                  // answer: with no open location there is no published day
+                  // anywhere, for anybody.
+                  text: 'This practice has no open location, so there is no '
+                      'published day to book into. Add one under Locations '
+                      'first.',
+                )
+              else if (clinicId == null)
                 _Note(
                   text: _fresh
                       ? 'This appointment had no location on it, so there is no '
@@ -221,7 +313,11 @@ class _ManageSheetState extends ConsumerState<_ManageSheet> {
                         )
                       : Text(
                           _slot == null
-                              ? (_fresh ? 'Pick a time' : 'Pick a time to move it')
+                              ? (_assigning
+                                    ? 'Pick a time'
+                                    : _fresh
+                                    ? 'Pick a time'
+                                    : 'Pick a time to move it')
                               : (_fresh
                                     ? 'Book ${_slot!.time}'
                                     : 'Reschedule to ${_slot!.time}'),
@@ -267,15 +363,26 @@ class _ManageSheetState extends ConsumerState<_ManageSheet> {
     });
     try {
       final repo = ref.read(appointmentRepositoryProvider);
-      if (_fresh) {
-        await repo.book(
-          clinicId: _a.clinicId,
-          scheduledForIso: slot.iso,
-          patientId: _a.patientId,
-          submission: _submission,
-        );
-      } else {
-        await repo.reschedule(_a.id, slot.iso, submission: _submission);
+      switch (widget.mode) {
+        case _Mode.assign:
+          // The request's own row gets a time and a place. Not `book`, which
+          // would leave this one at `requested` and create a second
+          // appointment beside it.
+          await repo.confirmRequest(
+            _a.id,
+            clinicId: _pickedClinicId,
+            scheduledFor: DateTime.parse(slot.iso),
+            submission: _submission,
+          );
+        case _Mode.again:
+          await repo.book(
+            clinicId: _a.clinicId,
+            scheduledForIso: slot.iso,
+            patientId: _a.patientId,
+            submission: _submission,
+          );
+        case _Mode.move:
+          await repo.reschedule(_a.id, slot.iso, submission: _submission);
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -439,6 +546,53 @@ class _SlotChip extends StatelessWidget {
                   decorationColor: D.inkFaint,
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One of the practice's locations, when assign mode has to ask which.
+///
+/// A chip each rather than a menu: a practice has a handful of locations and
+/// the thing a doctor wants to know first is which ones there are.
+class _RoomChip extends StatelessWidget {
+  const _RoomChip({required this.label, required this.on, required this.onTap});
+
+  final String label;
+  final bool on;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      selected: on,
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: D.rPill,
+        child: Container(
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.textScalerOf(context).scale(D.tap),
+            // A location name is a sentence on a small phone; it wraps inside
+            // the chip rather than running off the sheet.
+            maxWidth: 300,
+          ),
+          padding: EdgeInsets.symmetric(horizontal: D.s4, vertical: D.s2),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: on ? D.brand : D.card,
+            borderRadius: D.rPill,
+            border: Border.all(color: on ? D.brand : D.lineStrong),
+          ),
+          child: Text(
+            label,
+            softWrap: true,
+            style: D.subtitle.copyWith(
+              color: on ? D.onBrand : D.inkMuted,
+              fontWeight: on ? FontWeight.w600 : FontWeight.w400,
             ),
           ),
         ),

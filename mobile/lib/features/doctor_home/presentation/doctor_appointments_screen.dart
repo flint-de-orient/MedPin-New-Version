@@ -187,11 +187,13 @@ class _DoctorAppointmentsScreenState
 
   /// Giving a request the hour it asked for.
   ///
-  /// The same sheet, opened fresh: a request has no `scheduledFor`, so there
-  /// is no "new date" to contrast with and no slot to release. The sheet
-  /// already handles that case — it is how a missed appointment is re-booked.
+  /// `assignTime`, not `bookAgain`. This called `bookAgain` and was broken
+  /// two ways: a request has no clinic, so the sheet opened with every
+  /// control hidden and nothing to press — and the button it would have shown
+  /// called `book`, which creates a second appointment and leaves the request
+  /// at `requested` for ever. See the note on `assignTime`.
   Future<void> _assign(Appointment a) async {
-    final changed = await bookAgain(context, _booking(a));
+    final changed = await assignTime(context, _booking(a));
     if (changed) _reload();
   }
 
@@ -307,31 +309,36 @@ class _Waiting extends StatelessWidget {
               onDecline: () => onDecline(a),
             ),
           ],
-          if (rows.length > shown.length) ...[
-            SizedBox(height: D.s2),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                // Giving a request a time needs the slot grid and the desk's
-                // own checks, and that screen already has both.
-                onPressed: () => context.push('/clinician/appointments/desk'),
-                style: TextButton.styleFrom(
-                  foregroundColor: D.brand,
-                  minimumSize: Size(
-                    0,
-                    MediaQuery.textScalerOf(context).scale(D.tap),
-                  ),
+          // Always, not only past three.
+          //
+          // This was gated on there being more rows than the three shown, so
+          // with one, two or three requests waiting there was no way out of
+          // this card at all — and while Assign time was broken, no way to
+          // give anybody a time from the doctor panel whatsoever. The desk's
+          // screen is the fuller tool either way.
+          SizedBox(height: D.s2),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => context.push('/clinician/appointments/desk'),
+              style: TextButton.styleFrom(
+                foregroundColor: D.brand,
+                minimumSize: Size(
+                  0,
+                  MediaQuery.textScalerOf(context).scale(D.tap),
                 ),
-                child: Text(
-                  'View all ${rows.length}',
-                  style: D.subtitle.copyWith(
-                    color: D.brand,
-                    fontWeight: FontWeight.w600,
-                  ),
+              ),
+              child: Text(
+                rows.length > shown.length
+                    ? 'View all ${rows.length} at the desk'
+                    : 'Open the desk’s diary',
+                style: D.subtitle.copyWith(
+                  color: D.brand,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
