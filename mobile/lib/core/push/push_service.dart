@@ -255,7 +255,14 @@ class PushService {
       // can actually do something about what they were just told.
       router.go('/staff/today');
     } else {
-      router.push('/clinician/alerts');
+      // Messages, not the old alerts screen.
+      //
+      // Only an emergency pushes now — see notifyFor in
+      // services/alerts.js — and an emergency about no particular patient is
+      // a thing somebody said, so the Messages tab is where it belongs. The
+      // alerts screen is the pre-redesign one and lands a doctor outside the
+      // panel they tapped from.
+      router.push('/clinician/messages');
     }
   }
 

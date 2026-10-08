@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/doctor_tokens.dart';
 import '../../../appointments/domain/clinic.dart';
+import '../../../auth/presentation/auth_controller.dart';
 import '../../../appointments/presentation/appointment_providers.dart';
 // For dateKey — the 'yyyy-MM-dd' the slot endpoint takes. One copy of it,
 // shared with the reschedule sheet.
@@ -28,13 +29,58 @@ import '../../../../shared/widgets/user_avatar.dart';
 /// so this costs one request per room and shares their cache. Null means
 /// nothing is left today — said as itself, never as the first slot of a
 /// morning that has gone.
+/// The rooms where this doctor has a schedule patients can book into.
+///
+/// ---- Why this is not `c.weeklyHours.isNotEmpty` --------------------------
+///
+/// That is the *building's* opening hours. The server decides whether a slot
+/// exists with `scheduleFor`: the doctor's own `Availability` at that
+/// location if they have one, and the building's hours only as a fallback.
+///
+/// So a doctor who published their hours on the Schedules screen — which
+/// writes `Availability` and never touches `Clinic.weeklyHours` — had a
+/// profile telling them "Not taking bookings" while patients could book them
+/// perfectly well. The banner was answering a different question from the one
+/// it asked, and wrong in the direction that matters: it understated what the
+/// clinic was committed to.
+///
+/// One request per open room, shared with the Schedules screen's cache.
+final publishingRoomsProvider =
+    FutureProvider.autoDispose<List<Clinic>>((ref) async {
+      final me = ref.watch(authControllerProvider).user?.id;
+      final clinics = await ref.watch(clinicsProvider.future);
+      final open = [for (final c in clinics) if (c.isActive) c];
+      if (me == null || open.isEmpty) {
+        return [for (final c in open) if (c.weeklyHours.isNotEmpty) c];
+      }
+
+      final out = <Clinic>[];
+      for (final room in open) {
+        try {
+          final hours = await ref.watch(locationHoursProvider(room.id).future);
+          final mine = hours.doctors
+              .where((d) => d.doctorId == me)
+              .firstOrNull;
+          // `scheduleFor`, in the same order: their own diary, else the
+          // building's.
+          final publishes = mine == null || mine.usesLocationHours
+              ? room.weeklyHours.isNotEmpty
+              : mine.weeklyHours.isNotEmpty;
+          if (publishes) out.add(room);
+        } catch (_) {
+          // A room that cannot be read falls back to what the clinic itself
+          // says, rather than dropping out of the count entirely.
+          if (room.weeklyHours.isNotEmpty) out.add(room);
+        }
+      }
+      return out;
+    });
+
 final nextFreeSlotProvider =
     FutureProvider.autoDispose<({String time, String where})?>((ref) async {
-      final clinics = await ref.watch(clinicsProvider.future);
-      final rooms = [
-        for (final c in clinics)
-          if (c.isActive && c.weeklyHours.isNotEmpty) c,
-      ];
+      // The same rooms the banner counts — this filtered on the building's
+      // hours too, so a doctor with their own diary never saw a next slot.
+      final rooms = await ref.watch(publishingRoomsProvider.future);
       if (rooms.isEmpty) return null;
 
       final today = dateKey(DateTime.now());
@@ -170,15 +216,33 @@ class ProfileBookings extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Published hours at an open location is what makes a slot exist. Without
-    // one, "taking bookings" would be a claim with nothing behind it.
-    final publishing = [for (final c in rooms) if (c.weeklyHours.isNotEmpty) c];
-    final on = publishing.isNotEmpty;
+    /*
+     * Published hours at an open location is what makes a slot exist, and
+     * "published" means what the server means by it — see
+     * publishingRoomsProvider. This read `c.weeklyHours`, the building's own
+     * hours, and so told a doctor who had published their own diary that they
+     * were not taking bookings while patients could book them.
+     *
+     * While the rooms are still being read it holds the last answer rather
+     * than flashing "Not taking bookings" at somebody who is: an amber
+     * warning that appears for a second and corrects itself is worse than a
+     * beat of nothing.
+     */
+    final async = ref.watch(publishingRoomsProvider);
+    final publishing = async.valueOrNull;
+    final loading = publishing == null;
+    final on = publishing != null && publishing.isNotEmpty;
 
     return Container(
       padding: EdgeInsets.all(D.s4),
       decoration: BoxDecoration(
-        color: on ? D.doneGround : D.pendingGround,
+        // Neutral while it is still being read, so the amber does not appear
+        // and then correct itself.
+        color: loading
+            ? D.track
+            : on
+            ? D.doneGround
+            : D.pendingGround,
         borderRadius: BorderRadius.circular(D.rCard),
       ),
       child: Row(
@@ -186,7 +250,11 @@ class ProfileBookings extends ConsumerWidget {
           Icon(
             on ? Icons.event_available_rounded : Icons.event_busy_rounded,
             size: D.iconLg,
-            color: on ? D.done : D.pending,
+            color: loading
+                ? D.inkFaint
+                : on
+                ? D.done
+                : D.pending,
           ),
           SizedBox(width: D.s3),
           Expanded(
@@ -194,15 +262,27 @@ class ProfileBookings extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  on ? 'Taking bookings' : 'Not taking bookings',
+                  loading
+                      ? 'Checking your hours'
+                      : on
+                      ? 'Taking bookings'
+                      : 'Not taking bookings',
                   style: D.subtitle.copyWith(
-                    color: on ? D.done : D.pending,
+                    color: loading
+                        ? D.inkMuted
+                        : on
+                        ? D.done
+                        : D.pending,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
-                  on
+                  loading
+                      ? '${rooms.length} ${rooms.length == 1 ? 'location' : 'locations'}'
+                      : on
                       ? _nextLine(ref, publishing.length, rooms.length)
+                      : rooms.isEmpty
+                      ? 'No location yet, so there is nowhere to publish hours'
                       : 'No published hours, so no slot exists to book',
                   style: D.caption.copyWith(color: D.inkMuted, height: 1.4),
                 ),
@@ -210,18 +290,44 @@ class ProfileBookings extends ConsumerWidget {
             ),
           ),
           SizedBox(width: D.s2),
-          TextButton(
-            onPressed: () => context.push('/clinician/more/leave'),
-            style: TextButton.styleFrom(
-              foregroundColor: D.brand,
-              minimumSize: Size(0, MediaQuery.textScalerOf(context).scale(D.tap)),
-              padding: EdgeInsets.symmetric(horizontal: D.s2),
+          /*
+           * The action has to answer the sentence beside it.
+           *
+           * This always said "Take leave", including under "No published
+           * hours, so no slot exists to book" — where taking leave does
+           * nothing at all, because there is nothing to close. The fix for no
+           * hours is to publish some; the fix for no location is to add one.
+           * Only a doctor who IS taking bookings has leave to take.
+           */
+          if (!loading)
+            TextButton(
+              onPressed: () => context.push(
+                on
+                    ? '/clinician/more/leave'
+                    : rooms.isEmpty
+                    ? '/clinician/more/locations'
+                    : '/clinician/more/schedule',
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: D.brand,
+                minimumSize: Size(
+                  0,
+                  MediaQuery.textScalerOf(context).scale(D.tap),
+                ),
+                padding: EdgeInsets.symmetric(horizontal: D.s2),
+              ),
+              child: Text(
+                on
+                    ? 'Take leave'
+                    : rooms.isEmpty
+                    ? 'Add a location'
+                    : 'Publish hours',
+                style: D.dateLine.copyWith(
+                  color: D.brand,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-            child: Text(
-              'Take leave',
-              style: D.dateLine.copyWith(color: D.brand, fontWeight: FontWeight.w600),
-            ),
-          ),
         ],
       ),
     );

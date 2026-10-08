@@ -414,8 +414,28 @@ export async function notifyClinicStaff(alert) {
  * Skipped when an alert already fired for the same message: two buzzes for one
  * sentence, seconds apart, is how a clinic learns to swipe this app away.
  */
+/*
+ * Whether an ordinary patient message rings anybody's phone. It does not.
+ *
+ * Only an emergency pushes — see `notifyFor` in services/alerts.js. A message
+ * triage escalated goes out through the alert path instead; everything else
+ * is ordinary, and ordinary belongs in the bell and the notification sheet
+ * rather than on a lock screen. A phone that buzzes all day is a phone nobody
+ * reads, and the cost of that is paid by the one message that mattered.
+ *
+ * Nothing is lost by it: the message is delivered, it is in the thread, it
+ * raises the bell's count and it is in the sheet. What it no longer does is
+ * interrupt.
+ *
+ * A constant rather than a deletion — the delivery below is correct and a
+ * practice that wants its desk paged is one word, not a rewrite.
+ */
+const PUSH_ROUTINE_MESSAGES = false;
+
 export async function notifyClinicOfPatientMessage(patientId, text, { escalated = false } = {}) {
   if (escalated) return { delivered: 0, skipped: 'alerted' };
+
+  if (!PUSH_ROUTINE_MESSAGES) return { delivered: 0, skipped: 'routine' };
 
   // Looked up here rather than taken as an argument. The one caller has a
   // patient context that does not carry a name, and threading one through for

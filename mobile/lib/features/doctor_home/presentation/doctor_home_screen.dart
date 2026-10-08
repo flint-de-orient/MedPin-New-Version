@@ -12,6 +12,7 @@ import '../../auth/presentation/auth_controller.dart';
 import '../../clinician/domain/appointment.dart';
 import '../../clinician/domain/clinician_models.dart';
 import '../../clinician/presentation/clinician_providers.dart';
+import '../../clinician/presentation/widgets/clinician_notification_sheet.dart';
 
 /// The doctor's day, drawn from the design canvas's Doctor-Dashboard artboard.
 ///
@@ -98,7 +99,13 @@ class _Header extends ConsumerWidget {
           button: true,
           label: unread > 0 ? 'Notifications, $unread waiting' : 'Notifications',
           child: InkWell(
-            onTap: () => context.push('/clinician/alerts'),
+            // The same sheet the Profile screen's bell opens.
+            //
+            // This pushed `/clinician/alerts`, the old design — so there were
+            // two bells in one app going to two different places, and the one
+            // on the screen a doctor opens first was the one that left the
+            // new panel.
+            onTap: () => showClinicianNotifications(context),
             customBorder: const CircleBorder(),
             child: Container(
               width: D.tap,
@@ -438,11 +445,24 @@ class _EmergencyCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(D.rCardLg),
         child: InkWell(
           borderRadius: BorderRadius.circular(D.rCardLg),
-          onTap: () => context.push(
-            alert.patientId == null
-                ? '/clinician/alerts'
-                : '/clinician/patients/${alert.patientId}/thread',
-          ),
+          // Straight into what the patient said.
+          //
+          // An alert about nobody — the practice itself, a configuration
+          // warning — goes to Messages rather than the old alerts screen. An
+          // alert is a thing somebody said, and that is where what people
+          // said lives.
+          //
+          // Empty as well as null: the server sends the id as a string and an
+          // empty one would push `/clinician/patients//thread`, which is not
+          // a route.
+          onTap: () {
+            final patientId = alert.patientId ?? '';
+            context.push(
+              patientId.isEmpty
+                  ? '/clinician/messages'
+                  : '/clinician/patients/$patientId/thread',
+            );
+          },
           child: Container(
             padding: EdgeInsets.all(D.cardPadLg),
             decoration: BoxDecoration(

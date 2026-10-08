@@ -115,7 +115,23 @@ export async function raiseAlert({
  * push is best-effort, and what came of it is recorded on the alert.
  */
 function notifyFor(alert, patientId, severity) {
-  if (severity === 'emergency' || severity === 'urgent') {
+  /*
+   * A push rings a phone. Only an emergency may.
+   *
+   * This paged staff for `urgent` as well, and `urgent` is where the AI
+   * triage puts everything it is not sure about — so the one alert that must
+   * never be swiped past arrived in the same envelope as a dozen that could
+   * wait. A phone that buzzes all day is a phone nobody reads, and the cost
+   * of that is paid by the emergency.
+   *
+   * Nothing is lost. An urgent alert is still raised, still on the
+   * dashboard's red card, still counted on the bell, and still in the
+   * notification sheet. What it no longer does is interrupt.
+   *
+   * See also notifyClinicOfPatientMessage, which stopped pushing for routine
+   * messages for the same reason.
+   */
+  if (severity === 'emergency') {
     notifyClinicStaff(alert).catch((err) => logger.error({ err }, 'staff notification failed'));
   }
   if (severity === 'emergency') {

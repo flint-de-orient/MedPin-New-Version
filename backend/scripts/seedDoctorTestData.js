@@ -46,6 +46,7 @@ import { Availability } from '../src/models/Availability.js';
 import { Service } from '../src/models/Service.js';
 import { Appointment } from '../src/models/Appointment.js';
 import { Enrollment } from '../src/models/Enrollment.js';
+import { capabilitiesOfPractice, CAPABILITIES } from '../src/services/capabilities.js';
 
 const apply = process.argv.includes('--apply');
 const force = process.argv.includes('--force');
@@ -207,6 +208,28 @@ async function openRooms(practice) {
 async function seedLocations(practice) {
   const rooms = await openRooms(practice);
   const cap = practice.limits?.locations ?? null;
+
+  /*
+   * The capability, not only the number — and this script got that wrong.
+   *
+   * It checked `limits.locations` and nothing else, so it happily wrote a
+   * second location into a practice of type `clinic`, which never holds
+   * MULTI_LOCATION whatever its plan. `POST /clinics` would have refused it.
+   * The result was a practice showing two locations under the words "this
+   * practice is set up for a single location" — a state the product cannot
+   * reach on its own, which is exactly what this script promised not to make.
+   */
+  if (rooms.length >= 1) {
+    const held = capabilitiesOfPractice(practice);
+    if (!held.includes(CAPABILITIES.MULTI_LOCATION)) {
+      skipped.push(
+        `a second location — a ${practice.practiceType ?? 'practice of no type'} ` +
+          'does not run from more than one building, whatever its plan. ' +
+          'Change the practice type to a polyclinic or a hospital first.',
+      );
+      return rooms;
+    }
+  }
 
   if (cap != null && rooms.length >= cap) {
     skipped.push(

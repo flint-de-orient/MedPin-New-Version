@@ -128,13 +128,26 @@ class DoctorLocationsScreen extends ConsumerWidget {
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: D.s1),
                       child: Text(
-                        // Said rather than left as an absence. Somebody on
-                        // this screen looking for the button should be told
-                        // why there isn't one, and what would change it.
-                        'This practice is set up for a single location. '
-                        'Running from more than one needs a practice type '
-                        'that has them — a polyclinic or a hospital — on a '
-                        'plan that includes it.',
+                        // Said rather than left as an absence: somebody
+                        // looking for the button should be told why there
+                        // isn't one, and what would change it.
+                        //
+                        // And it must not claim "a single location" to a
+                        // practice that plainly has several. That can happen
+                        // — a practice type changed after the locations were
+                        // made, or a script that wrote past the rule — and
+                        // telling somebody the opposite of what is on their
+                        // screen is how a product stops being believed.
+                        all.length > 1
+                            ? 'This practice has ${all.length} locations but '
+                                  'is set up as a single-location '
+                                  'practice, so no more can be added. The '
+                                  'ones here keep working. A polyclinic or a '
+                                  'hospital runs from several.'
+                            : 'This practice is set up for a single location. '
+                                  'Running from more than one needs a '
+                                  'practice type that has them — a polyclinic '
+                                  'or a hospital — on a plan that includes it.',
                         style: D.caption.copyWith(color: D.inkFaint, height: 1.4),
                       ),
                     ),
