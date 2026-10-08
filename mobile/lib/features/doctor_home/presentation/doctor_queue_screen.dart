@@ -10,9 +10,11 @@ import '../../appointments/domain/clinic.dart';
 import '../../clinician/domain/appointment.dart';
 import '../../../shared/providers/core_providers.dart';
 import '../../clinician/presentation/clinician_providers.dart';
+import '../domain/doctor_ai.dart';
 import '../domain/patient_queue.dart';
 import 'widgets/profile_parts.dart';
 import 'widgets/queue_location_sheet.dart';
+import 'widgets/record_vitals_sheet.dart';
 
 /// Today's waiting room (`Queue-List`).
 ///
@@ -45,6 +47,13 @@ class _DoctorQueueScreenState extends ConsumerState<DoctorQueueScreen> {
 
   /// null = everybody; otherwise the one group being shown.
   QueueStage? _only;
+
+  /// Whether the whole of today's finished list is drawn.
+  ///
+  /// A full afternoon is thirty completed rows above nothing a doctor has to
+  /// do, which pushes the people still waiting off the screen. Two are kept
+  /// — enough to see who just left the room — and the rest are a tap away.
+  bool _allDone = false;
 
   @override
   void initState() {
@@ -129,6 +138,75 @@ class _DoctorQueueScreenState extends ConsumerState<DoctorQueueScreen> {
     } finally {
       if (mounted) setState(() => _busyWith = null);
     }
+  }
+
+  /// Taking vitals for somebody the desk did not measure.
+  ///
+  /// The sheet needs the patient's record, which the queue does not carry —
+  /// the queue has appointments. So it is fetched first, and the row shows
+  /// itself busy while that happens rather than the sheet opening empty.
+  /// How many of a group's rows are drawn.
+  ///
+  /// Only Completed is ever cut, and only while nobody has asked for the rest.
+  /// Waiting is never cut: a patient hidden behind "show more" is a patient
+  /// nobody calls.
+  List<Appointment> _shown(
+    Map<QueueStage, List<Appointment>> groups,
+    QueueStage stage,
+  ) {
+    final rows = groups[stage] ?? const <Appointment>[];
+    if (stage != QueueStage.completed || _allDone) return rows;
+    return rows.take(_doneShown).toList();
+  }
+
+  int _hidden(Map<QueueStage, List<Appointment>> groups, QueueStage stage) =>
+      (groups[stage] ?? const <Appointment>[]).length -
+      _shown(groups, stage).length;
+
+  static const _doneShown = 2;
+
+  Future<void> _vitals(Appointment a) async {
+    final patientId = a.patientId;
+    if (patientId.isEmpty || _busyWith != null) return;
+    setState(() => _busyWith = a.id);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final patient = await ref
+          .read(clinicianRepositoryProvider)
+          .patientSummary(patientId);
+      if (!mounted) return;
+      final saved = await recordVitals(
+        context,
+        patientId: patientId,
+        patient: patient,
+      );
+      // The chip on the row is the server's answer, not this screen's, so the
+      // queue is re-asked rather than the row being flipped locally.
+      if (saved) ref.invalidate(appointmentsTodayProvider);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Could not open ${a.patientName}’s record. $e'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busyWith = null);
+    }
+  }
+
+  /// A brief on this patient, from the assistant.
+  ///
+  /// Sets who the conversation is about and asks the question, so the doctor
+  /// arrives at an answer rather than at an empty composer with a chip on it.
+  /// "Brief" is one of the phrasings the assistant answers — see
+  /// `asksForASummary` — so this is the real question, not a special path.
+  void _brief(Appointment a) {
+    if (a.patientId.isEmpty) return;
+    final ai = ref.read(doctorAiProvider.notifier);
+    ai.startOver();
+    ai.about(id: a.patientId, name: a.patientName);
+    ai.ask('Brief me on ${a.patientName}');
+    context.push('/clinician/ai/chat');
   }
 
   @override
@@ -244,7 +322,7 @@ class _DoctorQueueScreenState extends ConsumerState<DoctorQueueScreen> {
                         ),
                         child: Column(
                           children: [
-                            for (final (i, a) in groups[stage]!.indexed)
+                            for (final (i, a) in _shown(groups, stage).indexed)
                               _QueueRow(
                                 appointment: a,
                                 stage: stage,
@@ -266,6 +344,13 @@ class _DoctorQueueScreenState extends ConsumerState<DoctorQueueScreen> {
                                   '/clinician/patients/${a.patientId}',
                                   extra: a.patientName,
                                 ),
+                                onBrief: () => _brief(a),
+                                onVitals: () => _vitals(a),
+                              ),
+                            if (_hidden(groups, stage) > 0)
+                              _ShowMore(
+                                n: _hidden(groups, stage),
+                                onTap: () => setState(() => _allDone = true),
                               ),
                           ],
                         ),
@@ -407,6 +492,8 @@ class _QueueRow extends StatelessWidget {
     required this.onResume,
     required this.onDone,
     required this.onOpen,
+    required this.onBrief,
+    required this.onVitals,
   });
 
   final Appointment appointment;
@@ -419,6 +506,8 @@ class _QueueRow extends StatelessWidget {
   final VoidCallback onResume;
   final VoidCallback onDone;
   final VoidCallback onOpen;
+  final VoidCallback onBrief;
+  final VoidCallback onVitals;
 
   @override
   Widget build(BuildContext context) {
@@ -532,6 +621,48 @@ class _QueueRow extends StatelessWidget {
                 ),
               ),
             ],
+            // What is already on file for this person before they walk in.
+            //
+            // The board draws both as chips whichever way they read, so "No
+            // vitals" is as visible as "Vitals" — the absence is the thing a
+            // doctor acts on, and a chip that only appears when something
+            // exists makes the absence invisible.
+            //
+            // Both are null until the server has been asked for them, and a
+            // screen that did not ask draws neither rather than a confident
+            // "No vitals" it has not checked.
+            if (a.hasVitals != null || (a.documentCount ?? 0) >= 0) ...[
+              SizedBox(height: D.s2),
+              Padding(
+                padding: EdgeInsets.only(left: D.disc + D.s3),
+                child: Wrap(
+                  spacing: D.s2,
+                  runSpacing: D.s1,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (a.hasVitals != null)
+                      _Fact(
+                        label: a.hasVitals! ? 'Vitals' : 'No vitals',
+                        good: a.hasVitals!,
+                      ),
+                    if (a.documentCount != null)
+                      _Fact(
+                        label: switch (a.documentCount!) {
+                          0 => 'No documents',
+                          1 => '1 document',
+                          final n => '$n documents',
+                        },
+                        good: a.documentCount! > 0,
+                      ),
+                    // Only where there is something to brief from. A brief of
+                    // an empty record is a paragraph of nothing, and offering
+                    // it teaches a doctor the button is not worth pressing.
+                    if ((a.documentCount ?? 0) > 0 || a.hasVitals == true)
+                      _Brief(onTap: onBrief),
+                  ],
+                ),
+              ),
+            ],
             if (stage != QueueStage.notArrived) ...[
               SizedBox(height: D.s3),
               Padding(
@@ -558,11 +689,32 @@ class _QueueRow extends StatelessWidget {
                       ),
                     ],
                   ),
-                  QueueStage.waiting => _Action(
-                    label: 'Start consultation',
-                    busy: busy,
-                    onTap: onStart,
-                    tone: isNext ? _Tone.primary : _Tone.tonal,
+                  // The board offers "Record vitals" beside the start, and
+                  // only where the desk has not taken them. Both on one row,
+                  // because a doctor whose patient arrived unmeasured is
+                  // choosing between the two.
+                  QueueStage.waiting => Row(
+                    children: [
+                      if (a.hasVitals == false) ...[
+                        Expanded(
+                          child: _Action(
+                            label: 'Record vitals',
+                            busy: busy,
+                            onTap: onVitals,
+                            tone: _Tone.quiet,
+                          ),
+                        ),
+                        SizedBox(width: D.s2),
+                      ],
+                      Expanded(
+                        child: _Action(
+                          label: 'Start consultation',
+                          busy: busy,
+                          onTap: onStart,
+                          tone: isNext ? _Tone.primary : _Tone.tonal,
+                        ),
+                      ),
+                    ],
                   ),
                   QueueStage.completed => _Action(
                     label: 'View record',
@@ -709,6 +861,116 @@ class _Filter extends StatelessWidget {
             child: Text(
               label,
               style: D.dateLine.copyWith(color: on ? D.onBrand : D.inkMuted),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One thing already on file, or plainly not.
+///
+/// Drawn whichever way it reads, because the absence is what a doctor acts on:
+/// a chip that appeared only when vitals existed made "nobody has measured
+/// this person" invisible, which is the one of the two states worth a glance.
+///
+/// Green for present and grey for absent, and the word says which — these
+/// clinics' staff read this in a corridor, and red-green deficiency runs
+/// alongside the disease they treat.
+class _Fact extends StatelessWidget {
+  const _Fact({required this.label, required this.good});
+
+  final String label;
+  final bool good;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: D.gapIcon, vertical: D.s1),
+      decoration: BoxDecoration(
+        color: good ? D.doneGround : D.track,
+        borderRadius: D.rPill,
+      ),
+      child: Text(
+        label,
+        style: D.caption.copyWith(
+          color: good ? D.done : D.inkMuted,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+/// The way to the assistant, with this patient already chosen.
+class _Brief extends StatelessWidget {
+  const _Brief({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: D.rPill,
+        child: Container(
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.textScalerOf(context).scale(D.tap),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: D.s2),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.auto_awesome_outlined,
+                size: D.iconSm,
+                color: D.brand,
+              ),
+              SizedBox(width: D.gapTight),
+              Text(
+                'AI brief',
+                style: D.caption.copyWith(
+                  color: D.brand,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The rest of a group that was cut, and the way to see it.
+class _ShowMore extends StatelessWidget {
+  const _ShowMore({required this.n, required this.onTap});
+
+  final int n;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: D.line)),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.textScalerOf(context).scale(D.tap),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            'Show $n more',
+            style: D.subtitle.copyWith(
+              color: D.brand,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),

@@ -313,6 +313,10 @@ class ClinicianRepository {
         'from': from.toUtc().toIso8601String(),
         'to': to.toUtc().toIso8601String(),
         'limit': 200,
+        // The waiting room's two extra facts. Asked for here and nowhere
+        // else, because they are two aggregations and this is the one screen
+        // that reads them.
+        'care': '1',
       },
     );
     return (json['items'] as List? ?? const [])

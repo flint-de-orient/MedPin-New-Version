@@ -22,6 +22,8 @@ class Appointment {
     this.checkedInAt,
     this.calledAt,
     this.completedAt,
+    this.hasVitals,
+    this.documentCount,
   });
 
   final String id;
@@ -86,6 +88,18 @@ class Appointment {
   /// the only pair that can say so.
   final DateTime? completedAt;
 
+  /// Whether the desk has taken this patient's vitals today.
+  ///
+  /// Today's, not ever: the queue asks whether somebody has been weighed and
+  /// measured before the doctor sees them, and a reading from last month is on
+  /// their record without answering that. Null where the server was not asked
+  /// — see `?care=1` on GET /appointments — so a screen that did not ask shows
+  /// no chip rather than a confident "No vitals".
+  final bool? hasVitals;
+
+  /// How many documents are on their record. Null for the same reason.
+  final int? documentCount;
+
   bool get isCompleted => status == 'completed';
 
   /// The doctor is with this patient right now (called in or mid-consult).
@@ -142,6 +156,8 @@ class Appointment {
       checkedInAt: DateTime.tryParse(j['checkedInAt']?.toString() ?? '')?.toLocal(),
       calledAt: DateTime.tryParse(j['calledAt']?.toString() ?? '')?.toLocal(),
       completedAt: DateTime.tryParse(j['completedAt']?.toString() ?? '')?.toLocal(),
+      hasVitals: j['hasVitals'] is bool ? j['hasVitals'] as bool : null,
+      documentCount: (j['documentCount'] as num?)?.toInt(),
     );
   }
 }

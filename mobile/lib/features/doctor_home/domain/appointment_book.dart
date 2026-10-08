@@ -88,6 +88,35 @@ Map<DateTime, List<Appointment>> diaryDays(
   return (booked: booked, waiting: requests.length, cancelled: cancelled);
 }
 
+/// What the third figure is called, which depends on which days are in view.
+///
+/// The board calls it "Freed up", and for today and the days ahead that is the
+/// useful reading: a cancelled booking is an hour somebody else can have. For
+/// days already gone nothing was freed — the hour passed — so there it is
+/// what it is, a count of appointments that were called off.
+String cancelledLabel(DiaryScope scope) =>
+    scope == DiaryScope.past ? 'Cancelled' : 'Freed up';
+
+/// The requests that were turned down: asked for, never given a time, called
+/// off.
+///
+/// A declined request is a cancelled row with no `scheduledFor`, which is the
+/// same shape the server writes — see the note on `declinedRequest` in
+/// backend/src/routes/appointments.js. Newest first, because the only reason
+/// to open this list is "what did I just turn down".
+List<Appointment> declinedRequests(List<Appointment> rows) {
+  final out = rows
+      .where((a) => a.status == 'cancelled' && a.scheduledFor == null)
+      .toList();
+  out.sort((a, b) {
+    final x = a.preferredFor ?? a.createdAt;
+    final y = b.preferredFor ?? b.createdAt;
+    if (x == null || y == null) return 0;
+    return y.compareTo(x);
+  });
+  return out;
+}
+
 /// What a row's status is called, and the colours that carry the word.
 (String, Color, Color) bookingState(Appointment a) => switch (a.status) {
   'requested' => ('Waiting for a time', D.pendingGround, D.pending),

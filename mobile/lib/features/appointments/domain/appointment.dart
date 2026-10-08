@@ -26,6 +26,7 @@ class Appointment {
     this.isPriority = false,
     this.consultationNotes,
     this.createdAt,
+    this.cancellationReason,
     this.serviceId,
     this.fee = const AppointmentFee(),
   });
@@ -92,6 +93,13 @@ class Appointment {
   final String? clinicPhone;
 
   final String? reason;
+
+  /// Why it was called off, in the words it was called off with.
+  ///
+  /// The sentence the patient was sent. A declined request that says only
+  /// "cancelled" cannot be told from one that says "the day you asked for is
+  /// full", and only one of those is somebody to ring back.
+  final String? cancellationReason;
   final int? queueNumber;
   final bool isPriority;
   final String? consultationNotes;
@@ -153,6 +161,7 @@ class Appointment {
       clinicCity: clinicMap['city']?.toString(),
       clinicPhone: clinicMap['phone']?.toString(),
       reason: j['reason']?.toString(),
+      cancellationReason: j['cancellationReason']?.toString(),
       queueNumber: (j['queueNumber'] as num?)?.toInt(),
       isPriority: j['isPriority'] == true,
       consultationNotes: j['consultationNotes']?.toString(),

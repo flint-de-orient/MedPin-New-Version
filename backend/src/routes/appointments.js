@@ -10,7 +10,11 @@ import { validate, q } from '../middleware/validate.js';
 import { idempotentWrite } from '../middleware/idempotentWrite.js';
 import { asyncHandler, notFound, badRequest, conflict } from '../middleware/errors.js';
 import { audit } from '../middleware/audit.js';
+import mongoose from 'mongoose';
 import { Appointment, APPOINTMENT_STATUS } from '../models/Appointment.js';
+// The waiting room's two extra facts. See addCareFacts below.
+import { VitalRecord } from '../models/VitalRecord.js';
+import { LabReport } from '../models/LabReport.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { Clinic } from '../models/Clinic.js';
 import { Service } from '../models/Service.js';
@@ -284,6 +288,16 @@ router.get(
         status: z.enum(APPOINTMENT_STATUS).optional(),
         patientId: z.string().optional(),
         clinicId: z.string().optional(),
+        /*
+         * Whether the waiting room's two extra facts come back with each row:
+         * has this patient had vitals taken today, and how many documents are
+         * on their record.
+         *
+         * Opt-in, because they are two aggregations the patient's own app and
+         * the desk's diary have no use for, and this endpoint answers all
+         * three. The doctor's queue asks; nothing else does.
+         */
+        care: z.enum(['1']).optional(),
       }),
     ),
   }),
@@ -337,9 +351,58 @@ router.get(
       Appointment.countDocuments(query),
     ]);
 
-    res.json(paged(items.map(serialise), { page, limit, total }));
+    const rows = items.map(serialise);
+    if (req.query.care === '1' && !isPatient(req)) await addCareFacts(rows);
+
+    res.json(paged(rows, { page, limit, total }));
   }),
 );
+
+/**
+ * Hangs "vitals taken today" and "documents on file" on each row.
+ *
+ * ---- Two queries, not two per patient ------------------------------------
+ *
+ * A waiting room of forty is forty rows, and asking per row is eighty round
+ * trips for a screen that re-asks itself every thirty seconds. Both facts are
+ * one grouped query over the whole set of patients in the page.
+ *
+ * ---- What each one means, exactly ----------------------------------------
+ *
+ * `hasVitals` is today's, because that is the question the queue asks: has the
+ * desk weighed and measured this person before I see them. A reading from last
+ * month is on their record and is not what the chip is about.
+ *
+ * `documentCount` is their whole record, because a document is a document
+ * whenever it was filed — a scan from March is exactly what a doctor wants to
+ * open at the start of a follow-up.
+ */
+async function addCareFacts(rows) {
+  const patientIds = [
+    ...new Set(rows.map((r) => r.patientId).filter(Boolean).map(String)),
+  ];
+  if (!patientIds.length) return;
+
+  const ids = patientIds.map((id) => new mongoose.Types.ObjectId(id));
+  const since = dayjs().startOf('day').toDate();
+
+  const [vitals, docs] = await Promise.all([
+    VitalRecord.distinct('patient', { patient: { $in: ids }, recordedAt: { $gte: since } }),
+    LabReport.aggregate([
+      { $match: { patient: { $in: ids } } },
+      { $group: { _id: '$patient', n: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const tookVitals = new Set(vitals.map(String));
+  const docCount = new Map(docs.map((d) => [String(d._id), d.n]));
+
+  for (const row of rows) {
+    const id = row.patientId ? String(row.patientId) : null;
+    row.hasVitals = id ? tookVitals.has(id) : false;
+    row.documentCount = id ? (docCount.get(id) ?? 0) : 0;
+  }
+}
 
 router.post(
   '/',
@@ -1792,6 +1855,16 @@ function serialise(a) {
     mode: a.mode,
     status: a.status,
     reason: a.reason ?? null,
+    /*
+     * Why it was called off, in the words it was called off with.
+     *
+     * The same sentence the patient was sent — see the thread note in PATCH
+     * /:id/cancel. The clinic needs it on the declined list for the same
+     * reason the patient needed it in their chat: a row that says only
+     * "cancelled" cannot be told from a row that says "the day you asked for
+     * is full", and only one of those is somebody to ring back.
+     */
+    cancellationReason: a.cancellationReason ?? null,
     queueNumber: a.queueNumber ?? null,
     // The two instants the waiting room turns on. Null on an appointment that
     // predates them being recorded, which the queue shows as no time at all
