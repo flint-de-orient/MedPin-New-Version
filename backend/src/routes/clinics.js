@@ -356,10 +356,23 @@ async function practiceDoctor(req, clinic) {
   return User.findOne({ _id: id, role: ROLES.DOCTOR }).select('_id name specialty').lean();
 }
 
+/*
+ * A doctor's diary at a location, as the app reads it back.
+ *
+ * The three slot rules were saved and never returned. A doctor set "2 per
+ * slot, 3 walk-in places, a 5-minute break", the write landed correctly, and
+ * the next time the screen loaded it read 1 / 0 / 0 — the Dart model's own
+ * defaults, because nothing in the response contradicted them. Their setting
+ * was invisible to them, which is worse than not having the setting: it looks
+ * like the save failed.
+ */
 const diaryOut = (row) =>
   row
     ? {
         slotMinutes: row.slotMinutes,
+        patientsPerSlot: row.patientsPerSlot ?? 1,
+        walkInPlaces: row.walkInPlaces ?? 0,
+        breakMinutes: row.breakMinutes ?? 0,
         weeklyHours: (row.weeklyHours ?? [])
           .map((w) => ({ dayOfWeek: w.dayOfWeek, start: w.start, end: w.end }))
           .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.start.localeCompare(b.start)),

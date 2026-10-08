@@ -109,6 +109,12 @@ availabilitySchema.methods.toPublic = function toPublic() {
     doctor: String(this.doctor),
     location: String(this.location),
     slotMinutes: this.slotMinutes,
+    // The same three `diaryOut` returns. This serialiser is unused on that
+    // path, but a shape that disagrees with the one the app actually reads
+    // is a trap for whoever wires the next caller.
+    patientsPerSlot: this.patientsPerSlot ?? 1,
+    walkInPlaces: this.walkInPlaces ?? 0,
+    breakMinutes: this.breakMinutes ?? 0,
     weeklyHours: (this.weeklyHours ?? [])
       .map((w) => ({ dayOfWeek: w.dayOfWeek, start: w.start, end: w.end }))
       .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.start.localeCompare(b.start)),

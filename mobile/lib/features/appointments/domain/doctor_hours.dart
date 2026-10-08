@@ -51,6 +51,15 @@ class DoctorHours {
       specialty: doctor['specialty']?.toString(),
       usesLocationHours: j['usesLocationHours'] != false || diary == null,
       slotMinutes: (diary?['slotMinutes'] as num?)?.toInt(),
+      // The three slot rules. They were saved and never read back, so the
+      // screen showed the constructor's 1 / 0 / 0 whatever the doctor had
+      // set — their own setting invisible to them, which reads as a save
+      // that failed. The `??` keeps an older server honest: absent is not
+      // zero, it is "this server does not know", and the defaults are what
+      // that server actually behaves as.
+      patientsPerSlot: (diary?['patientsPerSlot'] as num?)?.toInt() ?? 1,
+      walkInPlaces: (diary?['walkInPlaces'] as num?)?.toInt() ?? 0,
+      breakMinutes: (diary?['breakMinutes'] as num?)?.toInt() ?? 0,
       weeklyHours:
           (diary?['weeklyHours'] as List?)
               ?.whereType<Map<String, dynamic>>()

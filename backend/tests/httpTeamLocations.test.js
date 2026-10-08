@@ -168,6 +168,45 @@ describe('the locations somebody may run', () => {
     assert.equal(none.body.plan, null, 'no plan is null, not a guessed tier');
   });
 
+  test('the three slot rules come back from the diary', async () => {
+    /*
+     * They were saved and never returned. `diaryOut` sent slotMinutes,
+     * weeklyHours and overrides and nothing else, and the Dart model did not
+     * parse them either — so a doctor who set "2 per slot, 3 walk-in places,
+     * a 5-minute break" reopened the screen and read 1 / 0 / 0. Their own
+     * setting invisible to them, which looks exactly like a save that failed.
+     */
+    const { practice, head } = await clinic();
+    const room = await Clinic.create({
+      practice: practice._id,
+      name: 'Salt Lake',
+      isActive: true,
+    });
+
+    const saved = await as(head.token).put(
+      `/clinics/${room._id}/availability/${head.user._id}`,
+      {
+        slotMinutes: 15,
+        patientsPerSlot: 2,
+        walkInPlaces: 3,
+        breakMinutes: 5,
+        weeklyHours: [{ dayOfWeek: 1, start: '09:00', end: '13:00' }],
+      },
+    );
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+
+    const read = await as(head.token).get(`/clinics/${room._id}/availability`);
+    assert.equal(read.status, 200, JSON.stringify(read.body));
+
+    const mine = read.body.items.find(
+      (d) => String(d.doctor.id) === String(head.user._id),
+    );
+    assert.ok(mine, 'the doctor is not in the location’s diary');
+    assert.equal(mine.diary.patientsPerSlot, 2);
+    assert.equal(mine.diary.walkInPlaces, 3);
+    assert.equal(mine.diary.breakMinutes, 5);
+  });
+
   test('the roster says when each job started', async () => {
     const { head } = await clinic();
 
