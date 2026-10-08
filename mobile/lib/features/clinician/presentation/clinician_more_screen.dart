@@ -23,7 +23,6 @@ import '../../appointments/domain/clinic.dart';
 import '../../appointments/presentation/appointment_providers.dart';
 import '../../doctor_home/domain/profile_completeness.dart';
 import '../../doctor_home/presentation/doctor_signature_screen.dart';
-import '../../doctor_home/presentation/widgets/not_on_file.dart';
 import '../../doctor_home/presentation/widgets/profile_header.dart';
 import '../../doctor_home/presentation/widgets/profile_parts.dart';
 import '../data/practice_repository.dart';
@@ -446,9 +445,11 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                   title: 'Notifications',
                   onTap: () => context.push('/clinician/more/notifications'),
                 ),
-                const PendingRow(
+                ProfileLink(
                   title: 'Payouts and bank account',
                   subtitle: 'Where online fees are settled',
+                  value: practice?.payout.onFile == true ? null : 'Not set',
+                  onTap: () => context.push('/clinician/more/payouts'),
                 ),
                 ProfileLink(
                   title: 'Privacy and data',
@@ -459,7 +460,10 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                   value: languageName(currentLocale?.languageCode),
                   onTap: () => pickAppLanguage(context, ref),
                 ),
-                const PendingRow(title: 'Help and support'),
+                ProfileLink(
+                  title: 'Help and support',
+                  onTap: () => context.push('/clinician/more/help'),
+                ),
               ],
             ),
             SizedBox(height: D.s6),
@@ -470,12 +474,6 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
             ProfileGroup(children: [const _Version(first: true)]),
             SizedBox(height: D.s6),
 
-            // Two rows, and each is waiting on a decision rather than on
-            // code: nobody has said which account online fees settle into,
-            // and this build has no support contact to put behind a Help row.
-            // An address invented here would bounce.
-            const PendingNote(what: 'payouts and help'),
-            SizedBox(height: D.s6),
 
             // ---- Log out ------------------------------------------------
             ProfileGroup(

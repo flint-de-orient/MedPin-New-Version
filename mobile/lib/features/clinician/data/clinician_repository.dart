@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
@@ -18,6 +19,8 @@ import '../domain/knowledge_chunk.dart';
 import '../domain/patient_summary.dart';
 import '../../../shared/widgets/notification_list_sheet.dart';
 import '../domain/prescription_scan.dart';
+import '../domain/support_request.dart';
+import '../../../core/config/app_config.dart';
 import '../domain/chat_summary.dart';
 import '../domain/caseload_panels.dart';
 import '../domain/ecg_report.dart';
@@ -659,6 +662,57 @@ class ClinicianRepository {
         if (version != null) 'version': version,
       },
     );
+  }
+
+  // ---- help and support -----------------------------------------------------
+
+  /// What this account has asked MedPin, newest first.
+  ///
+  /// This account's, not the practice's. A request may say "my colleague has
+  /// locked me out", and that colleague should not read it from the same
+  /// practice's list — see the note on the filter in backend routes/support.js.
+  Future<List<SupportRequest>> supportRequests() async {
+    final json = await _client.getJson('/support', query: {'limit': '50'});
+    return ((json['items'] as List?) ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(SupportRequest.fromJson)
+        .toList();
+  }
+
+  /// Asks for help.
+  ///
+  /// The build goes with it, because "which version are you on" is the first
+  /// thing every support conversation spends a day establishing and the answer
+  /// a doctor gives is usually "the latest one".
+  Future<SupportRequest> askForHelp({
+    required String topic,
+    required String message,
+  }) async {
+    final json = await _client.postJson(
+      '/support',
+      body: {
+        'topic': topic,
+        'message': message,
+        'appVersion': AppConfig.appVersion,
+        'platform': defaultTargetPlatform.name,
+      },
+    );
+    return SupportRequest.fromJson(json['request'] as Map<String, dynamic>);
+  }
+
+  /// Adds to a request that is already open.
+  Future<SupportRequest> replyToSupport(String id, String text) async {
+    final json = await _client.postJson(
+      '/support/$id/replies',
+      body: {'text': text},
+    );
+    return SupportRequest.fromJson(json['request'] as Map<String, dynamic>);
+  }
+
+  /// Closes it, from the clinic's side.
+  Future<SupportRequest> closeSupport(String id) async {
+    final json = await _client.postJson('/support/$id/close', body: const {});
+    return SupportRequest.fromJson(json['request'] as Map<String, dynamic>);
   }
 
   // ---- departments ----------------------------------------------------------

@@ -28,6 +28,7 @@ import serviceRoutes from './services.js';
 import chatSummaryRoutes from './chatSummaries.js';
 import departmentRoutes from './departments.js';
 import teamRoutes from './team.js';
+import supportRoutes from './support.js';
 import billingRoutes from './billing.js';
 import practiceRoutes from './practices.js';
 import adminRoutes from './admin.js';
@@ -128,6 +129,10 @@ router.use('/chat-summaries', chatSummaryRoutes);
 // already two thousand lines, and a subject with its own models earns one.
 router.use('/departments', departmentRoutes);
 router.use('/team', teamRoutes);
+// A clinician asking MedPin for help. Its own router rather than a branch of
+// feedback.js: what a clinic needs to say, and who should read it, are both
+// different from a patient's. See the note at the top of support.js.
+router.use('/support', supportRoutes);
 // Outside every auth guard: Razorpay posts with no session, and the signature
 // is the authentication. See routes/billing.js.
 router.use('/billing', billingRoutes);

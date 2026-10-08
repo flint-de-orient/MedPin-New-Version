@@ -30,6 +30,8 @@ import '../../features/doctor_home/presentation/doctor_services_screen.dart';
 import '../../features/doctor_home/presentation/doctor_about_screen.dart';
 import '../../features/doctor_home/presentation/doctor_care_rules_screen.dart';
 import '../../features/doctor_home/presentation/doctor_leave_screen.dart';
+import '../../features/doctor_home/presentation/doctor_help_screen.dart';
+import '../../features/doctor_home/presentation/doctor_payouts_screen.dart';
 import '../../features/doctor_home/presentation/doctor_privacy_screen.dart';
 import '../../features/doctor_home/presentation/doctor_location_screen.dart';
 import '../../features/doctor_home/presentation/doctor_locations_screen.dart';
@@ -581,6 +583,19 @@ final Provider<GoRouter> appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/clinician/more/privacy',
         builder: (context, state) => const DoctorPrivacyScreen(),
+      ),
+      // Where MedPin sends this practice's share of the online fees. There is
+      // one Razorpay account and it is ours, so the money lands with us and
+      // is owed onward — see the note at the top of the screen.
+      GoRoute(
+        path: '/clinician/more/payouts',
+        builder: (context, state) => const DoctorPayoutsScreen(),
+      ),
+      // Asking MedPin, and what was already asked. A queue rather than an
+      // email address, for the reason at the top of routes/support.js.
+      GoRoute(
+        path: '/clinician/more/help',
+        builder: (context, state) => const DoctorHelpScreen(),
       ),
       // Days the clinic is shut. The field has existed all along — see the
       // note at the top of doctor_leave_screen.dart.

@@ -7,6 +7,7 @@ import { requireAdmin } from '../middleware/requireAdmin.js';
 import adminBillingRoutes from './adminBilling.js';
 import adminApplicationRoutes from './adminApplications.js';
 import adminFeedbackRoutes from './adminFeedback.js';
+import adminSupportRoutes from './adminSupport.js';
 import { validate, q } from '../middleware/validate.js';
 import { asyncHandler, unauthorized, notFound, badRequest, conflict } from '../middleware/errors.js';
 import { PlatformAdmin } from '../models/PlatformAdmin.js';
@@ -472,6 +473,10 @@ router.use('/billing', adminBillingRoutes);
 // Feedback no practice reads — about the app, or from somebody no practice has
 // taken on — nested for the same reason, and without the patient's identity.
 router.use('/feedback', adminFeedbackRoutes);
+
+// The clinics' own help requests, nested for the same reason. Named, unlike
+// patient feedback — see the note at the top of adminSupport.js.
+router.use('/support', adminSupportRoutes);
 
 /*
  * The self-registration queue, nested for exactly the same reason.

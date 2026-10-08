@@ -291,7 +291,7 @@ function mutations() {
  * mounted after the guard — without that assertion this would be a way to
  * exempt a file by adding its name here.
  */
-const PLATFORM = new Set(['admin.js', 'adminBilling.js', 'adminApplications.js', 'adminFeedback.js']);
+const PLATFORM = new Set(['admin.js', 'adminBilling.js', 'adminApplications.js', 'adminFeedback.js', 'adminSupport.js']);
 
 /** Whether something other than the classification list authorises this route. */
 function guarded({ file, body, routerLevel }) {
