@@ -30,6 +30,7 @@ import '../domain/practice.dart';
 import '../../doctor_home/presentation/widgets/profile_actions.dart';
 import '../domain/team_member.dart';
 import 'clinician_providers.dart';
+import 'clinician_refresh.dart';
 import 'widgets/clinician_notification_sheet.dart';
 
 /// "MBBS, MD · WBMC 64213", or null while there is nothing to print.
@@ -142,9 +143,27 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(D.s4, D.s5, D.s4, D.s8),
-          children: [
+        /*
+         * Pull to refresh, because nothing else on this screen ever asks
+         * again.
+         *
+         * It had neither a pull nor a timer, and every live figure on it —
+         * the locations count, the two team counts, whether the doctor is
+         * taking bookings, what is left to finish — was whatever the server
+         * said when the screen first opened. A location added at the desk, a
+         * colleague suspended by a colleague, a practice phone changed on
+         * another handset: none of it appeared until the app was killed and
+         * reopened, and nothing on the screen suggested that was necessary.
+         */
+        child: RefreshIndicator(
+          color: D.brand,
+          onRefresh: () => refreshClinicianContext(ref),
+          child: ListView(
+            // Always scrollable, or a short screen — a receptionist's, with
+            // half these sections hidden — cannot be pulled at all.
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(D.s4, D.s5, D.s4, D.s8),
+            children: [
             ProfileIdentity(
               name: user?.name ?? roleLabel,
               // Grouped, as every other number in this app is shown. Raw, it
@@ -499,7 +518,8 @@ class _ClinicianMoreScreenState extends ConsumerState<ClinicianMoreScreen> {
                 ),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

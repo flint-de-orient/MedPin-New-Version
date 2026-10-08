@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/config/app_config.dart';
+import 'features/clinician/presentation/clinician_refresh.dart';
 import 'core/router/app_router.dart';
 import 'core/update/update_prompt.dart';
 import 'core/update/update_required_screen.dart';
@@ -49,7 +52,32 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       _syncMedsIfPatient();
       // And make sure the server still has this phone. See PushService.refresh.
       ref.read(pushServiceProvider).refresh();
+      _refreshClinicianContext();
     }
+  }
+
+  /// Coming back to the app, ask again for what somebody else may have
+  /// changed.
+  ///
+  /// ---- Why a clinician and not everybody ----------------------------------
+  ///
+  /// A patient's app is about their own record, and nobody else edits it
+  /// while they are looking at it. A clinician's is shared: the desk adds a
+  /// colleague, another handset changes the practice phone, a location is
+  /// opened. None of that reached an app that was already running — there is
+  /// no socket here — so the screens showed whatever the server had said when
+  /// they first loaded, for as long as the app stayed open.
+  ///
+  /// Resume is the right moment for it. It is when a doctor comes back to the
+  /// app after the thing that changed has happened, and it costs three
+  /// requests rather than a timer running all day in a clinic with one bar of
+  /// signal.
+  void _refreshClinicianContext() {
+    final user = ref.read(authControllerProvider).user;
+    if (user == null || user.role == 'patient') return;
+    // Not awaited: nothing is waiting on it, and each screen rebuilds as its
+    // own provider lands.
+    unawaited(refreshClinicianContext(ref));
   }
 
   void _syncMedsIfPatient() {

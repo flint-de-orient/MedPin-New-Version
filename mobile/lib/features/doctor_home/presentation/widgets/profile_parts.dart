@@ -182,7 +182,10 @@ class ProfileGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: D.s5),
+      // The artboard's 16, not 20. At 20 the hairline between two rows stops
+      // short of where the eye expects a list to divide, and the card reads
+      // as narrower than the cards above and below it that have no rows.
+      padding: EdgeInsets.symmetric(horizontal: D.s4),
       decoration: BoxDecoration(
         color: D.card,
         borderRadius: BorderRadius.circular(D.rSection),
@@ -238,11 +241,33 @@ class ProfileLink extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: D.row.copyWith(color: D.ink)),
+                /*
+                 * 15/600 over 13 muted, which is what `Doctor-MyProfile`
+                 * draws and what this was not.
+                 *
+                 * It was 16/400 over 13 faint. Two things went wrong with
+                 * that. A row title at the same weight as its own subtitle
+                 * has no hierarchy inside the row, so a card of six rows
+                 * reads as twelve lines of undifferentiated grey; and the
+                 * subtitle at [D.inkFaint] was a step lighter than the
+                 * board's #545E72, which is [D.inkMuted] — so the half of
+                 * the row that says what it *does* was the hardest half to
+                 * read.
+                 */
+                Text(
+                  title,
+                  style: D.subtitle.copyWith(
+                    color: D.ink,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 if (subtitle != null)
                   Text(
                     subtitle!,
-                    style: D.statLabel.copyWith(color: D.inkFaint),
+                    style: D.statLabel.copyWith(
+                      color: D.inkMuted,
+                      height: 1.4,
+                    ),
                   ),
               ],
             ),

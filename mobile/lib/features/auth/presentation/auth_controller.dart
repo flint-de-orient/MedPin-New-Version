@@ -212,6 +212,33 @@ class AuthController extends StateNotifier<AuthState> {
   /// Swaps in the user object returned by a successful profile update, so the
   /// rest of the app sees the new name, email, date of birth or gender without
   /// a refetch.
+  /// Re-reads the account from the server.
+  ///
+  /// ---- Why this is not `_bootstrap` ---------------------------------------
+  ///
+  /// Bootstrap decides whether there is a session at all, and clears the
+  /// store when there is not. This runs on a session that is already good —
+  /// a pull-to-refresh, or the app coming back to the foreground — and a
+  /// failure there means the network, not a signed-out user. So it leaves the
+  /// state exactly as it was rather than logging anybody out because a train
+  /// went into a tunnel.
+  ///
+  /// The call itself is what makes a change somebody else made show up: the
+  /// account carries the qualifications, the registration number and the
+  /// languages the profile screens read, and nothing else re-asks for them.
+  Future<void> refreshUser() async {
+    if (state.status != AuthStatus.authenticated) return;
+    try {
+      final result = await _repository.getMe();
+      // Checked again: a logout may have landed while this was in flight, and
+      // writing an authenticated state over it would sign somebody back in.
+      if (state.status != AuthStatus.authenticated) return;
+      state = AuthState.authenticated(result.user);
+    } catch (_) {
+      // Deliberately silent. Nothing asked for this; it is a refresh.
+    }
+  }
+
   void replaceUser(AppUser user) {
     if (state.status != AuthStatus.authenticated) return;
     state = AuthState.authenticated(user);
