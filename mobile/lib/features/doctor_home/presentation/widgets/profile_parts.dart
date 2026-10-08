@@ -249,24 +249,51 @@ class ProfileLink extends StatelessWidget {
           ),
           if (badge != null) ...[
             SizedBox(width: D.s2),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: D.s2, vertical: D.s1 / 2),
-              decoration: BoxDecoration(
-                color: badgeGround ?? D.track,
-                borderRadius: D.rPill,
-              ),
-              child: Text(
-                badge!,
-                style: D.caption.copyWith(
-                  color: badgeInk ?? D.inkMuted,
-                  fontWeight: FontWeight.w700,
+            // Flexible, for the same reason as the value below: "MedPin
+            // replied" at a raised text size is wider than the half of a row
+            // a pill is drawn as having.
+            Flexible(
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: D.s2,
+                  vertical: D.s1 / 2,
+                ),
+                decoration: BoxDecoration(
+                  color: badgeGround ?? D.track,
+                  borderRadius: D.rPill,
+                ),
+                child: Text(
+                  badge!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: D.caption.copyWith(
+                    color: badgeInk ?? D.inkMuted,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
           ],
           if (value != null) ...[
             SizedBox(width: D.s2),
-            Text(value!, style: D.statLabel.copyWith(color: D.inkMuted)),
+            // Flexible, not bare.
+            //
+            // A bare Text takes its natural width and overflows the row — and
+            // it did, by 710 pixels, the first time a row carried a value as
+            // long as a bank's name and the reader had their text at twice the
+            // size. Flexible beside the Expanded title caps it at its share
+            // and lets it wrap; two lines, because the values on these rows
+            // are things like an account or a date that have to be read whole
+            // rather than ellipsised to "HDFC, Salt L…".
+            Flexible(
+              child: Text(
+                value!,
+                textAlign: TextAlign.end,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: D.statLabel.copyWith(color: D.inkMuted),
+              ),
+            ),
           ],
           if (onTap != null) ...[
             SizedBox(width: D.s1),
