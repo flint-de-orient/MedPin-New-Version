@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:medpin/core/theme/doctor_tokens.dart';
+import 'package:medpin/features/doctor_home/presentation/widgets/profile_parts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -116,6 +120,18 @@ class _Support implements ClinicianRepository {
 }
 
 void main() {
+  /*
+   * The real face, or none of the width assertions below mean anything: the
+   * test font gives every glyph a full em, so "Colleagues you work with"
+   * measures 345dp and wraps on any phone. Figtree is what D sets these
+   * screens in.
+   */
+  setUpAll(() async {
+    final figtree = FontLoader('Figtree')
+      ..addFont(rootBundle.load('assets/fonts/Figtree.ttf'));
+    await figtree.load();
+  });
+
   late _Practices practices;
 
   setUp(() => practices = _Practices());
@@ -355,6 +371,90 @@ void main() {
         ),
         textScaler: const TextScaler.linear(2),
       );
+
+      expect(tester.takeException(), isNull);
+      for (final box in tester.renderObjectList<RenderBox>(find.byType(Text))) {
+        expect(box.size.width, lessThanOrEqualTo(360 + 0.5));
+      }
+    });
+  });
+
+  group('a profile row', () {
+    testWidgets('a short value does not squeeze the title into two lines', (
+      tester,
+    ) async {
+      /*
+       * The regression this exists for. The value was given Flexible beside
+       * the title's Expanded, so the two carried equal flex and split the row
+       * in half whatever the value needed — "0 people" reserved 150dp for
+       * 60dp of text, and "Colleagues you work with" wrapped into two lines
+       * beside the space it had been denied.
+       */
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: Scaffold(
+            backgroundColor: D.ground,
+            body: Padding(
+              padding: EdgeInsets.all(D.s4),
+              child: ProfileGroup(
+                children: [
+                  ProfileLink(
+                    first: true,
+                    title: 'Colleagues you work with',
+                    subtitle: 'Doctors, dieticians and the rest of the practice',
+                    value: '1 person',
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final title = find.text('Colleagues you work with');
+      final para = tester.renderObject<RenderParagraph>(title);
+      expect(
+        para.size.height,
+        lessThan(para.getMaxIntrinsicHeight(double.infinity) * 1.6),
+        reason: 'the title wrapped although the row had room for it',
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a long value still wraps inside the row, not off it', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: Scaffold(
+            body: Padding(
+              padding: EdgeInsets.all(D.s4),
+              child: ProfileGroup(
+                children: [
+                  ProfileLink(
+                    first: true,
+                    title: 'Account',
+                    value: 'HDFC Bank, Salt Lake Sector V ••••7890',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
       for (final box in tester.renderObjectList<RenderBox>(find.byType(Text))) {

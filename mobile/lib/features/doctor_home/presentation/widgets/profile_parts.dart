@@ -274,10 +274,11 @@ class ProfileLink extends StatelessWidget {
           ),
           if (badge != null) ...[
             SizedBox(width: D.s2),
-            // Flexible, for the same reason as the value below: "MedPin
-            // replied" at a raised text size is wider than the half of a row
-            // a pill is drawn as having.
-            Flexible(
+            // Capped, for the same reason as the value below.
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.textScalerOf(context).scale(D.rowValue),
+              ),
               child: Container(
                 padding: EdgeInsets.symmetric(
                   horizontal: D.s2,
@@ -301,16 +302,26 @@ class ProfileLink extends StatelessWidget {
           ],
           if (value != null) ...[
             SizedBox(width: D.s2),
-            // Flexible, not bare.
+            // Capped, not flexed, and not bare.
             //
-            // A bare Text takes its natural width and overflows the row — and
-            // it did, by 710 pixels, the first time a row carried a value as
-            // long as a bank's name and the reader had their text at twice the
-            // size. Flexible beside the Expanded title caps it at its share
-            // and lets it wrap; two lines, because the values on these rows
-            // are things like an account or a date that have to be read whole
-            // rather than ellipsised to "HDFC, Salt L…".
-            Flexible(
+            // Bare, a Text takes its natural width and overflows the row — it
+            // did, by 710 pixels, the first time a row carried a value as long
+            // as a bank's name at twice the text size.
+            //
+            // But Flexible was the wrong fix. Beside the title's Expanded the
+            // two carry equal flex, so the row is split in half whatever the
+            // value actually needs: "0 people" reserved 150dp for 60dp of
+            // text and "Colleagues you work with" wrapped into two lines next
+            // to the space it was denied.
+            //
+            // A cap does both jobs. A short value takes its own width and the
+            // title gets everything left over; a long one wraps inside the cap
+            // instead of off the screen. Scaled with the text, or the cap
+            // itself becomes the clipping bug at a large size.
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.textScalerOf(context).scale(D.rowValue),
+              ),
               child: Text(
                 value!,
                 textAlign: TextAlign.end,

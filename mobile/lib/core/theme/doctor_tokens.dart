@@ -299,6 +299,15 @@ class D {
   static const double tileMin = 112;
   static const double bar = 64;
 
+  /// The widest the value on the right of a profile row may be.
+  ///
+  /// A cap rather than a flex share. Given [Flexible] beside the title's
+  /// [Expanded] the two split the row in half, so "0 people" reserved 150dp
+  /// it did not need and "Colleagues you work with" wrapped beside it. A cap
+  /// lets a short value take its own width and hands the rest back to the
+  /// title, while still stopping a long one running off the screen.
+  static const double rowValue = 136;
+
   /// A count: never narrower than this, however few digits.
   static const double badgeMin = 18;
 
